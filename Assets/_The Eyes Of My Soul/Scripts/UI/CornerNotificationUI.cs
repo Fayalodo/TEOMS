@@ -1,22 +1,30 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
 
 /// <summary>
-/// Простое уведомление в углу экрана.
-/// Создайте Canvas -> UI panel с этим компонентом и TextMeshProUGUI в поле text.
-/// Вызов: CornerNotificationUI.Instance.Show("Предмет подобран", 2f);
+/// Стековая система уведомлений в углу экрана.
+/// - Каждое уведомление создаётся как отдельная запись (entryPrefab) и показывается в колонку.
+/// - Не заменяет предыдущие уведомления.
+/// - Поддерживает pooling (опционально).
 /// </summary>
 public class CornerNotificationUI : MonoBehaviour
 {
-    public TextMeshProUGUI text;
-    public CanvasGroup canvasGroup;
-    public float fadeSpeed = 8f;
-    public float defaultDuration = 2f;
-    public Vector2 showOffset = new Vector2(10f, 10f); // место в углу (нешаблонное, настраивается через RectTransform)
+    [Header("UI References")]
+    [Tooltip("Prefab записи уведомления. Должен содержать NotificationEntryUI компонент.")]
+    public GameObject entryPrefab;
 
-    private Coroutine current;
+    [Tooltip("Контейнер (обычно Vertical Layout Group) для записей.")]
+    public Transform container;
+
+    [Header("Settings")]
+    public float defaultDuration = 2f;
+
+    // simple pool
+    private readonly Stack<GameObject> pool = new Stack<GameObject>();
+
     public static CornerNotificationUI Instance { get; private set; }
 
     void Awake()
@@ -24,44 +32,52 @@ public class CornerNotificationUI : MonoBehaviour
         if (Instance != null && Instance != this) Destroy(this.gameObject);
         else Instance = this;
 
-        if (canvasGroup == null) canvasGroup = GetComponent<CanvasGroup>();
-        if (canvasGroup == null) canvasGroup = gameObject.AddComponent<CanvasGroup>();
-        canvasGroup.alpha = 0f;
+        if (container == null)
+        {
+            Debug.LogWarning("CornerNotificationUI: container not assigned. Using this.transform as container.");
+            container = transform;
+        }
     }
 
+    /// <summary>
+    /// Показывает новое уведомление (не заменяет старые).
+    /// </summary>
     public void Show(string message, float duration = -1f)
     {
-        if (text != null) text.text = message;
         if (duration <= 0f) duration = defaultDuration;
+        if (entryPrefab == null)
+        {
+            Debug.LogWarning("CornerNotificationUI: entryPrefab not assigned. Fallback to simple log.");
+            Debug.Log(message);
+            return;
+        }
 
-        if (current != null) StopCoroutine(current);
-        current = StartCoroutine(IShow(duration));
+        GameObject go = GetFromPool();
+        go.transform.SetParent(container, false);
+        go.SetActive(true);
+
+        var entry = go.GetComponent<NotificationEntryUI>();
+        if (entry == null)
+        {
+            entry = go.AddComponent<NotificationEntryUI>();
+        }
+        entry.Setup(message, duration, () => ReturnToPool(go));
     }
 
-    private IEnumerator IShow(float duration)
+    private GameObject GetFromPool()
     {
-        // Fade in
-        while (canvasGroup.alpha < 1f)
+        if (pool.Count > 0)
         {
-            canvasGroup.alpha = Mathf.MoveTowards(canvasGroup.alpha, 1f, Time.unscaledDeltaTime * fadeSpeed);
-            yield return null;
+            var g = pool.Pop();
+            return g;
         }
+        return Instantiate(entryPrefab);
+    }
 
-        // Wait
-        float timer = 0f;
-        while (timer < duration)
-        {
-            timer += Time.unscaledDeltaTime;
-            yield return null;
-        }
-
-        // Fade out
-        while (canvasGroup.alpha > 0f)
-        {
-            canvasGroup.alpha = Mathf.MoveTowards(canvasGroup.alpha, 0f, Time.unscaledDeltaTime * fadeSpeed);
-            yield return null;
-        }
-
-        current = null;
+    private void ReturnToPool(GameObject go)
+    {
+        go.SetActive(false);
+        go.transform.SetParent(transform, false);
+        pool.Push(go);
     }
 }

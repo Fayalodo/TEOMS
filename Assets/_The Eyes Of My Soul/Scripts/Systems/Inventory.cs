@@ -5,6 +5,14 @@ using UnityEngine.Events;
 
 [Serializable] public class InventoryChangedEvent : UnityEvent { }
 
+public enum ItemSource
+{
+    World,
+    Chest,
+    NPC,
+    Other
+}
+
 [RequireComponent(typeof(AudioSource))]
 public class Inventory : MonoBehaviour
 {
@@ -21,10 +29,6 @@ public class Inventory : MonoBehaviour
     [Header("Начальные предметы (для отладки)")]
     public List<InventoryItem> initialItems = new List<InventoryItem>();
 
-    [Header("Звуки (опционально)")]
-    public AudioClip addSound;
-    public AudioClip removeSound;
-
     [Header("Событие — вызывается при изменении инвентаря")]
     public InventoryChangedEvent OnInventoryChanged;
 
@@ -32,6 +36,12 @@ public class Inventory : MonoBehaviour
     private List<InventoryItem> items;
 
     private AudioSource audioSource;
+
+    // C# события — используются для UI/notifications/etc.
+    // (itemDef, quantityChanged, slotIndex, source)
+    public event Action<ItemDefinition, int, int, ItemSource> OnItemAdded;
+    public event Action<ItemDefinition, int, int, ItemSource> OnItemRemoved; // quantity removed, slotIndex
+    public event Action<ItemDefinition, int, int> OnItemUsed; // (def, qty, slotIndex)
 
     public IReadOnlyList<InventoryItem> Items => items;
 
@@ -44,13 +54,16 @@ public class Inventory : MonoBehaviour
         foreach (var it in initialItems)
         {
             if (it != null && it.item != null)
-                TryAddItem(it.item, it.quantity);
+                TryAddItem(it.item, it.quantity, ItemSource.Other);
         }
     }
 
-    #region Основные операции: Add, Remove, Move, Use
-
-    public bool TryAddItem(ItemDefinition def, int quantity = 1)
+    /// <summary>
+    /// Попытаться добавить предмет(ы) в инвентарь.
+    /// Возвращает true если удалось добавить полностью.
+    /// При добавлении вызываются события OnItemAdded (для каждого изменённого слота).
+    /// </summary>
+    public bool TryAddItem(ItemDefinition def, int quantity = 1, ItemSource source = ItemSource.World)
     {
         if (def == null || quantity <= 0) return false;
 
@@ -61,62 +74,83 @@ public class Inventory : MonoBehaviour
             if (newWeight > maxWeight) return false;
         }
 
+        int remaining = quantity;
+        int addedTotal = 0;
+
+        // сначала дописать в существующие стеки
         if (def.stackable && allowStacking)
         {
-            // сначала попробуем дописать в существующие стеки
-            for (int i = 0; i < items.Count; i++)
+            for (int i = 0; i < items.Count && remaining > 0; i++)
             {
                 var slot = items[i];
                 if (slot.item == def && slot.quantity < def.maxStack)
                 {
-                    int canAdd = Mathf.Min(quantity, def.maxStack - slot.quantity);
+                    int canAdd = Mathf.Min(remaining, def.maxStack - slot.quantity);
                     slot.quantity += canAdd;
                     items[i] = slot;
-                    quantity -= canAdd;
-                    PlaySound(addSound);
-                    if (quantity <= 0) { OnInventoryChanged?.Invoke(); return true; }
+                    remaining -= canAdd;
+                    addedTotal += canAdd;
+                    PlaySound(audioSource, null);
+                    OnItemAdded?.Invoke(def, canAdd, i, source);
                 }
             }
         }
 
         // затем положить в пустые слоты
-        for (int i = 0; i < items.Count && quantity > 0; i++)
+        for (int i = 0; i < items.Count && remaining > 0; i++)
         {
             if (items[i].IsEmpty)
             {
-                int put = def.stackable ? Mathf.Min(quantity, def.maxStack) : 1;
+                int put = def.stackable ? Mathf.Min(remaining, def.maxStack) : 1;
                 items[i] = new InventoryItem(def, put);
-                quantity -= put;
-                PlaySound(addSound);
+                remaining -= put;
+                addedTotal += put;
+                PlaySound(audioSource, null);
+                OnItemAdded?.Invoke(def, put, i, source);
             }
         }
 
         OnInventoryChanged?.Invoke();
-        return quantity <= 0;
+
+        // уведомление через глобальный UI (если есть)
+        // Покажем уведомление только если предметы добавлены и источник НЕ World,
+        // чтобы избежать дублирования с PlayerPickupController при подборе в мире.
+        if (addedTotal > 0 && source != ItemSource.World)
+        {
+            var msg = $"Подобрано: {def.displayName}" + (addedTotal > 1 ? $" x{addedTotal}" : "");
+            CornerNotificationUI.Instance?.Show(msg, 1.8f);
+        }
+
+        return remaining <= 0;
     }
 
-    public bool RemoveItemAt(int slotIndex, int amount = 1)
+    public bool RemoveItemAt(int slotIndex, int amount = 1, ItemSource source = ItemSource.Other, bool showNotification = true)
     {
         if (!IndexValid(slotIndex) || amount <= 0) return false;
         var slot = items[slotIndex];
         if (slot.IsEmpty) return false;
+
+        int removed = Mathf.Min(amount, slot.quantity);
         if (amount >= slot.quantity)
-        {
             items[slotIndex] = new InventoryItem();
-            PlaySound(removeSound);
-        }
         else
         {
-            slot.quantity -= amount;
+            slot.quantity -= removed;
             items[slotIndex] = slot;
-            PlaySound(removeSound);
         }
+
+        PlaySound(audioSource, null);
+        OnItemRemoved?.Invoke(slot.item, removed, slotIndex, source);
         OnInventoryChanged?.Invoke();
+
+        if (showNotification && slot.item != null)
+            CornerNotificationUI.Instance?.Show($"Убрано: {slot.item.displayName}" + (removed > 1 ? $" x{removed}" : ""), 1.6f);
+
         return true;
     }
 
     // Удалить указанное количество предметов указанного типа (проходит по всем слотам)
-    public int RemoveItems(ItemDefinition def, int amount)
+    public int RemoveItems(ItemDefinition def, int amount, ItemSource source = ItemSource.Other)
     {
         if (def == null || amount <= 0) return 0;
         int removed = 0;
@@ -125,7 +159,7 @@ public class Inventory : MonoBehaviour
             if (items[i].item == def)
             {
                 int take = Mathf.Min(items[i].quantity, amount - removed);
-                RemoveItemAt(i, take);
+                RemoveItemAt(i, take, source);
                 removed += take;
             }
         }
@@ -139,7 +173,7 @@ public class Inventory : MonoBehaviour
         var a = items[fromIndex];
         var b = items[toIndex];
 
-        // простой swap с попыткой стэка если одинаковые и стекуемые
+        // простой merge если одинаковые и стекуемые
         if (a.item != null && b.item == a.item && a.item.stackable && allowStacking)
         {
             int space = a.item.maxStack - b.quantity;
@@ -155,7 +189,6 @@ public class Inventory : MonoBehaviour
             }
         }
 
-        // swap
         items[toIndex] = a;
         items[fromIndex] = b;
         OnInventoryChanged?.Invoke();
@@ -169,20 +202,26 @@ public class Inventory : MonoBehaviour
         var slot = items[slotIndex];
         if (slot.IsEmpty) return false;
 
-        // пример: если consumable — уменьшить на 1, и вызвать действие
+        // consumable — использовать и удалить 1 шт.
         if (slot.item.consumable)
         {
             Debug.Log($"Использован предмет: {slot.item.displayName}");
-            RemoveItemAt(slotIndex, 1);
+
+            // удаляем предмет, но не показываем уведомление "Убрано"
+            RemoveItemAt(slotIndex, 1, ItemSource.Other, showNotification: false);
+
+            OnItemUsed?.Invoke(slot.item, 1, slotIndex);
+
+            // одно уведомление о том, что предмет использован
+            CornerNotificationUI.Instance?.Show($"Использовано: {slot.item.displayName}", 1.6f);
             return true;
         }
 
-        // если equipment — можно поместить логику экипировки
-        Debug.Log($"Try to use item: {slot.item.displayName} (implement behavior)");
+        // equipment — можно добавить логику экипировки
+        Debug.Log($"Попытка использовать предмет: {slot.item.displayName} (реализуйте логику)");
         return false;
     }
 
-    #endregion
 
     #region Утилиты
 
@@ -212,10 +251,10 @@ public class Inventory : MonoBehaviour
 
     private bool IndexValid(int i) => i >= 0 && i < items.Count;
 
-    private void PlaySound(AudioClip clip)
+    private void PlaySound(AudioSource src, AudioClip clip)
     {
-        if (audioSource == null || clip == null) return;
-        audioSource.PlayOneShot(clip);
+        if (src == null || clip == null) return;
+        src.PlayOneShot(clip);
     }
 
     #endregion
