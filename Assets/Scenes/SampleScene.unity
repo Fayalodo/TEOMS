@@ -1135,7 +1135,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 0724cd317bae6284d8bb81536a1ea291, type: 2}
+  - {fileID: 2100000, guid: 84915c014bace4742bc727822269a53a, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -1851,7 +1851,9 @@ MonoBehaviour:
   slots: 20
   maxWeight: 0
   allowStacking: 1
-  initialItems: []
+  initialItems:
+  - item: {fileID: 11400000, guid: ac5ff3da1fd1fed4ebab85637b16989b, type: 2}
+    quantity: 20
   OnInventoryChanged:
     m_PersistentCalls:
       m_Calls: []

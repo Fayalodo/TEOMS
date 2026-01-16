@@ -112,14 +112,8 @@ public class Inventory : MonoBehaviour
 
         OnInventoryChanged?.Invoke();
 
-        // уведомление через глобальный UI (если есть)
-        // Покажем уведомление только если предметы добавлены и источник НЕ World,
-        // чтобы избежать дублирования с PlayerPickupController при подборе в мире.
-        if (addedTotal > 0 && source != ItemSource.World)
-        {
-            var msg = $"Подобрано: {def.displayName}" + (addedTotal > 1 ? $" x{addedTotal}" : "");
-            CornerNotificationUI.Instance?.Show(msg, 1.8f);
-        }
+        // УБРАН блок с уведомлением для World-предметов, чтобы избежать дублирования
+        // Уведомления для World-предметов теперь показываются только в PlayerPickupController
 
         return remaining <= 0;
     }

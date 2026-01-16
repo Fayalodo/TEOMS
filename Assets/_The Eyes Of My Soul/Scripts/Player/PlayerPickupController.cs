@@ -177,13 +177,19 @@ public class PlayerPickupController : MonoBehaviour
         {
             OnPickupSuccess?.Invoke(currentTarget);
 
-            // Corner notification about successful pickup
+            // Показываем уведомление с количеством
             if (cornerNotificationUI != null)
             {
-                cornerNotificationUI.Show($"Подобрано: {currentTarget.item.displayName}");
+                string msg = $"Подобрано: {currentTarget.item.displayName}";
+                if (currentTarget.amount > 1)
+                    msg += $" x{currentTarget.amount}";
+                cornerNotificationUI.Show(msg, 1.8f);
             }
 
-            Destroy(currentTarget.gameObject);
+            // Уничтожаем объект в мире
+            if (currentTarget != null && currentTarget.gameObject != null)
+                Destroy(currentTarget.gameObject);
+
             currentTarget = null;
             promptUI?.Hide();
             DestroyCurrentWorldLabel();
@@ -194,7 +200,7 @@ public class PlayerPickupController : MonoBehaviour
             // можно показать сообщение: инвентарь полон
             if (cornerNotificationUI != null)
                 cornerNotificationUI.Show("Невозможно подобрать: инвентарь полон или превышен вес", 2f);
-            Debug.Log("Не удалось ��одобрать предмет (инвентарь полон или превышен вес).");
+            Debug.Log("Не удалось подобрать предмет (инвентарь полон или превышен вес).");
         }
     }
 
