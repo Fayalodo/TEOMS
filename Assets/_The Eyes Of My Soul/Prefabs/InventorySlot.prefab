@@ -92,8 +92,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 24
-  m_fontSizeBase: 24
+  m_fontSize: 12
+  m_fontSizeBase: 12
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -166,8 +166,8 @@ RectTransform:
   m_LocalScale: {x: 5, y: 5, z: 5}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 4636000617780285703}
   - {fileID: 1373787128181104750}
+  - {fileID: 4636000617780285703}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
@@ -272,6 +272,9 @@ MonoBehaviour:
   icon: {fileID: 5768667611278936223}
   qtyText: {fileID: 8502389925388642311}
   button: {fileID: 24108400488928772}
+  background: {fileID: 0}
+  highlightColor: {r: 0.8, g: 1, b: 0.6, a: 1}
+  highlightDuration: 1
 --- !u!1 &6297013683877540464
 GameObject:
   m_ObjectHideFlags: 0
@@ -299,7 +302,7 @@ RectTransform:
   m_GameObject: {fileID: 6297013683877540464}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 5, y: 5, z: 5}
+  m_LocalScale: {x: 7, y: 7, z: 7}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1992728783383743875}
@@ -337,8 +340,8 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 10907, guid: 0000000000000000f000000000000000, type: 0}
-  m_Type: 1
+  m_Sprite: {fileID: 0}
+  m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4

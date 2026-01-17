@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1
   displayName: Potion
-  description: 
-  icon: {fileID: 10901, guid: 0000000000000000f000000000000000, type: 0}
+  description: A simple health potion
+  icon: {fileID: 21300000, guid: ab6d0a27bcc78de4ababb59e48624bd8, type: 3}
   worldPrefab: {fileID: 0}
   category: 0
   stackable: 1
