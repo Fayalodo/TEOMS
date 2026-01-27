@@ -1,13 +1,12 @@
-using UnityEngine;
-using System; // Для Action
+п»їusing UnityEngine;
+using System;
 
 public class Health : MonoBehaviour
 {
-    [Header("Настройки здоровья")]
+    [Header("РќР°СЃС‚СЂРѕР№РєРё Р·РґРѕСЂРѕРІСЊСЏ")]
     public float maxHealth = 100f;
     public float currentHealth;
 
-    // C# event вместо UnityEvent - проще, быстрее, безопаснее
     public event Action<float> OnHealthChanged;
     public event Action OnDeath;
 
@@ -23,15 +22,23 @@ public class Health : MonoBehaviour
 
         currentHealth -= damage;
         currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
-
         OnHealthChanged?.Invoke(currentHealth);
 
         if (currentHealth <= 0) Die();
     }
 
+    // вњ… Р”РѕР±Р°РІР»СЏРµРј РјРµС‚РѕРґ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ
+    public void Heal(float amount)
+    {
+        if (currentHealth <= 0) return; // РµСЃР»Рё РјРµСЂС‚РІ, РЅРµ Р»РµС‡РёРј
+        currentHealth += amount;
+        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
+        OnHealthChanged?.Invoke(currentHealth);
+    }
+
     void Die()
     {
         OnDeath?.Invoke();
-        Debug.Log("Игрок умер");
+        Debug.Log("РРіСЂРѕРє СѓРјРµСЂ");
     }
 }
