@@ -9,6 +9,15 @@ public enum ItemCategory
     Misc
 }
 
+public enum ItemUseEffect
+{
+    None,
+    HealHP,
+    DamageHP,
+    RestoreMana,
+    Buff
+}
+
 [CreateAssetMenu(fileName = "NewItem", menuName = "Inventory/Item Definition", order = 0)]
 public class ItemDefinition : ScriptableObject
 {
@@ -29,4 +38,9 @@ public class ItemDefinition : ScriptableObject
 
     [Header("Optional")]
     public bool consumable = false; // если true, UseItem может уменьшать кол-во
+
+    [Header("Use Effects")]
+    public ItemUseEffect useEffect = ItemUseEffect.None;
+    [Tooltip("Значение эффекта (например +25 HP или -10 HP)")]
+    public float effectValue;
 }

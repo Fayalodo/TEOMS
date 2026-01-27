@@ -22,3 +22,5 @@ MonoBehaviour:
   maxStack: 99
   weight: 0.1
   consumable: 1
+  useEffect: 1
+  effectValue: 15
