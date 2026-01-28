@@ -3,6 +3,7 @@ using UnityEngine;
 public enum ItemCategory
 {
     Consumable,
+    Weapon,
     Equipment,
     Material,
     Quest,
