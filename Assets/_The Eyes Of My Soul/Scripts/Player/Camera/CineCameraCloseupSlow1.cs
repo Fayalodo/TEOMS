@@ -1,7 +1,7 @@
 using UnityEngine;
 using Cinemachine;
 
-public class CinemachineZoomTilt : MonoBehaviour
+public class CinemachineZoomTiltSlow1 : MonoBehaviour
 {
     [Header("Zoom")]
     [Tooltip("Шаг зума за один щелчок колеса")]
@@ -17,10 +17,6 @@ public class CinemachineZoomTilt : MonoBehaviour
     public float minTilt = 10f;   // близко
     public float maxTilt = 40f;   // далеко
     public float tiltSmooth = 6f;
-
-    [Header("Tilt")]
-    public float tiltSpeed = 50f; // градусы в секунду, скорость наклона камеры
-
 
     [Header("Follow Offset (Y)")]
     public float minOffsetY = 1.5f;  // при 10°
@@ -73,9 +69,9 @@ public class CinemachineZoomTilt : MonoBehaviour
 
         // ===== TILT =====
         float targetTilt = Mathf.Lerp(maxTilt, minTilt, t);
-        Vector3 rot = vcam.transform.localEulerAngles;
-        rot.x = Mathf.MoveTowardsAngle(rot.x, targetTilt, tiltSpeed * Time.deltaTime);
-        vcam.transform.localEulerAngles = rot;
+        Vector3 rot = transform.eulerAngles;
+        rot.x = Mathf.LerpAngle(rot.x, targetTilt, Time.deltaTime * tiltSmooth);
+        transform.eulerAngles = rot;
 
         // ===== TRACK OBJECT OFFSET =====
         float targetOffsetY = Mathf.Lerp(maxOffsetY, minOffsetY, t);
