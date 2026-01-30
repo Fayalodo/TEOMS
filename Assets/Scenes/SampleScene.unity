@@ -1507,7 +1507,7 @@ Transform:
   m_GameObject: {fileID: 532480015}
   serializedVersion: 2
   m_LocalRotation: {x: 0.3420201, y: 0, z: 0, w: 0.9396927}
-  m_LocalPosition: {x: 0, y: 22.927876, z: -7.6604457}
+  m_LocalPosition: {x: 11, y: 22.927876, z: -7.6604457}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1679,6 +1679,7 @@ GameObject:
   - component: {fileID: 588179734}
   - component: {fileID: 588179733}
   - component: {fileID: 588179732}
+  - component: {fileID: 588179738}
   m_Layer: 0
   m_Name: testenemy
   m_TagString: Untagged
@@ -1717,33 +1718,36 @@ MonoBehaviour:
   m_GameObject: {fileID: 588179731}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7f405e6a9a0a1b34cada8b58d9611bf1, type: 3}
+  m_Script: {fileID: 11500000, guid: 2b29d50a289d199429e07b6fdd79ba07, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  aiType: 1
+  faction: 3
+  hostileFactions: 0000000002000000
+  scheduleType: 0
+  minWanderDelay: 6.8
+  maxWanderDelay: 23
+  possibleSchedules:
+  - scheduleName: 
+    morningActivities: []
+    dayActivities: []
+    eveningActivities: []
+    nightActivities: []
+    minWorkActivities: 0
+    maxWorkActivities: 0
+  chanceForAllRestDay: 10
+  chanceFor1WorkDay: 40
+  chanceFor2WorkDay: 30
+  chanceFor3WorkDay: 20
   detectionRange: 10
   attackRange: 2
   attackDamage: 10
   attackCooldown: 1
-  patrolSpeed: 2
-  chaseSpeed: 4
-  rotationSpeed: 5
-  loseSightRange: 15
-  attackExitBuffer: 0.5
-  patrolType: 1
-  patrolPoints: []
-  pointReachDistance: 0.5
-  wanderRadius: 10
-  maxIdleTime: 15
-  minIdleTime: 5
-  idleChance: 0.7
-  showWanderArea: 1
-  wanderAreaColor: {r: 0, g: 1, b: 0, a: 0.1}
-  activeOnlyAtNight: 0
-  nightAggressionMultiplier: 1.3
-  visibilityLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  eyeOffset: {x: 0, y: 0.5, z: 0}
+  wanderRadius: 5
+  potentialTargets: []
+  showDebugInfo: 1
+  detectionGizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  attackGizmoColor: {r: 1, g: 0, b: 0, a: 1}
 --- !u!136 &588179734
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -1832,6 +1836,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &588179738
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 588179731}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25f7475a18beb6349a73a3fcc15f1bb5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxHealth: 100
+  currentHealth: 0
+  faction: 2
 --- !u!1 &620084156
 GameObject:
   m_ObjectHideFlags: 0
@@ -2257,13 +2276,16 @@ MonoBehaviour:
   m_GameObject: {fileID: 846915060}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3f8952efa66e33845924aa66c3e6f5db, type: 3}
+  m_Script: {fileID: 11500000, guid: 072a4b5469bcef243a01e3e6a48caee3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   hour: 8
   minute: 0
   day: 1
   realSecondsPerGameMinute: 1
+  isTimePaused: 0
+  timeScale: 1
+  timeOfDaySettings: []
 --- !u!4 &846915062
 Transform:
   m_ObjectHideFlags: 0
@@ -2702,6 +2724,7 @@ MonoBehaviour:
     state: 2
   - startHour: 22
     state: 0
+  <CurrentState>k__BackingField: 0
 --- !u!136 &981688763
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -2802,6 +2825,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 61963268ffa752a45a2fd10bd6b9d70b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  agent: {fileID: 0}
+  targetPosition: {x: 0, y: 0, z: 0}
   moveSpeed: 2
   stoppingDistance: 0.1
   bedPosition: {fileID: 1993396188}
@@ -2841,6 +2866,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f04af0b85f3822d4d9b97b06d8802ed2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  schedule: {fileID: 0}
 --- !u!1 &1109743694
 GameObject:
   m_ObjectHideFlags: 0
@@ -3033,7 +3059,7 @@ Transform:
   m_GameObject: {fileID: 1120369914}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 15, z: 0}
+  m_LocalPosition: {x: 11, y: 15, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -3343,6 +3369,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 100
   currentHealth: 0
+  faction: 0
 --- !u!114 &1120369929
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3745,6 +3772,16 @@ PrefabInstance:
       propertyPath: m_Materials.Array.data[0]
       value: 
       objectReference: {fileID: 2100000, guid: 6ecadc08068836b4f885bb7889063851, type: 2}
+    - target: {fileID: -5477749408508380018, guid: 47cf647f14a3f044f88be708a89b33d6,
+        type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 5.78
+      objectReference: {fileID: 0}
+    - target: {fileID: -5477749408508380018, guid: 47cf647f14a3f044f88be708a89b33d6,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -2.76
+      objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 47cf647f14a3f044f88be708a89b33d6,
         type: 3}
       propertyPath: m_Name
@@ -4264,6 +4301,7 @@ GameObject:
   - component: {fileID: 1523173301}
   - component: {fileID: 1523173300}
   - component: {fileID: 1523173299}
+  - component: {fileID: 1523173305}
   m_Layer: 0
   m_Name: testenemy (1)
   m_TagString: Untagged
@@ -4302,33 +4340,29 @@ MonoBehaviour:
   m_GameObject: {fileID: 1523173298}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7f405e6a9a0a1b34cada8b58d9611bf1, type: 3}
+  m_Script: {fileID: 11500000, guid: 2b29d50a289d199429e07b6fdd79ba07, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  aiType: 2
+  faction: 2
+  hostileFactions: 0000000003000000
+  scheduleType: 0
+  minWanderDelay: 5
+  maxWanderDelay: 15
+  possibleSchedules: []
+  chanceForAllRestDay: 10
+  chanceFor1WorkDay: 40
+  chanceFor2WorkDay: 30
+  chanceFor3WorkDay: 20
   detectionRange: 10
   attackRange: 2
   attackDamage: 10
   attackCooldown: 1
-  patrolSpeed: 2
-  chaseSpeed: 5
-  rotationSpeed: 5
-  loseSightRange: 15
-  attackExitBuffer: 0.5
-  patrolType: 1
-  patrolPoints: []
-  pointReachDistance: 0.5
-  wanderRadius: 10
-  maxIdleTime: 15
-  minIdleTime: 5
-  idleChance: 0.7
-  showWanderArea: 1
-  wanderAreaColor: {r: 0, g: 1, b: 0, a: 0.1}
-  activeOnlyAtNight: 0
-  nightAggressionMultiplier: 1.3
-  visibilityLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  eyeOffset: {x: 0, y: 0.5, z: 0}
+  wanderRadius: 5
+  potentialTargets: []
+  showDebugInfo: 1
+  detectionGizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  attackGizmoColor: {r: 1, g: 0, b: 0, a: 1}
 --- !u!136 &1523173301
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -4417,6 +4451,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1523173305
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1523173298}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25f7475a18beb6349a73a3fcc15f1bb5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxHealth: 100
+  currentHealth: 0
+  faction: 2
 --- !u!1 &1533681393
 GameObject:
   m_ObjectHideFlags: 0
