@@ -51,8 +51,6 @@ public class PlayerPickupController : MonoBehaviour
     {
         if (inventory == null)
             inventory = GetComponentInChildren<Inventory>();
-        if (promptUI == null)
-            Debug.LogWarning("PickupPromptUI not set on PlayerPickupController.");
 
         if (cornerNotificationUI == null)
             cornerNotificationUI = CornerNotificationUI.Instance;

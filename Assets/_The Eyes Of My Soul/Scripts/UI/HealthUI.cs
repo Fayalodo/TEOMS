@@ -1,33 +1,33 @@
-using UnityEngine;
+п»їusing UnityEngine;
 using UnityEngine.UI;
 
 public class HealthUI : MonoBehaviour
 {
-    [Header("Ссылки (перетащи в инспекторе)")]
+    [Header("РЎСЃС‹Р»РєРё (РїРµСЂРµС‚Р°С‰Рё РІ РёРЅСЃРїРµРєС‚РѕСЂРµ)")]
     public Health playerHealth;
     public Slider healthSlider;
 
     void Start()
     {
-        // Проверяем ссылки
+        // РџСЂРѕРІРµСЂСЏРµРј СЃСЃС‹Р»РєРё
         if (playerHealth == null || healthSlider == null)
         {
-            Debug.LogError("HealthUI: Не все ссылки установлены!");
+            Debug.LogError("HealthUI: РќРµ РІСЃРµ СЃСЃС‹Р»РєРё СѓСЃС‚Р°РЅРѕРІР»РµРЅС‹!");
             return;
         }
 
-        // Настраиваем слайдер
+        // РќР°СЃС‚СЂР°РёРІР°РµРј СЃР»Р°Р№РґРµСЂ
         healthSlider.minValue = 0;
         healthSlider.maxValue = playerHealth.maxHealth;
-        healthSlider.value = playerHealth.currentHealth;
+        healthSlider.value = playerHealth.CurrentHealth; // вњ… РСЃРїРѕР»СЊР·СѓРµРј СЃРІРѕР№СЃС‚РІРѕ
 
-        // Подписываемся на событие
+        // РџРѕРґРїРёСЃС‹РІР°РµРјСЃСЏ РЅР° СЃРѕР±С‹С‚РёРµ
         playerHealth.OnHealthChanged += UpdateHealthBar;
     }
 
     void OnDestroy()
     {
-        // Отписываемся при уничтожении
+        // РћС‚РїРёСЃС‹РІР°РµРјСЃСЏ РїСЂРё СѓРЅРёС‡С‚РѕР¶РµРЅРёРё
         if (playerHealth != null)
             playerHealth.OnHealthChanged -= UpdateHealthBar;
     }

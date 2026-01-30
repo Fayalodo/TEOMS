@@ -1,9 +1,10 @@
-using UnityEngine;
+п»їusing UnityEngine;
 using UnityEngine.AI;
 
+[RequireComponent(typeof(NavMeshAgent))]
 public class EnemyAI : MonoBehaviour
 {
-    [Header("Настройки ИИ")]
+    [Header("РќР°СЃС‚СЂРѕР№РєРё РР")]
     public float detectionRange = 10f;
     public float attackRange = 2f;
     public float attackDamage = 10f;
@@ -12,33 +13,68 @@ public class EnemyAI : MonoBehaviour
     public float chaseSpeed = 4f;
     public float rotationSpeed = 5f;
 
-    [Header("Режим патрулирования")]
+    [Header("РќР°СЃС‚СЂРѕР№РєРё РїСЂРµСЃР»РµРґРѕРІР°РЅРёСЏ")]
+    public float loseSightRange = 15f;
+    public float attackExitBuffer = 0.5f;
+    public float chaseUpdateInterval = 0.3f;
+    public float returnToPatrolDetectionMultiplier = 0.7f; // Р§СѓРІСЃС‚РІРёС‚РµР»СЊРЅРѕСЃС‚СЊ РІ ReturnToPatrol
+
+    [Header("Р РµР¶РёРј РїР°С‚СЂСѓР»РёСЂРѕРІР°РЅРёСЏ")]
     public PatrolType patrolType = PatrolType.Waypoints;
     public Transform[] patrolPoints;
     public float pointReachDistance = 0.5f;
 
-    [Header("Настройки случайного блуждания")]
+    [Header("РќР°СЃС‚СЂРѕР№РєРё СЃР»СѓС‡Р°Р№РЅРѕРіРѕ Р±Р»СѓР¶РґР°РЅРёСЏ")]
     public float wanderRadius = 10f;
-    public float minWanderDistance = 3f;
     public float maxIdleTime = 3f;
     public float minIdleTime = 1f;
-    public float idleChance = 0.7f; // Шанс на простой (0-1)
+    [Range(0f, 1f)] public float idleChance = 0.7f;
 
-    [Header("Визуализация")]
+    [Header("Р’РёР·СѓР°Р»РёР·Р°С†РёСЏ")]
     public bool showWanderArea = true;
     public Color wanderAreaColor = new Color(0, 1, 0, 0.1f);
+
+    [Header("РђРєС‚РёРІРЅРѕСЃС‚СЊ РїРѕ РІСЂРµРјРµРЅРё")]
+    public bool activeOnlyAtNight = true;
+    [Range(0f, 2f)] public float nightAggressionMultiplier = 1.3f;
+
+    [Header("РќР°СЃС‚СЂРѕР№РєРё РІРёРґРёРјРѕСЃС‚Рё")]
+    public LayerMask visibilityLayers = ~0;
+    public Vector3 eyeOffset = new Vector3(0, 0.5f, 0);
+
+    // РџСЂРёРІР°С‚РЅС‹Рµ РїРѕР»СЏ
+    private bool isNight;
+    private bool isActive = true;
+    private bool isSubscribed = false;
+
+    private float baseDetectionRange;
+    private float baseChaseSpeed;
+    private float baseAttackCooldown;
+    private float baseLoseSightRange;
 
     private Transform player;
     private NavMeshAgent agent;
     private Health playerHealth;
     private float lastAttackTime;
-    private int currentPatrolIndex;
+    private int currentPatrolIndex = 0;
     private EnemyState currentState = EnemyState.Patrol;
     private Vector3 lastKnownPlayerPosition;
     private Vector3 wanderCenter;
-    private float idleTimer = 0f;
-    private float currentIdleTime = 0f;
-    private bool isIdle = false;
+    private float idleTimer;
+    private float currentIdleTime;
+    private bool isIdle;
+
+    // РћРїС‚РёРјРёР·Р°С†РёСЏ РїСЂРѕРІРµСЂРѕРє
+    private float nextPlayerSearchTime;
+    private float nextVisibilityCheck;
+    private float nextChaseUpdate;
+    private bool cachedCanSeePlayer;
+
+    // Р”Р»СЏ РѕС‚Р»Р°РґРєРё
+    private string debugStateInfo = "";
+    private float stateChangeCooldown = 0.5f;
+    private float lastStateChangeTime;
+    private float effectiveDetectionRange; // Р­С„С„РµРєС‚РёРІРЅС‹Р№ СЂР°РґРёСѓСЃ РѕР±РЅР°СЂСѓР¶РµРЅРёСЏ
 
     enum EnemyState
     {
@@ -54,34 +90,78 @@ public class EnemyAI : MonoBehaviour
         RandomWander
     }
 
-    void Start()
+    void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
 
-        GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
-        if (playerObject != null)
+        // РЎРѕС…СЂР°РЅСЏРµРј Р±Р°Р·РѕРІС‹Рµ Р·РЅР°С‡РµРЅРёСЏ
+        baseDetectionRange = detectionRange;
+        baseChaseSpeed = chaseSpeed;
+        baseAttackCooldown = attackCooldown;
+        baseLoseSightRange = loseSightRange;
+    }
+
+    void Start()
+    {
+        if (WorldTimeSystem.Instance != null)
         {
-            player = playerObject.transform;
-            playerHealth = player.GetComponent<Health>();
+            isNight = WorldTimeSystem.Instance.CurrentTimeOfDay == WorldTimeSystem.TimeOfDay.Night;
+            ApplyTimeModifiers();
+
+            if (activeOnlyAtNight && !isNight)
+            {
+                DeactivateEnemy();
+                return;
+            }
         }
-        else
-        {
-            Debug.LogError("Player not found! Make sure player has tag 'Player'");
-        }
+
+        FindPlayer();
 
         agent.speed = patrolSpeed;
         agent.autoBraking = true;
         agent.stoppingDistance = pointReachDistance;
+        agent.isStopped = false;
 
         wanderCenter = transform.position;
+        effectiveDetectionRange = detectionRange;
 
-        // Начинаем патрулирование
         StartPatrolling();
+    }
+
+    void OnEnable()
+    {
+        SubscribeToEvents();
+    }
+
+    void OnDisable()
+    {
+        UnsubscribeFromEvents();
     }
 
     void Update()
     {
-        if (player == null) return;
+        if (!isActive)
+            return;
+
+        // Р—Р°С‰РёС‚Р° РѕС‚ С‡Р°СЃС‚РѕР№ СЃРјРµРЅС‹ СЃРѕСЃС‚РѕСЏРЅРёР№
+        if (Time.time - lastStateChangeTime < stateChangeCooldown)
+            return;
+
+        // РџРѕРёСЃРє РёРіСЂРѕРєР°
+        if ((player == null || !player.gameObject.activeInHierarchy) && Time.time > nextPlayerSearchTime)
+        {
+            FindPlayer();
+            nextPlayerSearchTime = Time.time + 2f;
+        }
+
+        if (player == null)
+        {
+            if (currentState != EnemyState.Patrol)
+            {
+                ChangeState(EnemyState.Patrol);
+            }
+            return;
+        }
 
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
 
@@ -102,96 +182,233 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
-    void PatrolUpdate(float distanceToPlayer)
+    #region РЈРїСЂР°РІР»РµРЅРёРµ СЃРѕР±С‹С‚РёСЏРјРё
+
+    void SubscribeToEvents()
     {
-        // Проверка обнаружения игрока
-        if (distanceToPlayer <= detectionRange && CanSeePlayer())
+        if (!isSubscribed && WorldTimeSystem.Instance != null)
         {
-            EnterChaseState();
+            WorldTimeSystem.OnTimeOfDayChanged += OnTimeOfDayChanged;
+            isSubscribed = true;
+        }
+    }
+
+    void UnsubscribeFromEvents()
+    {
+        if (!isSubscribed) return;
+
+        if (isSubscribed)
+        {
+            WorldTimeSystem.OnTimeOfDayChanged -= OnTimeOfDayChanged;
+            isSubscribed = false;
+        }
+    }
+
+    #endregion
+
+    #region Р Р°Р±РѕС‚Р° СЃ РёРіСЂРѕРєРѕРј
+
+    void FindPlayer()
+    {
+        GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
+        if (playerObject != null)
+        {
+            player = playerObject.transform;
+            playerHealth = player.GetComponent<Health>();
+
+            if (playerHealth == null)
+            {
+                Debug.LogWarning($"{name}: РРіСЂРѕРє РЅРµ РёРјРµРµС‚ РєРѕРјРїРѕРЅРµРЅС‚Р° Health!", this);
+            }
+        }
+        else
+        {
+            player = null;
+            playerHealth = null;
+        }
+    }
+
+    #endregion
+
+    #region DAY / NIGHT LOGIC
+
+    void OnTimeOfDayChanged(WorldTimeSystem.TimeOfDay time)
+    {
+        if (gameObject == null || !gameObject.activeInHierarchy)
             return;
+
+        bool newIsNight = time == WorldTimeSystem.TimeOfDay.Night;
+
+        if (newIsNight == isNight)
+            return;
+
+        isNight = newIsNight;
+
+        if (activeOnlyAtNight)
+        {
+            if (isNight)
+                ActivateEnemy();
+            else
+                DeactivateEnemy();
         }
 
-        // Если враг в состоянии простоя
+        ApplyTimeModifiers();
+    }
+
+    void ActivateEnemy()
+    {
+        if (!isActive)
+        {
+            isActive = true;
+            agent.isStopped = false;
+            ChangeState(EnemyState.Patrol);
+        }
+    }
+
+    void DeactivateEnemy()
+    {
+        if (isActive)
+        {
+            isActive = false;
+            agent.isStopped = true;
+            currentState = EnemyState.Patrol;
+        }
+    }
+
+    void ApplyTimeModifiers()
+    {
+        if (isNight)
+        {
+            detectionRange = baseDetectionRange * nightAggressionMultiplier;
+            chaseSpeed = baseChaseSpeed * nightAggressionMultiplier;
+            attackCooldown = Mathf.Max(0.1f, baseAttackCooldown * 0.8f);
+            loseSightRange = baseLoseSightRange * nightAggressionMultiplier;
+        }
+        else
+        {
+            detectionRange = baseDetectionRange;
+            chaseSpeed = baseChaseSpeed;
+            attackCooldown = baseAttackCooldown;
+            loseSightRange = baseLoseSightRange;
+        }
+
+        // РћР±РЅРѕРІР»СЏРµРј СЌС„С„РµРєС‚РёРІРЅС‹Р№ СЂР°РґРёСѓСЃ РѕР±РЅР°СЂСѓР¶РµРЅРёСЏ
+        effectiveDetectionRange = detectionRange;
+    }
+
+    #endregion
+
+    #region FSM (Finite State Machine)
+
+    void PatrolUpdate(float distanceToPlayer)
+    {
         if (isIdle)
         {
             idleTimer += Time.deltaTime;
-
-            // Проверяем, закончилось ли время простоя
             if (idleTimer >= currentIdleTime)
             {
                 isIdle = false;
                 idleTimer = 0f;
-
-                // После простоя ищем новую точку
                 FindNextPatrolPoint();
             }
-
-            // Во время простоя все равно проверяем игрока
             return;
         }
 
-        // Проверяем, достигли ли текущей цели
-        if (!agent.pathPending && agent.remainingDistance <= pointReachDistance)
+        // Р’ РїР°С‚СЂСѓР»Рµ РёСЃРїРѕР»СЊР·СѓРµРј РїРѕР»РЅС‹Р№ СЂР°РґРёСѓСЃ РѕР±РЅР°СЂСѓР¶РµРЅРёСЏ
+        bool canSee = ShouldCheckVisibility() && cachedCanSeePlayer;
+
+        if (distanceToPlayer <= effectiveDetectionRange && canSee)
         {
-            // Определяем, будет ли враг стоять на месте
-            TryStartIdle();
+            debugStateInfo = $"Patrol -> Chase: dist={distanceToPlayer:F1}";
+            ChangeState(EnemyState.Chase);
+            return;
+        }
+
+        // РџСЂРѕРІРµСЂСЏРµРј РґРѕСЃС‚РёР¶РµРЅРёРµ С‚РѕС‡РєРё
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
+        {
+            if (!agent.hasPath || agent.velocity.sqrMagnitude < 0.1f)
+            {
+                TryStartIdle();
+            }
         }
     }
 
     void ChaseUpdate(float distanceToPlayer)
     {
-        // Обновляем последнюю известную позицию игрока
-        if (distanceToPlayer <= detectionRange && CanSeePlayer())
+        if (player == null || !player.gameObject.activeInHierarchy)
         {
-            lastKnownPlayerPosition = player.position;
-            agent.SetDestination(lastKnownPlayerPosition);
-        }
-
-        // Если игрок ушел из зоны обнаружения
-        if (distanceToPlayer > detectionRange * 1.5f)
-        {
-            EnterReturnToPatrolState();
+            debugStateInfo = "Chase -> Return: Player gone";
+            ChangeState(EnemyState.ReturnToPatrol);
             return;
         }
 
-        // Если достаточно близко для атаки
+        bool canSee = ShouldCheckVisibility() && cachedCanSeePlayer;
+
+        // РћР±РЅРѕРІР»СЏРµРј РїСѓС‚СЊ Рє РёРіСЂРѕРєСѓ СЃ РёРЅС‚РµСЂРІР°Р»РѕРј
+        if (Time.time > nextChaseUpdate)
+        {
+            if (distanceToPlayer <= effectiveDetectionRange && canSee)
+            {
+                lastKnownPlayerPosition = player.position;
+                agent.SetDestination(lastKnownPlayerPosition);
+                nextChaseUpdate = Time.time + chaseUpdateInterval;
+            }
+        }
+
+        // Р•СЃР»Рё РёРіСЂРѕРє РІС‹С€РµР» РёР· РїРѕР»СЏ Р·СЂРµРЅРёСЏ Р РјС‹ РґРѕСЃС‚РёРіР»Рё РїРѕСЃР»РµРґРЅРµР№ РёР·РІРµСЃС‚РЅРѕР№ РїРѕР·РёС†РёРё
+        if ((distanceToPlayer > loseSightRange || (!canSee && distanceToPlayer > effectiveDetectionRange)) &&
+            (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance))
+        {
+            debugStateInfo = $"Chase -> Return: lost sight";
+            ChangeState(EnemyState.ReturnToPatrol);
+            return;
+        }
+
+        // Р•СЃР»Рё РґРѕСЃС‚Р°С‚РѕС‡РЅРѕ Р±Р»РёР·РєРѕ РґР»СЏ Р°С‚Р°РєРё
         if (distanceToPlayer <= attackRange)
         {
-            EnterAttackState();
+            debugStateInfo = $"Chase -> Attack: dist={distanceToPlayer:F1}";
+            ChangeState(EnemyState.Attack);
             return;
-        }
-
-        // Продолжаем преследование
-        if (!agent.isStopped)
-        {
-            agent.SetDestination(lastKnownPlayerPosition);
         }
     }
 
     void AttackUpdate(float distanceToPlayer)
     {
-        // Если игрок убежал слишком далеко
-        if (distanceToPlayer > attackRange * 1.2f)
+        if (player == null || !player.gameObject.activeInHierarchy)
         {
-            EnterChaseState();
+            debugStateInfo = "Attack -> Return: Player gone";
+            ChangeState(EnemyState.ReturnToPatrol);
             return;
         }
 
-        // Поворачиваемся к игроку
-        Vector3 direction = (player.position - transform.position).normalized;
-        direction.y = 0;
-
-        if (direction != Vector3.zero)
+        if (playerHealth != null && !playerHealth.IsAlive)
         {
-            Quaternion lookRotation = Quaternion.LookRotation(direction);
-            transform.rotation = Quaternion.Slerp(
-                transform.rotation,
-                lookRotation,
-                Time.deltaTime * rotationSpeed
-            );
+            debugStateInfo = "Attack -> Return: Player dead";
+            ChangeState(EnemyState.ReturnToPatrol);
+            return;
         }
 
-        // Атакуем с кд
+        // Р•СЃР»Рё РёРіСЂРѕРє РѕС‚РѕС€РµР» СЃР»РёС€РєРѕРј РґР°Р»РµРєРѕ
+        if (distanceToPlayer > attackRange + attackExitBuffer)
+        {
+            debugStateInfo = $"Attack -> Chase: dist={distanceToPlayer:F1}";
+            ChangeState(EnemyState.Chase);
+            return;
+        }
+
+        // РџРѕРІРѕСЂРѕС‚ Рє РёРіСЂРѕРєСѓ
+        Vector3 dir = (player.position - transform.position).normalized;
+        dir.y = 0;
+
+        if (dir != Vector3.zero)
+        {
+            Quaternion rot = Quaternion.LookRotation(dir);
+            transform.rotation = Quaternion.Slerp(transform.rotation, rot, rotationSpeed * Time.deltaTime);
+        }
+
+        // РђС‚Р°РєР°
         if (Time.time - lastAttackTime >= attackCooldown)
         {
             AttackPlayer();
@@ -201,33 +418,51 @@ public class EnemyAI : MonoBehaviour
 
     void ReturnToPatrolUpdate(float distanceToPlayer)
     {
-        // Если игрок снова появился
-        if (distanceToPlayer <= detectionRange && CanSeePlayer())
+        // вњ… РРЎРџР РђР’Р›Р•РќРР•: Р’ ReturnToPatrol РІСЂР°Рі РІСЃС‘ РµС‰С‘ РјРѕР¶РµС‚ Р·Р°РјРµС‚РёС‚СЊ РёРіСЂРѕРєР°,
+        // РЅРѕ СЃ СѓРјРµРЅСЊС€РµРЅРЅРѕР№ С‡СѓРІСЃС‚РІРёС‚РµР»СЊРЅРѕСЃС‚СЊСЋ
+
+        bool canSee = ShouldCheckVisibility() && cachedCanSeePlayer;
+
+        // Р’ ReturnToPatrol РёСЃРїРѕР»СЊР·СѓРµРј СѓРјРµРЅСЊС€РµРЅРЅС‹Р№ СЂР°РґРёСѓСЃ РѕР±РЅР°СЂСѓР¶РµРЅРёСЏ
+        float returnDetectionRange = effectiveDetectionRange * returnToPatrolDetectionMultiplier;
+
+        // РРіСЂРѕРє РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ Р‘Р›РР—РљРћ Рё РџР РЇРњРћ Р’РР”РРњ, С‡С‚РѕР±С‹ РїСЂРµСЂРІР°С‚СЊ РІРѕР·РІСЂР°С‚
+        if (distanceToPlayer <= returnDetectionRange && canSee && distanceToPlayer <= attackRange * 2f)
         {
-            EnterChaseState();
+            debugStateInfo = $"Return -> Chase: РёРіСЂРѕРє РѕС‡РµРЅСЊ Р±Р»РёР·РєРѕ! dist={distanceToPlayer:F1}";
+            ChangeState(EnemyState.Chase);
             return;
         }
 
-        // Проверяем, достигли ли точки патрулирования
-        if (!agent.pathPending && agent.remainingDistance <= pointReachDistance)
+        // РџСЂРѕРІРµСЂСЏРµРј, РґРѕСЃС‚РёРі Р»Рё С‚РѕС‡РєРё РІРѕР·РІСЂР°С‚Р°
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
         {
-            EnterPatrolState();
+            if (!agent.hasPath || agent.velocity.sqrMagnitude < 0.1f)
+            {
+                debugStateInfo = "Return -> Patrol: reached destination";
+                ChangeState(EnemyState.Patrol);
+            }
         }
     }
 
     void AttackPlayer()
     {
-        if (playerHealth != null)
+        if (playerHealth != null && playerHealth.enabled && playerHealth.IsAlive)
         {
             playerHealth.TakeDamage(attackDamage);
-            Debug.Log($"Враг атаковал игрока! Осталось HP: {playerHealth.currentHealth}");
         }
     }
 
-    // ===== МЕТОДЫ ДЛЯ ПАТРУЛИРОВАНИЯ =====
+    #endregion
+
+    #region PATROL
 
     void StartPatrolling()
     {
+        if (!isActive) return;
+
+        isIdle = false;
+        agent.isStopped = false;
         FindNextPatrolPoint();
     }
 
@@ -236,11 +471,11 @@ public class EnemyAI : MonoBehaviour
         isIdle = false;
         agent.isStopped = false;
 
-        if (patrolType == PatrolType.Waypoints && patrolPoints.Length > 0)
+        if (patrolType == PatrolType.Waypoints && patrolPoints != null && patrolPoints.Length > 0)
         {
             MoveToNextWaypoint();
         }
-        else if (patrolType == PatrolType.RandomWander)
+        else
         {
             FindRandomWanderPoint();
         }
@@ -248,67 +483,52 @@ public class EnemyAI : MonoBehaviour
 
     void MoveToNextWaypoint()
     {
-        if (patrolPoints.Length == 0) return;
+        if (patrolPoints == null || patrolPoints.Length == 0)
+        {
+            Debug.LogWarning($"{name}: РќРµ Р·Р°РґР°РЅС‹ С‚РѕС‡РєРё РїР°С‚СЂСѓР»СЏ!", this);
+            return;
+        }
 
         currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Length;
 
         if (patrolPoints[currentPatrolIndex] != null)
         {
-            agent.SetDestination(patrolPoints[currentPatrolIndex].position);
+            Vector3 targetPos = patrolPoints[currentPatrolIndex].position;
+
+            if (NavMesh.SamplePosition(targetPos, out NavMeshHit hit, 5f, NavMesh.AllAreas))
+            {
+                agent.SetDestination(hit.position);
+            }
+            else
+            {
+                FindRandomWanderPoint();
+            }
         }
     }
 
     void FindRandomWanderPoint()
     {
-        int maxAttempts = 10;
-        int attempts = 0;
-        bool pointFound = false;
+        Vector2 rnd = Random.insideUnitCircle * wanderRadius;
+        Vector3 target = wanderCenter + new Vector3(rnd.x, 0, rnd.y);
 
-        while (!pointFound && attempts < maxAttempts)
+        if (NavMesh.SamplePosition(target, out NavMeshHit hit, wanderRadius, NavMesh.AllAreas))
         {
-            // Генерируем случайную точку в пределах радиуса
-            Vector2 randomCircle = Random.insideUnitCircle * wanderRadius;
-            Vector3 randomDirection = new Vector3(randomCircle.x, 0, randomCircle.y);
-            Vector3 targetPosition = wanderCenter + randomDirection;
-
-            // Пытаемся найти валидную позицию на NavMesh
-            NavMeshHit navHit;
-            if (NavMesh.SamplePosition(targetPosition, out navHit, wanderRadius, NavMesh.AllAreas))
-            {
-                // Проверяем, чтобы точка была не слишком близко
-                float distance = Vector3.Distance(transform.position, navHit.position);
-                if (distance >= minWanderDistance)
-                {
-                    agent.SetDestination(navHit.position);
-                    pointFound = true;
-                    //Debug.Log($"Найдена точка для блуждания: {navHit.position}, дистанция: {distance}");
-                    return;
-                }
-            }
-
-            attempts++;
+            agent.SetDestination(hit.position);
         }
-
-        // Если не нашли подходящую точку, идем к центру
-        if (!pointFound)
+        else
         {
             agent.SetDestination(wanderCenter);
-            Debug.LogWarning($"Не удалось найти точку для блуждания после {maxAttempts} попыток. Возвращаемся в центр.");
         }
     }
 
     void TryStartIdle()
     {
-        // Рандомно решаем, будет ли враг стоять
-        float randomChance = Random.Range(0f, 1f);
-
-        if (randomChance <= idleChance)
+        if (Random.value <= idleChance)
         {
             StartIdle();
         }
         else
         {
-            // Немедленно идем к следующей точке
             FindNextPatrolPoint();
         }
     }
@@ -319,220 +539,208 @@ public class EnemyAI : MonoBehaviour
         currentIdleTime = Random.Range(minIdleTime, maxIdleTime);
         idleTimer = 0f;
         agent.isStopped = true;
-
-        //Debug.Log($"Враг начинает простой на {currentIdleTime:F1} секунд");
     }
 
-    // ===== МЕТОДЫ ДЛЯ СМЕНЫ СОСТОЯНИЙ =====
+    #endregion
+
+    #region State Transitions
+
+    void ChangeState(EnemyState newState)
+    {
+        if (currentState == newState)
+            return;
+
+        if (Time.time - lastStateChangeTime < stateChangeCooldown)
+            return;
+
+        lastStateChangeTime = Time.time;
+        EnemyState oldState = currentState;
+        currentState = newState;
+
+        // РћР±РЅРѕРІР»СЏРµРј СЌС„С„РµРєС‚РёРІРЅС‹Р№ СЂР°РґРёСѓСЃ РѕР±РЅР°СЂСѓР¶РµРЅРёСЏ РІ Р·Р°РІРёСЃРёРјРѕСЃС‚Рё РѕС‚ СЃРѕСЃС‚РѕСЏРЅРёСЏ
+        switch (newState)
+        {
+            case EnemyState.Patrol:
+                effectiveDetectionRange = detectionRange; // РџРѕР»РЅС‹Р№ СЂР°РґРёСѓСЃ
+                break;
+            case EnemyState.Chase:
+                effectiveDetectionRange = detectionRange; // РџРѕР»РЅС‹Р№ СЂР°РґРёСѓСЃ
+                break;
+            case EnemyState.ReturnToPatrol:
+                effectiveDetectionRange = detectionRange * returnToPatrolDetectionMultiplier; // РЈРјРµРЅСЊС€РµРЅРЅС‹Р№
+                break;
+        }
+
+        debugStateInfo = $"{oldState} -> {newState} (detection: {effectiveDetectionRange:F1})";
+
+        switch (newState)
+        {
+            case EnemyState.Patrol:
+                EnterPatrolState();
+                break;
+            case EnemyState.Chase:
+                EnterChaseState();
+                break;
+            case EnemyState.Attack:
+                EnterAttackState();
+                break;
+            case EnemyState.ReturnToPatrol:
+                EnterReturnToPatrolState();
+                break;
+        }
+    }
 
     void EnterPatrolState()
     {
-        currentState = EnemyState.Patrol;
         agent.speed = patrolSpeed;
-
-        // Начинаем патрулирование с возможного простоя
-        TryStartIdle();
+        agent.isStopped = false;
+        isIdle = false;
+        FindNextPatrolPoint();
     }
 
     void EnterChaseState()
     {
-        currentState = EnemyState.Chase;
         agent.speed = chaseSpeed;
-        lastKnownPlayerPosition = player.position;
-        isIdle = false;
         agent.isStopped = false;
+        isIdle = false;
 
-        agent.SetDestination(lastKnownPlayerPosition);
+        if (player != null)
+        {
+            lastKnownPlayerPosition = player.position;
+            agent.SetDestination(lastKnownPlayerPosition);
+        }
     }
 
     void EnterAttackState()
     {
-        currentState = EnemyState.Attack;
         agent.isStopped = true;
+        lastAttackTime = Time.time;
+        isIdle = false;
     }
 
     void EnterReturnToPatrolState()
     {
-        currentState = EnemyState.ReturnToPatrol;
         agent.speed = patrolSpeed;
-        isIdle = false;
         agent.isStopped = false;
+        isIdle = false;
 
-        // Возвращаемся к патрулированию
-        ReturnToPatrolArea();
-    }
-
-    void ReturnToPatrolArea()
-    {
-        if (patrolType == PatrolType.Waypoints && patrolPoints.Length > 0)
+        // Р’РѕР·РІСЂР°С‰Р°РµРјСЃСЏ Рє С†РµРЅС‚СЂСѓ РїР°С‚СЂСѓР»РёСЂРѕРІР°РЅРёСЏ
+        if (NavMesh.SamplePosition(wanderCenter, out NavMeshHit hit, 5f, NavMesh.AllAreas))
         {
-            FindNearestWaypoint();
+            agent.SetDestination(hit.position);
         }
-        else if (patrolType == PatrolType.RandomWander)
+        else
         {
-            // Возвращаемся в центр области блуждания или ближайшую точку в радиусе
-            Vector3 returnPoint = GetRandomPointInRadius(wanderCenter, wanderRadius * 0.5f);
-            agent.SetDestination(returnPoint);
+            ChangeState(EnemyState.Patrol);
         }
     }
 
-    void FindNearestWaypoint()
+    #endregion
+
+    #region Р’СЃРїРѕРјРѕРіР°С‚РµР»СЊРЅС‹Рµ РјРµС‚РѕРґС‹
+
+    bool ShouldCheckVisibility()
     {
-        float shortestDistance = Mathf.Infinity;
-        int nearestIndex = 0;
-
-        for (int i = 0; i < patrolPoints.Length; i++)
+        if (Time.time > nextVisibilityCheck)
         {
-            if (patrolPoints[i] == null) continue;
-
-            float distance = Vector3.Distance(transform.position, patrolPoints[i].position);
-            if (distance < shortestDistance)
-            {
-                shortestDistance = distance;
-                nearestIndex = i;
-            }
+            cachedCanSeePlayer = CanSeePlayer();
+            nextVisibilityCheck = Time.time + 0.2f;
         }
-
-        currentPatrolIndex = nearestIndex;
-        if (patrolPoints[currentPatrolIndex] != null)
-        {
-            agent.SetDestination(patrolPoints[currentPatrolIndex].position);
-        }
-    }
-
-    Vector3 GetRandomPointInRadius(Vector3 center, float radius)
-    {
-        Vector2 randomCircle = Random.insideUnitCircle * radius;
-        Vector3 randomDirection = new Vector3(randomCircle.x, 0, randomCircle.y);
-        Vector3 targetPosition = center + randomDirection;
-
-        NavMeshHit navHit;
-        if (NavMesh.SamplePosition(targetPosition, out navHit, radius, NavMesh.AllAreas))
-        {
-            return navHit.position;
-        }
-
-        return center;
+        return cachedCanSeePlayer;
     }
 
     bool CanSeePlayer()
     {
         if (player == null) return false;
 
-        RaycastHit hit;
-        Vector3 direction = player.position - transform.position;
+        Vector3 direction = player.position - (transform.position + eyeOffset);
+        float distance = direction.magnitude;
 
-        if (Physics.Raycast(transform.position + Vector3.up * 0.5f, direction.normalized, out hit, detectionRange))
-        {
-            if (hit.transform.CompareTag("Player"))
-            {
-                return true;
-            }
-        }
+        // РСЃРїРѕР»СЊР·СѓРµРј СЌС„С„РµРєС‚РёРІРЅС‹Р№ СЂР°РґРёСѓСЃ, Р° РЅРµ РїРѕР»РЅС‹Р№
+        if (distance > effectiveDetectionRange)
+            return false;
 
-        return false;
+        return Physics.Raycast(transform.position + eyeOffset, direction.normalized,
+            out RaycastHit hit, effectiveDetectionRange, visibilityLayers) &&
+            hit.transform.CompareTag("Player");
     }
 
-    // ===== ОТЛАДКА И ВИЗУАЛИЗАЦИЯ =====
+    #endregion
+
+    #region Editor
+
+#if UNITY_EDITOR
+    void OnValidate()
+    {
+        if (patrolType == PatrolType.Waypoints && (patrolPoints == null || patrolPoints.Length == 0))
+        {
+            Debug.LogWarning($"{name}: Р РµР¶РёРј Waypoints РІС‹Р±СЂР°РЅ, РЅРѕ С‚РѕС‡РєРё РїР°С‚СЂСѓР»СЏ РЅРµ Р·Р°РґР°РЅС‹!", this);
+        }
+
+        if (attackRange >= detectionRange)
+        {
+            Debug.LogWarning($"{name}: Р”РёСЃС‚Р°РЅС†РёСЏ Р°С‚Р°РєРё РґРѕР»Р¶РЅР° Р±С‹С‚СЊ РјРµРЅСЊС€Рµ РґРёСЃС‚Р°РЅС†РёРё РѕР±РЅР°СЂСѓР¶РµРЅРёСЏ!", this);
+            attackRange = detectionRange * 0.8f;
+        }
+
+        if (patrolSpeed >= chaseSpeed)
+        {
+            Debug.LogWarning($"{name}: РЎРєРѕСЂРѕСЃС‚СЊ РїР°С‚СЂСѓР»РёСЂРѕРІР°РЅРёСЏ РґРѕР»Р¶РЅР° Р±С‹С‚СЊ РјРµРЅСЊС€Рµ СЃРєРѕСЂРѕСЃС‚Рё РїСЂРµСЃР»РµРґРѕРІР°РЅРёСЏ!", this);
+            patrolSpeed = chaseSpeed * 0.5f;
+        }
+
+        if (nightAggressionMultiplier < 0.1f) nightAggressionMultiplier = 0.1f;
+        if (nightAggressionMultiplier > 5f) nightAggressionMultiplier = 5f;
+        if (returnToPatrolDetectionMultiplier < 0.1f) returnToPatrolDetectionMultiplier = 0.1f;
+        if (returnToPatrolDetectionMultiplier > 1f) returnToPatrolDetectionMultiplier = 1f;
+    }
 
     void OnDrawGizmosSelected()
     {
-        // Радиус обнаружения
+        if (showWanderArea)
+        {
+            Gizmos.color = wanderAreaColor;
+            Gizmos.DrawSphere(wanderCenter, wanderRadius);
+        }
+
+        // РћС‚РѕР±СЂР°Р¶Р°РµРј СЌС„С„РµРєС‚РёРІРЅС‹Р№ СЂР°РґРёСѓСЃ РѕР±РЅР°СЂСѓР¶РµРЅРёСЏ
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, detectionRange);
 
-        // Радиус атаки
+        // Р•СЃР»Рё РІ РёРіСЂРµ, РїРѕРєР°Р·С‹РІР°РµРј СЌС„С„РµРєС‚РёРІРЅС‹Р№ СЂР°РґРёСѓСЃ
+        if (Application.isPlaying)
+        {
+            Gizmos.color = new Color(1, 1, 0, 0.3f); // РџРѕР»СѓРїСЂРѕР·СЂР°С‡РЅС‹Р№ Р¶РµР»С‚С‹Р№
+            Gizmos.DrawWireSphere(transform.position, effectiveDetectionRange);
+        }
+
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, attackRange);
 
-        // Область блуждания
-        if (patrolType == PatrolType.RandomWander && showWanderArea)
-        {
-            Gizmos.color = Color.green;
-            Vector3 center = Application.isPlaying ? wanderCenter : transform.position;
-            Gizmos.DrawWireSphere(center, wanderRadius);
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(transform.position, loseSightRange);
 
-            // Минимальное расстояние для следующей точки
-            Gizmos.color = Color.cyan;
-            Gizmos.DrawWireSphere(transform.position, minWanderDistance);
-        }
+        Gizmos.color = Color.blue;
+        Gizmos.DrawRay(transform.position + eyeOffset, transform.forward * 2f);
 
-        // Точки патрулирования
-        if (patrolType == PatrolType.Waypoints && patrolPoints != null)
-        {
-            Gizmos.color = Color.blue;
-            for (int i = 0; i < patrolPoints.Length; i++)
-            {
-                if (patrolPoints[i] != null)
-                {
-                    Gizmos.DrawSphere(patrolPoints[i].position, 0.3f);
-                    if (i < patrolPoints.Length - 1 && patrolPoints[i + 1] != null)
-                    {
-                        Gizmos.DrawLine(patrolPoints[i].position, patrolPoints[i + 1].position);
-                    }
-                }
-            }
-        }
-    }
-
-    void OnDrawGizmos()
-    {
         if (Application.isPlaying)
         {
-            // Показываем текущую цель
-            if (agent.hasPath)
-            {
-                Gizmos.color = Color.magenta;
-                Gizmos.DrawLine(transform.position, agent.destination);
-                Gizmos.DrawSphere(agent.destination, 0.2f);
-            }
-
-            // Отображаем состояние
-#if UNITY_EDITOR
+            // РћС‚РѕР±СЂР°Р¶РµРЅРёРµ СЃРѕСЃС‚РѕСЏРЅРёСЏ
             GUIStyle style = new GUIStyle();
             style.normal.textColor = Color.white;
-            style.fontSize = 10;
-            style.padding = new RectOffset(5, 5, 0, 0);
+            style.fontSize = 12;
+            style.alignment = TextAnchor.MiddleCenter;
 
-            string stateText = $"{currentState}";
-            if (currentState == EnemyState.Patrol && isIdle)
-                stateText += $"\nIdle: {idleTimer:F1}/{currentIdleTime:F1}s";
+            Vector3 labelPos = transform.position + Vector3.up * 2.5f;
 
-            Vector3 labelPos = transform.position + Vector3.up * 2f;
-            UnityEditor.Handles.Label(labelPos, stateText, style);
+            UnityEditor.Handles.Label(labelPos,
+                $"State: {currentState}\n" +
+                $"Detection: {effectiveDetectionRange:F1}/{detectionRange:F1}\n" +
+                debugStateInfo,
+                style);
+        }
+    }
 #endif
-        }
-    }
 
-    // ===== ПУБЛИЧНЫЕ МЕТОДЫ =====
-
-    public void SetWanderCenter(Vector3 newCenter)
-    {
-        wanderCenter = newCenter;
-    }
-
-    public void SetPatrolType(PatrolType newType)
-    {
-        patrolType = newType;
-
-        if (currentState == EnemyState.Patrol || currentState == EnemyState.ReturnToPatrol)
-        {
-            FindNextPatrolPoint();
-        }
-    }
-
-    public void ForceNewPatrolPoint()
-    {
-        if (currentState == EnemyState.Patrol || currentState == EnemyState.ReturnToPatrol)
-        {
-            FindNextPatrolPoint();
-        }
-    }
-
-    // Для отладки в инспекторе
-    [ContextMenu("Найти следующую точку")]
-    void DebugFindNextPoint()
-    {
-        FindNextPatrolPoint();
-    }
+    #endregion
 }
