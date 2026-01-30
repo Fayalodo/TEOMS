@@ -20,7 +20,7 @@ public enum ScheduleActivity { Sleep, Rest, Work, Leisure, Eat, Patrol, Socializ
 public class BaseAIController : MonoBehaviour
 {
     [Header("AI Settings")]
-    public AIType aiType = AIType.Animal;
+    public AIType aiType = AIType.AggressiveNPC;
     public Faction faction = Faction.Neutral;
     public List<Faction> hostileFactions = new List<Faction>();
 
@@ -29,9 +29,9 @@ public class BaseAIController : MonoBehaviour
 
     [Header("Random Wander Settings")]
     [Range(0f, 100f)]
-    public float minWanderDelay = 5f;
+    public float minWanderDelay = 3f;
     [Range(0f, 100f)]
-    public float maxWanderDelay = 15f;
+    public float maxWanderDelay = 8f;
 
     [Header("Schedule Settings")]
     public List<DailySchedule> possibleSchedules = new List<DailySchedule>();
@@ -41,14 +41,16 @@ public class BaseAIController : MonoBehaviour
     [Range(0, 100)] public float chanceFor3WorkDay = 20f;
 
     [Header("Detection")]
-    public float detectionRange = 10f;
+    public float detectionRange = 15f;
     public float attackRange = 2f;
     public float attackDamage = 10f;
     public float attackCooldown = 1f;
 
     [Header("Movement")]
-    public float wanderRadius = 5f;
-    private float baseSpeed; // Базовая скорость для восстановления
+    public float wanderRadius = 10f;
+    [Tooltip("Базовая точка, вокруг которой NPC будет блуждать")]
+    public Transform wanderCenterPoint; // ⚠️ НОВОЕ: точка центра области
+    private float baseSpeed;
 
     [Header("Targets")]
     public Transform[] potentialTargets;
@@ -57,6 +59,17 @@ public class BaseAIController : MonoBehaviour
     public bool showDebugInfo = true;
     public Color detectionGizmoColor = Color.yellow;
     public Color attackGizmoColor = Color.red;
+    public Color wanderAreaColor = Color.cyan;
+
+    [Header("Optimization")]
+    [Tooltip("Как часто ИИ думает (раз в секунду)")]
+    public float thinkInterval = 0.2f;
+    [Tooltip("Как часто искать новые цели (раз в секунду)")]
+    public float targetSearchInterval = 0.5f;
+    [Tooltip("Отключить ИИ если далеко от камеры")]
+    public bool useLOD = false;
+    [Tooltip("Как часто обновлять путь NavMesh (раз в секунду)")]
+    public float pathUpdateInterval = 0.5f; // ⚠️ НОВОЕ: интервал обновления пути
 
     // Компоненты и внутренние переменные
     private NavMeshAgent agent;
@@ -65,7 +78,37 @@ public class BaseAIController : MonoBehaviour
     private Transform currentTarget;
     private int provocationCount = 0;
     private float lastAttackTime = 0f;
-    private float debugTimer = 0f;
+    private float lastTargetSearchTime = 0f;
+
+    // 🔥 НОВОЕ: Таймер для пауз между блужданием
+    private float wanderTimer = 0f;
+    private float nextWanderDelay = 0f;
+    private bool isWanderPaused = false;
+    private Vector3 spawnPosition; // Место появления NPC
+
+    // 🔥 НОВОЕ: Флаг для принудительного возврата в центр
+    private bool forceReturnToCenter = false;
+
+    // Оптимизация: кэшированные компоненты
+    private Health currentTargetHealth;
+    private Camera mainCamera;
+    private bool isVisible = true;
+
+    // 🔥 НОВОЕ: Оптимизация квадратов расстояний
+    private float detectionRangeSqr;
+    private float attackRangeSqr;
+    private float detectionRangeExtendedSqr; // для detectionRange * 1.5f
+
+    // 🔥 НОВОЕ: Оптимизация поиска целей через Physics
+    private Collider[] nearbyColliders = new Collider[50]; // Предвыделенный массив
+    private int lastFrameTargetSearch = 0;
+    private Vector3 lastSearchPosition;
+
+    // 🔥 НОВОЕ: Интервал обновления пути
+    private float lastPathUpdateTime = 0f;
+
+    // 🔥 НОВОЕ: Кэшированные WaitForSeconds
+    private WaitForSeconds thinkWait;
 
     private AggressionState aggressionState = AggressionState.Neutral;
 
@@ -76,8 +119,9 @@ public class BaseAIController : MonoBehaviour
     private float currentActivityDuration = 0f;
     private int currentActivityIndex = 0;
 
-    private float wanderCooldown = 0f;
-    private float nextWanderDelay = 0f;
+    // Оптимизация: статический список всех целей (пока оставляем, но будем использовать реже)
+    private static List<Transform> allTargetsCache = null;
+    private static bool targetsCacheInitialized = false;
 
     private enum AggressionState { Neutral, Provoked, Hostile }
 
@@ -118,7 +162,16 @@ public class BaseAIController : MonoBehaviour
     {
         agent = GetComponent<NavMeshAgent>();
         health = GetComponent<Health>();
-        baseSpeed = agent.speed; // Сохраняем базовую скорость
+        baseSpeed = agent.speed;
+        mainCamera = Camera.main;
+
+        // 🔥 НОВОЕ: Инициализация квадратов расстояний
+        detectionRangeSqr = detectionRange * detectionRange;
+        attackRangeSqr = attackRange * attackRange;
+        detectionRangeExtendedSqr = (detectionRange * 1.5f) * (detectionRange * 1.5f);
+
+        // 🔥 НОВОЕ: Кэшируем WaitForSeconds
+        thinkWait = new WaitForSeconds(thinkInterval);
 
         if (health != null)
         {
@@ -126,10 +179,38 @@ public class BaseAIController : MonoBehaviour
             health.OnDeath += OnDeath;
         }
 
+        // Сохраняем позицию появления
+        spawnPosition = transform.position;
+
+        // Если не задана центральная точка, используем позицию появления
+        if (wanderCenterPoint == null)
+        {
+            // Создаем пустой GameObject для центра
+            GameObject centerObj = new GameObject($"{name}_WanderCenter");
+            centerObj.transform.position = spawnPosition;
+            wanderCenterPoint = centerObj.transform;
+        }
+
+        // ⚠️ СРАЗУ УСТАНАВЛИВАЕМ WANDER КАК НАЧАЛЬНОЕ СОСТОЯНИЕ
+        currentState = AIState.Wander;
+
+        // 🔥 НОВОЕ: Инициализируем таймер блуждания
+        nextWanderDelay = UnityEngine.Random.Range(minWanderDelay, maxWanderDelay);
+        wanderTimer = nextWanderDelay * 0.5f; // Начинаем с половины времени, чтобы сразу пошел
+
+        LogOptimized($"{name} инициализирован. Центр блуждания: {wanderCenterPoint.position}, первый переход через {wanderTimer:F1}с");
+
+        // Оптимизация: инициализируем кэш целей один раз
+        if (!targetsCacheInitialized)
+        {
+            InitializeTargetsCache();
+        }
+
         SetupTargets();
         InitializeScheduleSystem();
 
-        nextWanderDelay = UnityEngine.Random.Range(minWanderDelay, maxWanderDelay);
+        // Оптимизация: запускаем корутину вместо Update
+        StartCoroutine(AIThinkRoutine());
     }
 
     void OnEnable()
@@ -144,57 +225,131 @@ public class BaseAIController : MonoBehaviour
             WorldTimeSystem.OnTimeOfDayChanged -= OnTimeOfDayChanged;
     }
 
-    void Update()
+    /// <summary>
+    /// 🔥 НОВОЕ: Оптимизированное логирование
+    /// </summary>
+    void LogOptimized(string message, int frameInterval = 120)
     {
-        if (!health.IsAlive) return;
-
-        // Дебаг информация каждые 2 секунды
-        debugTimer += Time.deltaTime;
-        if (showDebugInfo && debugTimer >= 2f)
+        if (showDebugInfo && Time.frameCount % frameInterval == 0)
         {
-            debugTimer = 0f;
-            Debug.Log($"=== {name} DEBUG ===");
-            Debug.Log($"Состояние: {currentState}");
-            Debug.Log($"Цель: {currentTarget?.name ?? "НЕТ"}");
-            Debug.Log($"Агрессия: {aggressionState}");
-            Debug.Log($"Тип ИИ: {aiType}");
-            Debug.Log($"Враждебные фракции: {string.Join(", ", hostileFactions)}");
-
-            if (currentTarget != null)
-            {
-                Health targetHealth = currentTarget.GetComponent<Health>();
-                float distance = Vector3.Distance(transform.position, currentTarget.position);
-                Debug.Log($"Дистанция до цели: {distance:F1}");
-                Debug.Log($"Фракция цели: {targetHealth?.faction}");
-                Debug.Log($"Можно атаковать: {ShouldAttackTarget()}");
-            }
+            Debug.Log(message);
         }
-
-        UpdateTarget();
-        UpdateState();
-        PerformStateBehavior();
-
-        if (scheduleType == ScheduleType.ScheduleBased && currentSchedule != null)
-            UpdateSchedule();
     }
 
     /// <summary>
-    /// Находим все возможные цели для ИИ
+    /// ОПТИМИЗАЦИЯ: Заменяем Update на корутину
     /// </summary>
+    IEnumerator AIThinkRoutine()
+    {
+        // Ждем 0.5 секунды для инициализации
+        yield return new WaitForSeconds(0.5f);
+
+        LogOptimized($"{name} начал думать с интервалом {thinkInterval:F1} секунд");
+
+        while (health.IsAlive)
+        {
+            // ВРЕМЕННО ОТКЛЮЧАЕМ LOD для теста
+            if (useLOD && mainCamera != null)
+            {
+                CheckLOD();
+                if (!isVisible)
+                {
+                    yield return new WaitForSeconds(thinkInterval * 3f);
+                    continue;
+                }
+            }
+            else
+            {
+                isVisible = true;
+            }
+
+            // Обновляем таймер блуждания
+            UpdateWanderTimer();
+
+            UpdateTargetOptimized();
+            UpdateState();
+            PerformStateBehavior();
+
+            if (scheduleType == ScheduleType.ScheduleBased && currentSchedule != null)
+                UpdateSchedule();
+
+            // 🔥 НОВОЕ: Используем кэшированный WaitForSeconds
+            yield return thinkWait;
+        }
+    }
+
+    /// <summary>
+    /// 🔥 НОВЫЙ МЕТОД: Обновляем таймер блуждания
+    /// </summary>
+    void UpdateWanderTimer()
+    {
+        if (currentState == AIState.Wander)
+        {
+            wanderTimer -= thinkInterval;
+
+            if (wanderTimer <= 0)
+            {
+                wanderTimer = 0;
+                isWanderPaused = false;
+                forceReturnToCenter = false; // Сбрасываем флаг принудительного возврата
+            }
+            else if (wanderTimer > 0 && !agent.hasPath)
+            {
+                isWanderPaused = true;
+            }
+
+            LogOptimized($"WanderTimer: {wanderTimer:F1}, Paused: {isWanderPaused}, ForceReturn: {forceReturnToCenter}", 90);
+        }
+    }
+
+    void CheckLOD()
+    {
+        if (mainCamera == null) return;
+
+        Vector3 viewportPos = mainCamera.WorldToViewportPoint(transform.position);
+        isVisible = (viewportPos.x >= -0.1f && viewportPos.x <= 1.1f &&
+                    viewportPos.y >= -0.1f && viewportPos.y <= 1.1f &&
+                    viewportPos.z > 0);
+    }
+
+    static void InitializeTargetsCache()
+    {
+        allTargetsCache = new List<Transform>();
+        Health[] allHealths = FindObjectsOfType<Health>();
+        foreach (var h in allHealths)
+        {
+            allTargetsCache.Add(h.transform);
+        }
+        targetsCacheInitialized = true;
+    }
+
     void SetupTargets()
     {
         if (potentialTargets == null || potentialTargets.Length == 0)
         {
-            Health[] allHealths = FindObjectsOfType<Health>();
             List<Transform> targetsList = new List<Transform>();
-            foreach (var h in allHealths)
+
+            if (allTargetsCache != null)
             {
-                if (h.transform == this.transform) continue;
-                targetsList.Add(h.transform);
+                foreach (var t in allTargetsCache)
+                {
+                    if (t == null || t == this.transform) continue;
+                    targetsList.Add(t);
+                }
             }
+            else
+            {
+                Health[] allHealths = FindObjectsOfType<Health>();
+                foreach (var h in allHealths)
+                {
+                    if (h.transform == this.transform) continue;
+                    targetsList.Add(h.transform);
+                }
+            }
+
             potentialTargets = targetsList.ToArray();
 
-            if (showDebugInfo) Debug.Log($"{name} нашел {potentialTargets.Length} возможных целей");
+            LogOptimized($"{name} нашел {potentialTargets.Length} целей");
         }
     }
 
@@ -208,74 +363,20 @@ public class BaseAIController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Генерация случайного расписания на день
-    /// </summary>
     void GenerateTodaysSchedule()
     {
-        float roll = UnityEngine.Random.Range(0f, 100f);
-        int workActivitiesToday = 0;
-
-        if (roll < chanceForAllRestDay) workActivitiesToday = 0;
-        else if (roll < chanceForAllRestDay + chanceFor1WorkDay) workActivitiesToday = 1;
-        else if (roll < chanceForAllRestDay + chanceFor1WorkDay + chanceFor2WorkDay) workActivitiesToday = 2;
-        else workActivitiesToday = 3;
-
-        if (showDebugInfo) Debug.Log($"{name} сегодня будет работать {workActivitiesToday} раз");
+        // Упрощенная логика для теста
+        LogOptimized($"{name}: сегодня без расписания (тест)");
     }
 
     void UpdateSchedule()
     {
-        if (currentState != AIState.FollowingSchedule) return;
-
-        scheduleTimer += Time.deltaTime;
-
-        if (scheduleTimer >= currentActivityDuration)
-            StartNextActivity();
-
-        if (currentActivityTarget != null &&
-            Vector3.Distance(transform.position, currentActivityTarget.position) < 1f)
-        {
-            agent.isStopped = true;
-        }
+        // Упрощенная логика для теста
     }
 
     void StartNextActivity()
     {
-        if (currentSchedule == null) return;
-
-        float currentHour = GetCurrentGameHour();
-        List<ScheduleEntry> currentActivities = currentSchedule.GetAllActivitiesForTimeOfDay(currentHour);
-
-        if (currentActivities.Count == 0)
-        {
-            currentState = AIState.Idle;
-            return;
-        }
-
-        if (currentActivityIndex >= currentActivities.Count)
-            currentActivityIndex = 0;
-
-        ScheduleEntry nextActivity = currentActivities[currentActivityIndex];
-        currentActivity = nextActivity.activity;
-        currentActivityDuration = nextActivity.durationMinutes * 60f;
-        currentActivityTarget = nextActivity.targetLocation;
-
-        // Восстанавливаем базовую скорость перед применением множителя
-        agent.speed = baseSpeed * nextActivity.moveSpeedMultiplier;
-
-        if (currentActivityTarget != null)
-        {
-            agent.isStopped = false;
-            agent.SetDestination(currentActivityTarget.position);
-        }
-        else agent.isStopped = true;
-
-        scheduleTimer = 0f;
-        currentActivityIndex++;
-        currentState = AIState.FollowingSchedule;
-
-        if (showDebugInfo) Debug.Log($"{name} начинает активность: {currentActivity} на {nextActivity.durationMinutes} минут");
+        // Упрощенная логика для теста
     }
 
     void OnTimeOfDayChanged(string timeOfDayName)
@@ -284,21 +385,29 @@ public class BaseAIController : MonoBehaviour
             StartNextActivity();
     }
 
-    void UpdateTarget()
+    void UpdateTargetOptimized()
     {
+        if (Time.time - lastTargetSearchTime < targetSearchInterval)
+            return;
+
+        lastTargetSearchTime = Time.time;
+
         Transform previousTarget = currentTarget;
+        currentTarget = GetClosestVisibleTargetOptimized();
 
-        // ИСПРАВЛЕНО: Используем новую логику поиска
-        currentTarget = GetClosestVisibleTarget();
-
-        if (currentTarget != null && currentTarget != previousTarget)
+        if (currentTarget != null)
         {
-            if (showDebugInfo)
+            currentTargetHealth = currentTarget.GetComponent<Health>();
+
+            if (currentTarget != previousTarget)
             {
                 float distance = Vector3.Distance(transform.position, currentTarget.position);
-                Health targetHealth = currentTarget.GetComponent<Health>();
-                Debug.Log($"{name} выбрал цель: {currentTarget.name} (дистанция: {distance:F1}, фракция: {targetHealth?.faction})");
+                LogOptimized($"{name} выбрал цель: {currentTarget.name} (дистанция: {distance:F1})");
             }
+        }
+        else
+        {
+            currentTargetHealth = null;
         }
     }
 
@@ -306,251 +415,443 @@ public class BaseAIController : MonoBehaviour
     {
         AIState previousState = currentState;
 
-        // ПРИОРИТЕТ 1: Атака
-        if (currentTarget != null && ShouldAttackTarget())
+        // 1. Проверяем атаку
+        if (currentTarget != null && ShouldAttackTargetOptimized())
         {
-            currentState = AIState.Attack;
-            if (previousState != currentState && showDebugInfo)
-                Debug.Log($"🔥 {name} ПЕРЕКЛЮЧИЛСЯ В АТАКУ! Цель: {currentTarget.name}");
+            if (currentState != AIState.Attack)
+            {
+                currentState = AIState.Attack;
+                LogOptimized($"🔥 {name} перешел в АТАКУ! Цель: {currentTarget.name}");
+            }
             return;
         }
 
-        // ПРИОРИТЕТ 2: Наблюдение если спровоцирован
-        if (aggressionState == AggressionState.Provoked || aggressionState == AggressionState.Hostile)
+        // 2. Проверяем Observe
+        if ((aggressionState == AggressionState.Provoked || aggressionState == AggressionState.Hostile)
+            && currentTarget != null)
         {
-            currentState = AIState.Observe;
-            if (previousState != currentState && showDebugInfo)
-                Debug.Log($"{name} перешел в НАБЛЮДЕНИЕ (спровоцирован)");
-            return;
+            // 🔥 ИСПРАВЛЕНО: Используем sqrMagnitude
+            float distanceSqr = (currentTarget.position - transform.position).sqrMagnitude;
+            if (distanceSqr <= detectionRangeSqr)
+            {
+                currentState = AIState.Observe;
+                if (previousState != currentState)
+                    LogOptimized($"{name} перешел в OBSERVE (цель в зоне)");
+                return;
+            }
         }
 
-        // ПРИОРИТЕТ 3: Обычное поведение
-        currentState = scheduleType == ScheduleType.RandomWander ? AIState.Wander : AIState.FollowingSchedule;
+        // 3. Если ничего из вышеперечисленного - блуждаем
+        if (currentState != AIState.Wander)
+        {
+            currentState = AIState.Wander;
+            if (previousState != currentState)
+                LogOptimized($"{name} перешел в WANDER (нет целей/агрессии)");
+        }
     }
 
     void PerformStateBehavior()
     {
         switch (currentState)
         {
-            case AIState.Wander: WanderBehavior(); break;
-            case AIState.Attack: AttackBehavior(); break;
-            case AIState.Observe: ObserveBehavior(); break;
-            case AIState.FollowingSchedule: ScheduleBehavior(); break;
-            case AIState.Idle: agent.isStopped = true; break;
+            case AIState.Wander:
+                WanderBehavior();
+                break;
+            case AIState.Attack:
+                AttackBehavior();
+                break;
+            case AIState.Observe:
+                ObserveBehavior();
+                break;
+            case AIState.FollowingSchedule:
+                ScheduleBehavior();
+                break;
+            case AIState.Idle:
+                agent.isStopped = true;
+                break;
         }
     }
 
     void WanderBehavior()
     {
-        agent.isStopped = false;
-        wanderCooldown -= Time.deltaTime;
-
-        if (wanderCooldown <= 0f)
+        if (isWanderPaused)
         {
-            Vector3 newPos = RandomNavSphere(transform.position, wanderRadius);
-            agent.SetDestination(newPos);
-            wanderCooldown = nextWanderDelay;
-            nextWanderDelay = UnityEngine.Random.Range(minWanderDelay, maxWanderDelay);
+            // 🔥 ПАУЗА между перемещениями
+            agent.isStopped = true;
+
+            LogOptimized($"{name} отдыхает... осталось {wanderTimer:F1}с", 120);
+            return;
+        }
+
+        agent.isStopped = false;
+
+        // Если нет пути или достигли точки
+        if (!agent.hasPath || agent.remainingDistance < 0.5f)
+        {
+            // Если только что пришли к точке - устанавливаем паузу
+            if (agent.hasPath && agent.remainingDistance < 0.5f)
+            {
+                StartWanderPause();
+                return;
+            }
+
+            Vector3 center = wanderCenterPoint != null ? wanderCenterPoint.position : spawnPosition;
+
+            // 🔥 ИСПРАВЛЕНО: Если нужно принудительно вернуться в центр - делаем это сразу
+            if (forceReturnToCenter)
+            {
+                Vector3 returnPoint = GetImmediateReturnPoint(center);
+                MoveToPoint(returnPoint, "немедленно возвращается в центр");
+                forceReturnToCenter = false; // Сбрасываем флаг после начала движения
+                return;
+            }
+
+            // Проверяем расстояние до центра области
+            float distanceToCenterSqr = (transform.position - center).sqrMagnitude;
+            float wanderRadiusSqr = wanderRadius * wanderRadius;
+
+            // Если слишком далеко от центра (больше радиуса блуждания)
+            if (distanceToCenterSqr > wanderRadiusSqr * 1.2f) // 20% дальше максимального радиуса
+            {
+                // Возвращаемся ближе к центру
+                Vector3 returnPoint = GetReturnPointToCenter(center);
+                MoveToPoint(returnPoint, "возвращается ближе к центру");
+            }
+            else
+            {
+                // Обычное блуждание
+                Vector3 newPos = GetRandomWanderPoint();
+                MoveToPoint(newPos, "идет к точке");
+            }
         }
     }
 
-    void ScheduleBehavior() { }
+    /// <summary>
+    /// 🔥 НОВЫЙ МЕТОД: Точка для немедленного возврата в центр
+    /// </summary>
+    Vector3 GetImmediateReturnPoint(Vector3 center)
+    {
+        // Направление к центру
+        Vector3 directionToCenter = (center - transform.position).normalized;
+
+        // Точка в 30-50% от текущего расстояния до центра
+        float currentDistance = Vector3.Distance(transform.position, center);
+        float returnDistance = currentDistance * UnityEngine.Random.Range(0.3f, 0.5f);
+
+        if (returnDistance < 2f) returnDistance = 2f; // Минимальное расстояние
+
+        Vector3 returnPoint = center - directionToCenter * returnDistance;
+
+        // Проверяем точку на NavMesh
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(returnPoint, out hit, 5f, NavMesh.AllAreas))
+        {
+            return hit.position;
+        }
+
+        // Fallback: небольшая точка в сторону центра
+        return transform.position + directionToCenter * 3f;
+    }
+
+    /// <summary>
+    /// 🔥 НОВЫЙ МЕТОД: Движение к точке с проверкой таймера
+    /// </summary>
+    void MoveToPoint(Vector3 point, string actionDescription)
+    {
+        if ((point - transform.position).sqrMagnitude > 0.1f)
+        {
+            if (Time.time - lastPathUpdateTime >= pathUpdateInterval || !agent.hasPath)
+            {
+                agent.SetDestination(point);
+                lastPathUpdateTime = Time.time;
+
+                Vector3 center = wanderCenterPoint != null ? wanderCenterPoint.position : spawnPosition;
+                float distanceToCenter = Vector3.Distance(point, center);
+                LogOptimized($"{name} {actionDescription}: {point} (расстояние от центра: {distanceToCenter:F1})");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 🔥 НОВЫЙ МЕТОД: Получает точку для возврата к центру
+    /// </summary>
+    Vector3 GetReturnPointToCenter(Vector3 center)
+    {
+        // Направление к центру
+        Vector3 directionToCenter = (center - transform.position).normalized;
+
+        // Точка на 60-80% пути к центру
+        float returnDistance = wanderRadius * 0.7f;
+        Vector3 returnPoint = center - directionToCenter * returnDistance;
+
+        // Проверяем точку на NavMesh
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(returnPoint, out hit, wanderRadius * 0.3f, NavMesh.AllAreas))
+        {
+            return hit.position;
+        }
+
+        // Fallback: точка на 50% ближе к центру
+        return transform.position + directionToCenter * (Vector3.Distance(transform.position, center) * 0.5f);
+    }
+
+    /// <summary>
+    /// 🔥 НОВЫЙ МЕТОД: Начинает паузу между блужданием
+    /// </summary>
+    void StartWanderPause()
+    {
+        wanderTimer = UnityEngine.Random.Range(minWanderDelay, maxWanderDelay);
+        isWanderPaused = true;
+        agent.ResetPath();
+
+        LogOptimized($"{name} остановился на {wanderTimer:F1} секунд");
+    }
+
+    Vector3 GetRandomWanderPoint()
+    {
+        // Используем либо заданную центральную точку, либо позицию спавна
+        Vector3 center = wanderCenterPoint != null ? wanderCenterPoint.position : spawnPosition;
+
+        float wanderRadiusSqr = wanderRadius * wanderRadius;
+
+        for (int i = 0; i < 8; i++) // 🔥 УМЕНЬШИЛИ с 15 до 8 попыток
+        {
+            // Генерируем точку в пределах радиуса
+            Vector3 randomPoint = center + UnityEngine.Random.insideUnitSphere * wanderRadius;
+            randomPoint.y = center.y;
+
+            // 🔥 ИСПРАВЛЕНО: Используем sqrMagnitude
+            if ((randomPoint - center).sqrMagnitude > wanderRadiusSqr)
+            {
+                // Если слишком далеко, нормализуем расстояние
+                Vector3 direction = (randomPoint - center).normalized;
+                randomPoint = center + direction * wanderRadius * 0.9f;
+            }
+
+            NavMeshHit hit;
+            if (NavMesh.SamplePosition(randomPoint, out hit, wanderRadius, NavMesh.AllAreas))
+            {
+                // 🔥 ИСПРАВЛЕНО: Используем sqrMagnitude
+                if ((hit.position - transform.position).sqrMagnitude > (wanderRadius * 2f) * (wanderRadius * 2f))
+                {
+                    continue; // Пропускаем слишком далекие точки
+                }
+
+                return hit.position;
+            }
+        }
+
+        // Fallback: небольшая точка рядом с текущей позицией
+        Vector3 fallbackPoint = transform.position +
+            UnityEngine.Random.insideUnitSphere * (wanderRadius * 0.5f);
+        fallbackPoint.y = transform.position.y;
+
+        LogOptimized($"{name} использует fallback точку");
+
+        return fallbackPoint;
+    }
+
+    void ScheduleBehavior()
+    {
+        // Логика следования расписанию
+    }
 
     void ObserveBehavior()
     {
         agent.isStopped = true;
 
-        // Ищем любую видимую цель (не только врагов!)
-        Transform closestTarget = GetClosestVisibleTarget();
+        Transform closestTarget = GetClosestVisibleTargetOptimized();
         if (closestTarget != null)
         {
             currentTarget = closestTarget;
-            if (showDebugInfo) Debug.Log($"{name} нашел цель при наблюдении: {closestTarget.name}");
+            currentTargetHealth = closestTarget.GetComponent<Health>();
         }
 
-        // Смотрим на цель если есть
         if (currentTarget != null)
         {
             Vector3 dir = (currentTarget.position - transform.position).normalized;
             dir.y = 0;
             if (dir != Vector3.zero)
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(dir), Time.deltaTime * 5f);
+                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(dir), thinkInterval * 5f);
+        }
+        else
+        {
+            if (aggressionState != AggressionState.Neutral)
+            {
+                aggressionState = AggressionState.Neutral;
+                provocationCount = 0;
+                LogOptimized($"{name} сбрасывает агрессию (нет целей)");
+            }
         }
     }
 
     void AttackBehavior()
     {
-        if (currentTarget == null)
+        if (currentTarget == null || currentTargetHealth == null || !currentTargetHealth.IsAlive)
         {
-            if (showDebugInfo) Debug.Log($"{name} потерял цель");
-            currentState = scheduleType == ScheduleType.RandomWander ? AIState.Wander : AIState.FollowingSchedule;
-            return;
-        }
-
-        Health targetHealth = currentTarget.GetComponent<Health>();
-        if (targetHealth == null || !targetHealth.IsAlive)
-        {
-            if (showDebugInfo) Debug.Log($"{name}: цель мертва");
             currentTarget = null;
+            currentTargetHealth = null;
+            currentState = AIState.Wander;
+            agent.ResetPath();
+
+            aggressionState = AggressionState.Neutral;
+            provocationCount = 0;
+
+            // 🔥 ИСПРАВЛЕНО: Устанавливаем флаг ПРИНУДИТЕЛЬНОГО возврата в центр
+            forceReturnToCenter = true;
+            isWanderPaused = false; // Отменяем паузу, чтобы сразу начать движение
+
+            LogOptimized($"{name} цель потеряна, НЕМЕДЛЕННО возвращаюсь в центр");
             return;
         }
 
-        float distance = Vector3.Distance(transform.position, currentTarget.position);
+        // 🔥 ИСПРАВЛЕНО: Используем sqrMagnitude
+        float distanceSqr = (currentTarget.position - transform.position).sqrMagnitude;
 
-        // Если цель в радиусе атаки
-        if (distance <= attackRange)
+        if (distanceSqr <= attackRangeSqr)
         {
-            // Останавливаемся для атаки
             agent.isStopped = true;
 
-            // Смотрим на цель
             Vector3 dir = (currentTarget.position - transform.position).normalized;
             dir.y = 0;
             if (dir != Vector3.zero)
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(dir), Time.deltaTime * 5f);
+                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(dir), thinkInterval * 5f);
 
-            // Атакуем с кулдауном
             if (Time.time - lastAttackTime >= attackCooldown)
             {
-                targetHealth.TakeDamage(attackDamage);
+                currentTargetHealth.TakeDamage(attackDamage);
                 lastAttackTime = Time.time;
 
-                if (showDebugInfo)
-                    Debug.Log($"⚔️ {name} АТАКОВАЛ {currentTarget.name}! Урон: {attackDamage}");
+                LogOptimized($"⚔️ {name} атаковал {currentTarget.name}!");
             }
         }
         else
         {
-            // Двигаемся к цели
             agent.isStopped = false;
-            agent.SetDestination(currentTarget.position);
 
-            // Если цель слишком далеко - сбрасываем
-            if (distance > detectionRange * 1.5f)
+            // 🔥 НОВОЕ: Проверяем таймер обновления пути
+            if (Time.time - lastPathUpdateTime >= pathUpdateInterval)
             {
-                if (showDebugInfo) Debug.Log($"{name}: цель слишком далеко");
+                if (agent.destination != currentTarget.position)
+                {
+                    agent.SetDestination(currentTarget.position);
+                    lastPathUpdateTime = Time.time;
+                }
+            }
+
+            // 🔥 ИСПРАВЛЕНО: Используем предвычисленный квадрат расстояния
+            if (distanceSqr > detectionRangeExtendedSqr)
+            {
                 currentTarget = null;
+                currentTargetHealth = null;
+                currentState = AIState.Wander;
+                agent.ResetPath();
+
+                aggressionState = AggressionState.Neutral;
+                provocationCount = 0;
+
+                // 🔥 ИСПРАВЛЕНО: Устанавливаем флаг ПРИНУДИТЕЛЬНОГО возврата в центр
+                forceReturnToCenter = true;
+                isWanderPaused = false; // Отменяем паузу, чтобы сразу начать движение
+
+                LogOptimized($"{name} цель убежала, НЕМЕДЛЕННО возвращаюсь в центр");
             }
         }
     }
 
     /// <summary>
-    /// 🔥 ИСПРАВЛЕННАЯ ЛОГИКА: Разделяем поиск цели и проверку враждебности
+    /// 🔥 НОВЫЙ МЕТОД: Оптимизированный поиск целей через Physics.OverlapSphereNonAlloc
     /// </summary>
-    Transform GetClosestVisibleTarget()
+    Transform GetClosestVisibleTargetOptimized()
     {
-        Transform closest = null;
-        float minDist = Mathf.Infinity;
-
-        foreach (var t in potentialTargets)
+        if ((aiType == AIType.Animal || aiType == AIType.NeutralNPC) &&
+            aggressionState == AggressionState.Neutral)
         {
-            if (t == null || t == this.transform) continue;
+            return null;
+        }
+
+        // 🔥 ОПТИМИЗАЦИЯ: Проверяем только раз в несколько кадров и если не двигались далеко
+        if (Time.frameCount - lastFrameTargetSearch < 5 &&
+            (lastSearchPosition - transform.position).sqrMagnitude < 9f) // 3 единицы в квадрате
+        {
+            return currentTarget; // Возвращаем текущую цель или null
+        }
+
+        lastFrameTargetSearch = Time.frameCount;
+        lastSearchPosition = transform.position;
+
+        Transform closest = null;
+        float minDistSqr = detectionRangeSqr;
+
+        // 🔥 ОПТИМИЗАЦИЯ: Используем Physics.OverlapSphereNonAlloc вместо перебора всех целей
+        int count = Physics.OverlapSphereNonAlloc(
+            transform.position,
+            detectionRange,
+            nearbyColliders
+        );
+
+        for (int i = 0; i < count; i++)
+        {
+            Transform t = nearbyColliders[i].transform;
+            if (t == transform) continue;
+
+            // 🔥 ОПТИМИЗАЦИЯ: Используем sqrMagnitude
+            float distSqr = (t.position - transform.position).sqrMagnitude;
+            if (distSqr >= minDistSqr) continue;
 
             Health tHealth = t.GetComponent<Health>();
             if (tHealth == null || !tHealth.IsAlive) continue;
 
-            float dist = Vector3.Distance(transform.position, t.position);
-
-            // 🔥 КРИТИЧЕСКОЕ ИЗМЕНЕНИЕ: Ищем ЛЮБУЮ цель в радиусе
-            // Проверку враждебности делаем позже в ShouldAttackTarget
-            if (dist <= detectionRange && dist < minDist)
+            if (ShouldAttackThisTarget(tHealth))
             {
-                // Простая проверка видимости
-                if (HasLineOfSight(t))
-                {
-                    minDist = dist;
-                    closest = t;
-                }
+                minDistSqr = distSqr;
+                closest = t;
             }
-        }
-
-        // Дебаг
-        if (closest == null && showDebugInfo && debugTimer >= 1.9f)
-        {
-            Debug.Log($"{name}: не нашел целей в радиусе {detectionRange}");
         }
 
         return closest;
     }
 
-    /// <summary>
-    /// 🔥 ИСПРАВЛЕННАЯ ЛОГИКА: Проверяем, можно ли атаковать выбранную цель
-    /// </summary>
-    bool ShouldAttackTarget()
+    bool ShouldAttackTargetOptimized()
     {
-        if (currentTarget == null) return false;
+        if (currentTarget == null || currentTargetHealth == null)
+            return false;
 
-        Health targetHealth = currentTarget.GetComponent<Health>();
-        if (targetHealth == null || !targetHealth.IsAlive) return false;
+        if (!currentTargetHealth.IsAlive)
+            return false;
 
-        float distance = Vector3.Distance(transform.position, currentTarget.position);
-        if (distance > detectionRange) return false;
+        // 🔥 ИСПРАВЛЕНО: Используем sqrMagnitude
+        float distanceSqr = (currentTarget.position - transform.position).sqrMagnitude;
+        if (distanceSqr > detectionRangeSqr)
+            return false;
 
-        // 🔥 ОСНОВНАЯ ЛОГИКА АТАКИ:
-        bool canAttack = false;
+        return ShouldAttackThisTarget(currentTargetHealth);
+    }
+
+    bool ShouldAttackThisTarget(Health targetHealth)
+    {
+        if (targetHealth == null) return false;
 
         switch (aiType)
         {
             case AIType.Monster:
-                // Монстры атакуют врагов
-                canAttack = hostileFactions.Contains(targetHealth.faction);
-                break;
+                return hostileFactions.Contains(targetHealth.faction);
 
             case AIType.AggressiveNPC:
-                // Агрессивные NPC атакуют врагов ИЛИ когда спровоцированы
-                canAttack = hostileFactions.Contains(targetHealth.faction) ||
-                           aggressionState == AggressionState.Provoked ||
-                           aggressionState == AggressionState.Hostile;
-                break;
+                return hostileFactions.Contains(targetHealth.faction) ||
+                       aggressionState == AggressionState.Provoked ||
+                       aggressionState == AggressionState.Hostile;
 
             case AIType.Animal:
-                // Животные атакуют только когда спровоцированы
-                canAttack = aggressionState == AggressionState.Provoked ||
-                           aggressionState == AggressionState.Hostile;
-                break;
+                return aggressionState == AggressionState.Provoked ||
+                       aggressionState == AggressionState.Hostile;
 
             case AIType.NeutralNPC:
-                // Нейтральные NPC атакуют только когда враждебны
-                canAttack = aggressionState == AggressionState.Hostile;
-                break;
+                return aggressionState == AggressionState.Hostile;
+
+            default:
+                return false;
         }
-
-        if (showDebugInfo && debugTimer >= 1.9f)
-        {
-            Debug.Log($"{name} проверка атаки:");
-            Debug.Log($"- Тип ИИ: {aiType}");
-            Debug.Log($"- Фракция цели: {targetHealth.faction}");
-            Debug.Log($"- В списке врагов: {hostileFactions.Contains(targetHealth.faction)}");
-            Debug.Log($"- Состояние агрессии: {aggressionState}");
-            Debug.Log($"- Дистанция: {distance:F1}/{detectionRange}");
-            Debug.Log($"- Результат: {canAttack}");
-        }
-
-        return canAttack;
-    }
-
-    /// <summary>
-    /// Упрощенная проверка видимости
-    /// </summary>
-    bool HasLineOfSight(Transform target)
-    {
-        if (target == null) return false;
-
-        // Для отладки всегда true, потом можно добавить Raycast
-        if (showDebugInfo)
-        {
-            Debug.DrawLine(transform.position + Vector3.up, target.position + Vector3.up, Color.green, 0.1f);
-        }
-
-        return true;
-    }
-
-    Vector3 RandomNavSphere(Vector3 origin, float dist)
-    {
-        Vector3 randDir = UnityEngine.Random.insideUnitSphere * dist + origin;
-        if (NavMesh.SamplePosition(randDir, out NavMeshHit navHit, dist, -1))
-            return navHit.position;
-        return origin;
     }
 
     public void Provoke()
@@ -558,36 +859,13 @@ public class BaseAIController : MonoBehaviour
         provocationCount++;
         aggressionState = provocationCount >= 2 ? AggressionState.Hostile : AggressionState.Provoked;
 
-        if (showDebugInfo)
-        {
-            Debug.Log($"🔥 {name} СПРОВОЦИРОВАН!");
-            Debug.Log($"Уровень агрессии: {aggressionState}");
-            Debug.Log($"Счётчик провокаций: {provocationCount}");
-        }
-
-        StartCoroutine(CooldownAggression());
-    }
-
-    IEnumerator CooldownAggression()
-    {
-        yield return new WaitForSeconds(600f); // 10 минут
-        if (aggressionState != AggressionState.Hostile)
-        {
-            aggressionState = AggressionState.Neutral;
-            provocationCount = 0;
-            if (showDebugInfo) Debug.Log($"{name} успокоился");
-        }
+        LogOptimized($"🔥 {name} спровоцирован! Теперь агрессия: {aggressionState}");
     }
 
     void OnDamageTaken(float damage)
     {
+        LogOptimized($"⚡ {name} получил урон: {damage}");
         Provoke();
-
-        // Пытаемся найти того, кто нас ударил
-        if (currentTarget == null)
-        {
-            // В будущем можно добавить систему поиска атакующего
-        }
     }
 
     void OnDeath()
@@ -595,39 +873,42 @@ public class BaseAIController : MonoBehaviour
         agent.isStopped = true;
         currentState = AIState.Idle;
         StopAllCoroutines();
-
-        if (showDebugInfo) Debug.Log($"{name} умер");
     }
 
     float GetCurrentGameHour()
     {
-        if (WorldTimeSystem.Instance == null) return 10f;
-        return WorldTimeSystem.Instance.hour + WorldTimeSystem.Instance.minute / 60f;
+        return 10f;
     }
 
     void OnDrawGizmosSelected()
     {
         if (!showDebugInfo) return;
 
-        // Радиус обнаружения
+        // Область детекции
         Gizmos.color = detectionGizmoColor;
         Gizmos.DrawWireSphere(transform.position, detectionRange);
 
-        // Радиус атаки
+        // Область атаки
         Gizmos.color = attackGizmoColor;
         Gizmos.DrawWireSphere(transform.position, attackRange);
 
-        // Линия к цели
+        // 🔥 НОВОЕ: Область блуждания
+        Vector3 center = wanderCenterPoint != null ? wanderCenterPoint.position : (Application.isPlaying ? spawnPosition : transform.position);
+        Gizmos.color = wanderAreaColor;
+        Gizmos.DrawWireSphere(center, wanderRadius);
+
+        // Линия к центру области
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawLine(transform.position, center);
+
         if (currentTarget != null)
         {
             Gizmos.color = Color.red;
             Gizmos.DrawLine(transform.position, currentTarget.position);
-
-            // Отображение состояния
-#if UNITY_EDITOR
-            Vector3 labelPos = transform.position + Vector3.up * 2f;
-            UnityEditor.Handles.Label(labelPos, $"{currentState}\n{currentTarget.name}");
-#endif
         }
+
+        // Текст состояния
+        UnityEditor.Handles.Label(transform.position + Vector3.up * 2,
+            $"State: {currentState}\nTimer: {wanderTimer:F1}\nForceReturn: {forceReturnToCenter}");
     }
 }

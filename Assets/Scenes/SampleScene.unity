@@ -1725,16 +1725,9 @@ MonoBehaviour:
   faction: 3
   hostileFactions: 0000000002000000
   scheduleType: 0
-  minWanderDelay: 6.8
-  maxWanderDelay: 23
-  possibleSchedules:
-  - scheduleName: 
-    morningActivities: []
-    dayActivities: []
-    eveningActivities: []
-    nightActivities: []
-    minWorkActivities: 0
-    maxWorkActivities: 0
+  minWanderDelay: 2
+  maxWanderDelay: 6
+  possibleSchedules: []
   chanceForAllRestDay: 10
   chanceFor1WorkDay: 40
   chanceFor2WorkDay: 30
@@ -1743,11 +1736,17 @@ MonoBehaviour:
   attackRange: 2
   attackDamage: 10
   attackCooldown: 1
-  wanderRadius: 5
+  wanderRadius: 10
+  wanderCenterPoint: {fileID: 1817545010}
   potentialTargets: []
   showDebugInfo: 1
   detectionGizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   attackGizmoColor: {r: 1, g: 0, b: 0, a: 1}
+  wanderAreaColor: {r: 0, g: 1, b: 1, a: 1}
+  thinkInterval: 0.2
+  targetSearchInterval: 1
+  useLOD: 1
+  pathUpdateInterval: 0.5
 --- !u!136 &588179734
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -2690,9 +2689,7 @@ GameObject:
   - component: {fileID: 981688765}
   - component: {fileID: 981688764}
   - component: {fileID: 981688763}
-  - component: {fileID: 981688762}
   - component: {fileID: 981688768}
-  - component: {fileID: 981688767}
   - component: {fileID: 981688769}
   m_Layer: 0
   m_Name: Capsule
@@ -2701,30 +2698,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &981688762
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 981688761}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a59c62af588f3d14aa74366d47f04368, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  schedule:
-  - startHour: 0
-    state: 0
-  - startHour: 7
-    state: 2
-  - startHour: 9
-    state: 1
-  - startHour: 18
-    state: 2
-  - startHour: 22
-    state: 0
-  <CurrentState>k__BackingField: 0
 --- !u!136 &981688763
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -2813,25 +2786,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &981688767
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 981688761}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 61963268ffa752a45a2fd10bd6b9d70b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  agent: {fileID: 0}
-  targetPosition: {x: 0, y: 0, z: 0}
-  moveSpeed: 2
-  stoppingDistance: 0.1
-  bedPosition: {fileID: 1993396188}
-  workPosition: {fileID: 132585163}
-  relaxArea: {fileID: 950583817}
 --- !u!195 &981688768
 NavMeshAgent:
   m_ObjectHideFlags: 0
@@ -2863,10 +2817,12 @@ MonoBehaviour:
   m_GameObject: {fileID: 981688761}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f04af0b85f3822d4d9b97b06d8802ed2, type: 3}
+  m_Script: {fileID: 11500000, guid: 25f7475a18beb6349a73a3fcc15f1bb5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  schedule: {fileID: 0}
+  maxHealth: 100
+  currentHealth: 0
+  faction: 2
 --- !u!1 &1109743694
 GameObject:
   m_ObjectHideFlags: 0
@@ -4358,11 +4314,17 @@ MonoBehaviour:
   attackRange: 2
   attackDamage: 10
   attackCooldown: 1
-  wanderRadius: 5
+  wanderRadius: 10
+  wanderCenterPoint: {fileID: 1817545010}
   potentialTargets: []
   showDebugInfo: 1
   detectionGizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   attackGizmoColor: {r: 1, g: 0, b: 0, a: 1}
+  wanderAreaColor: {r: 0, g: 1, b: 1, a: 1}
+  thinkInterval: 0.2
+  targetSearchInterval: 1
+  useLOD: 1
+  pathUpdateInterval: 0.5
 --- !u!136 &1523173301
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -5070,6 +5032,37 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 35, y: 0, z: 0}
+--- !u!1 &1817545009
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1817545010}
+  m_Layer: 0
+  m_Name: areaWander
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1817545010
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1817545009}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 38.05, y: -2.93, z: 5.01}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1849999939
 GameObject:
   m_ObjectHideFlags: 3
@@ -6246,6 +6239,7 @@ SceneRoots:
   - {fileID: 1372344116}
   - {fileID: 1417661530}
   - {fileID: 588179737}
+  - {fileID: 1817545010}
   - {fileID: 1523173304}
   - {fileID: 620084158}
   - {fileID: 846915062}
