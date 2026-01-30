@@ -60,7 +60,7 @@ public class WorldTimeSystem : MonoBehaviour
 
         timer += Time.deltaTime * timeScale;
 
-        if (timer >= realSecondsPerGameMinute)
+        while (timer >= realSecondsPerGameMinute)
         {
             timer -= realSecondsPerGameMinute;
             AdvanceMinute();
@@ -247,6 +247,12 @@ public class WorldTimeSystem : MonoBehaviour
         UpdateTimeOfDay(true);
     }
     #endregion
+
+    // В конец WorldTimeSystem.cs перед #if UNITY_EDITOR
+    public float GetTotalGameMinutes()
+    {
+        return day * 24 * 60 + hour * 60 + minute + (timer / realSecondsPerGameMinute);
+    }
 
 #if UNITY_EDITOR
     void OnValidate()

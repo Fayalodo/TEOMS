@@ -1433,50 +1433,6 @@ MonoBehaviour:
   m_MaximumFOV: 60
   m_MinimumOrthoSize: 1
   m_MaximumOrthoSize: 5000
---- !u!1 &506497997
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 506497999}
-  - component: {fileID: 506497998}
-  m_Layer: 0
-  m_Name: TimeDebug
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &506497998
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 506497997}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 64df293d051df934fa7bfec21b82e488, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
---- !u!4 &506497999
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 506497997}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 20.977913, y: 5.663867, z: -1.5774689}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &532480015
 GameObject:
   m_ObjectHideFlags: 0
@@ -1724,28 +1680,20 @@ MonoBehaviour:
   aiType: 1
   faction: 3
   hostileFactions: 0000000002000000
-  scheduleType: 0
   minWanderDelay: 2
   maxWanderDelay: 6
-  possibleSchedules: []
-  chanceForAllRestDay: 10
-  chanceFor1WorkDay: 40
-  chanceFor2WorkDay: 30
-  chanceFor3WorkDay: 20
+  wanderRadius: 10
+  wanderCenterPoint: {fileID: 1817545010}
   detectionRange: 10
   attackRange: 2
   attackDamage: 10
   attackCooldown: 1
-  wanderRadius: 10
-  wanderCenterPoint: {fileID: 1817545010}
-  potentialTargets: []
   showDebugInfo: 1
   detectionGizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   attackGizmoColor: {r: 1, g: 0, b: 0, a: 1}
   wanderAreaColor: {r: 0, g: 1, b: 1, a: 1}
   thinkInterval: 0.2
   targetSearchInterval: 1
-  useLOD: 1
   pathUpdateInterval: 0.5
 --- !u!136 &588179734
 CapsuleCollider:
@@ -2283,7 +2231,7 @@ MonoBehaviour:
   day: 1
   realSecondsPerGameMinute: 1
   isTimePaused: 0
-  timeScale: 1
+  timeScale: 10
   timeOfDaySettings: []
 --- !u!4 &846915062
 Transform:
@@ -2691,6 +2639,7 @@ GameObject:
   - component: {fileID: 981688763}
   - component: {fileID: 981688768}
   - component: {fileID: 981688769}
+  - component: {fileID: 981688770}
   m_Layer: 0
   m_Name: Capsule
   m_TagString: Untagged
@@ -2823,6 +2772,36 @@ MonoBehaviour:
   maxHealth: 100
   currentHealth: 0
   faction: 2
+--- !u!114 &981688770
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 981688761}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b29d50a289d199429e07b6fdd79ba07, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  aiType: 2
+  faction: 2
+  hostileFactions: 
+  minWanderDelay: 3
+  maxWanderDelay: 8
+  wanderRadius: 10
+  wanderCenterPoint: {fileID: 0}
+  detectionRange: 15
+  attackRange: 2
+  attackDamage: 10
+  attackCooldown: 1
+  showDebugInfo: 1
+  detectionGizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  attackGizmoColor: {r: 1, g: 0, b: 0, a: 1}
+  wanderAreaColor: {r: 0, g: 1, b: 1, a: 1}
+  thinkInterval: 0.2
+  targetSearchInterval: 0.5
+  pathUpdateInterval: 0.5
 --- !u!1 &1109743694
 GameObject:
   m_ObjectHideFlags: 0
@@ -4302,28 +4281,20 @@ MonoBehaviour:
   aiType: 2
   faction: 2
   hostileFactions: 0000000003000000
-  scheduleType: 0
   minWanderDelay: 5
   maxWanderDelay: 15
-  possibleSchedules: []
-  chanceForAllRestDay: 10
-  chanceFor1WorkDay: 40
-  chanceFor2WorkDay: 30
-  chanceFor3WorkDay: 20
+  wanderRadius: 10
+  wanderCenterPoint: {fileID: 1817545010}
   detectionRange: 10
   attackRange: 2
   attackDamage: 10
   attackCooldown: 1
-  wanderRadius: 10
-  wanderCenterPoint: {fileID: 1817545010}
-  potentialTargets: []
   showDebugInfo: 1
   detectionGizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   attackGizmoColor: {r: 1, g: 0, b: 0, a: 1}
   wanderAreaColor: {r: 0, g: 1, b: 1, a: 1}
   thinkInterval: 0.2
   targetSearchInterval: 1
-  useLOD: 1
   pathUpdateInterval: 0.5
 --- !u!136 &1523173301
 CapsuleCollider:
@@ -6243,7 +6214,6 @@ SceneRoots:
   - {fileID: 1523173304}
   - {fileID: 620084158}
   - {fileID: 846915062}
-  - {fileID: 506497999}
   - {fileID: 981688766}
   - {fileID: 1993396188}
   - {fileID: 132585163}
