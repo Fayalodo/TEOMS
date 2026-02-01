@@ -1859,6 +1859,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   detectionInterval: 0.4
+  pathUpdateInterval: 0.5
   provocationThreshold: 2
   autoEngageOnDamage: 1
   disableOnDeath: 1
@@ -1879,8 +1880,13 @@ MonoBehaviour:
   minPause: 2
   maxPause: 6
   thinkInterval: 0.5
+  maxTravelTime: 10
   arrivalTolerance: 0.6
+  maxNavMeshSamples: 3
+  useCoroutineWaiting: 1
+  moveCheckInterval: 0.2
   showDebug: 0
+  drawGizmos: 1
 --- !u!114 &588179742
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2841,7 +2847,6 @@ GameObject:
   - component: {fileID: 981688763}
   - component: {fileID: 981688768}
   - component: {fileID: 981688769}
-  - component: {fileID: 981688770}
   - component: {fileID: 981688771}
   - component: {fileID: 981688772}
   - component: {fileID: 981688774}
@@ -2980,35 +2985,6 @@ MonoBehaviour:
   currentHealth: 0
   initializeHealthOnAwake: 1
   faction: 2
---- !u!114 &981688770
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 981688761}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2b29d50a289d199429e07b6fdd79ba07, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  aiType: 2
-  faction: 2
-  targetLayerMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  hostileFactions: 
-  minWanderDelay: 3
-  maxWanderDelay: 8
-  wanderRadius: 10
-  wanderCenterPoint: {fileID: 0}
-  detectionRange: 15
-  showDebugInfo: 1
-  detectionGizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  wanderAreaColor: {r: 0, g: 1, b: 1, a: 1}
-  thinkInterval: 0.2
-  targetSearchInterval: 0.5
-  pathUpdateInterval: 0.5
 --- !u!114 &981688771
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3022,30 +2998,41 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   profile: {fileID: 11400000, guid: 07ad887c212984c43892aebb94e9ba7d, type: 2}
-  minWorkSessions: 0
-  maxWorkSessions: 2
-  wakeWindowStart: 6
-  wakeWindowEnd: 9
-  workWindowStart: 9
-  workWindowEnd: 17
-  leisureWindowStart: 17
-  leisureWindowEnd: 20
-  socialWindowStart: 20
-  socialWindowEnd: 22
-  sleepWindowStart: 22
-  sleepWindowEnd: 6
-  wakeDurationRange: {x: 10, y: 30}
-  workDurationRange: {x: 60, y: 180}
-  leisureDurationRange: {x: 20, y: 60}
-  socialDurationRange: {x: 20, y: 60}
-  sleepDurationRange: {x: 360, y: 480}
+  wakeWindow:
+    startHour: 6
+    endHour: 9
+  workWindow:
+    startHour: 9
+    endHour: 17
+  leisureWindow:
+    startHour: 17
+    endHour: 20
+  socialWindow:
+    startHour: 20
+    endHour: 22
+  sleepWindow:
+    startHour: 22
+    endHour: 6
+  wakeDuration: {x: 10, y: 30}
+  workDuration: {x: 400, y: 465}
+  leisureDuration: {x: 20, y: 60}
+  socialDuration: {x: 20, y: 60}
+  sleepDuration: {x: 360, y: 480}
   agent: {fileID: 981688768}
   animator: {fileID: 0}
-  animatorTriggerPrefix: 
   arrivalTolerance: 0.7
-  patrolInsideLocation: 1
+  pathTimeout: 5
+  patrolInsideLocation: 0
   patrolInterval: 20
-  showDebug: 1
+  resumeAfterInterruption: 1
+  maxInterruptionTime: 30
+  minRemainingTimeForResume: 5
+  scheduleCheckInterval: 1
+  patrolCheckInterval: 0.1
+  useFixedUpdateForPatrol: 1
+  maxPatrolPoints: 3
+  showDebugLogs: 1
+  drawGizmos: 1
 --- !u!114 &981688772
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3088,6 +3075,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   detectionInterval: 0.4
+  pathUpdateInterval: 0.5
   provocationThreshold: 2
   autoEngageOnDamage: 1
   disableOnDeath: 1
@@ -4939,8 +4927,13 @@ MonoBehaviour:
   minPause: 2
   maxPause: 6
   thinkInterval: 0.5
+  maxTravelTime: 10
   arrivalTolerance: 0.6
+  maxNavMeshSamples: 3
+  useCoroutineWaiting: 1
+  moveCheckInterval: 0.2
   showDebug: 0
+  drawGizmos: 1
 --- !u!114 &1523173308
 MonoBehaviour:
   m_ObjectHideFlags: 0

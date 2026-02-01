@@ -8,9 +8,7 @@ public class CombatController : MonoBehaviour
 {
     [Header("AI / Faction")]
     public AIType aiType = AIType.AggressiveNPC;
-    [Tooltip("Фракция этого NPC")]
     public Faction faction = Faction.Neutral;
-    [Tooltip("Фракции, которые считаются враждебными")]
     public List<Faction> hostileFactions = new List<Faction>();
 
     [Header("Combat")]
@@ -18,55 +16,57 @@ public class CombatController : MonoBehaviour
     public float attackDamage = 10f;
     public float attackCooldown = 1f;
 
-    [Header("Detection")]
+    [Header("Detection & Path Update")]
     public float detectionRange = 15f;
     [Tooltip("Если цель ближе этого - животное станет агрессивным")]
     public float animalAggroDistance = 2f;
     public LayerMask detectionMask = ~0;
-    [Tooltip("Как часто (сек) проверяем окружение")]
-    public float detectionInterval = 0.4f;
+
+    [Tooltip("Как часто (сек) сканируем окружение на предмет целей")]
+    public float detectionInterval = 0.6f;
+
+    [Tooltip("Как часто (сек) обновляем путь к цели при погоне")]
+    public float pathUpdateInterval = 0.5f;
 
     [Header("Provocation")]
-    [Tooltip("Сколько попаданий нужно NeutralNPC чтобы напасть")]
     public int provocationThreshold = 2;
-    [Tooltip("Автоматически реагировать на урон (провокацию)")]
     public bool autoEngageOnDamage = true;
 
     [Header("Options")]
-    [Tooltip("Отключать компонент при смерти")]
     public bool disableOnDeath = true;
 
-    // events
     public event Action<Transform> OnEngaged;
     public event Action OnDisengaged;
 
     // internals
-    private Health myHealth;
-    private MovementController movement;      // preferred movement API
-    private NavMeshAgent fallbackAgent;       // fallback if MovementController absent
-    private Transform currentTarget;
-    private Health currentTargetHealth;
-    private float lastAttackTime = -999f;
-    private float lastDetectionTime = -999f;
-    private bool engaged = false;
-    private int provocationCount = 0;
-    private Collider[] overlapBuffer = new Collider[64];
+    Health myHealth;
+    MovementController movement;
+    NavMeshAgent fallbackAgent;
+    Transform currentTarget;
+    Health currentTargetHealth;
+    float lastAttackTime = -999f;
+    float lastDetectionTime = -999f;
+    float lastPathUpdateTime = -999f;
+    bool engaged = false;
+    int provocationCount = 0;
+    Collider[] overlapBuffer = new Collider[64];
+
+    // Scheduler integration
+    private NPCDailyScheduler scheduler;
 
     void Awake()
     {
         myHealth = GetComponent<Health>();
         movement = GetComponent<MovementController>();
         fallbackAgent = GetComponent<NavMeshAgent>();
-        if (movement == null && fallbackAgent == null)
-            Debug.LogWarning($"{name}: No MovementController or NavMeshAgent found — CombatController won't move.");
+        scheduler = GetComponent<NPCDailyScheduler>(); // optional; used to interrupt/return to schedule
     }
 
     void OnEnable()
     {
         if (myHealth != null)
         {
-            if (autoEngageOnDamage)
-                myHealth.OnDamageTaken += OnDamageTaken_Local;
+            if (autoEngageOnDamage) myHealth.OnDamageTaken += OnDamageTaken_Local;
             myHealth.OnDeath += OnDeath_Local;
         }
     }
@@ -75,8 +75,7 @@ public class CombatController : MonoBehaviour
     {
         if (myHealth != null)
         {
-            if (autoEngageOnDamage)
-                myHealth.OnDamageTaken -= OnDamageTaken_Local;
+            if (autoEngageOnDamage) myHealth.OnDamageTaken -= OnDamageTaken_Local;
             myHealth.OnDeath -= OnDeath_Local;
         }
         Disengage();
@@ -84,46 +83,50 @@ public class CombatController : MonoBehaviour
 
     void Update()
     {
-        // stop all behavior if we're dead
-        if (myHealth == null || !myHealth.IsAlive)
-            return;
+        if (myHealth == null || !myHealth.IsAlive) return;
 
-        // periodic detection
+        // periodic scanning for targets
         if (Time.time - lastDetectionTime >= detectionInterval)
         {
             lastDetectionTime = Time.time;
             ScanForTargets();
         }
 
-        // behaviour if engaged
+        // engaged behaviour
         if (!engaged || currentTarget == null || currentTargetHealth == null) return;
 
         if (!currentTargetHealth.IsAlive)
         {
+            // target died -> finish combat and return to schedule
             Disengage();
+            ReturnToScheduleIfNeeded();
             return;
         }
 
-        float distSq = (currentTarget.position - transform.position).sqrMagnitude;
-        if (distSq <= attackRange * attackRange)
+        float distSqr = (currentTarget.position - transform.position).sqrMagnitude;
+
+        if (distSqr <= attackRange * attackRange)
         {
-            // in melee range
             StopMovement();
             TryAttack();
+            return;
         }
-        else
+
+        // if too far — disengage and return to schedule
+        if (distSqr > detectionRange * detectionRange)
         {
-            // too far: give up if beyond detectionRange
-            if (distSq > detectionRange * detectionRange)
-            {
-                Disengage();
-                return;
-            }
+            Disengage();
+            ReturnToScheduleIfNeeded();
+            return;
+        }
+
+        // Update path only at intervals to reduce SetDestination frequency
+        if (Time.time - lastPathUpdateTime >= pathUpdateInterval)
+        {
+            lastPathUpdateTime = Time.time;
             MoveTo(currentTarget.position);
         }
     }
-
-    // ---------------- detection / engagement ----------------
 
     void ScanForTargets()
     {
@@ -137,42 +140,24 @@ public class CombatController : MonoBehaviour
         for (int i = 0; i < count; i++)
         {
             var c = overlapBuffer[i];
-            if (c == null) continue;
-            if (c.transform == transform) continue;
-
+            if (c == null || c.transform == transform) continue;
             var h = c.GetComponent<Health>();
             if (h == null || !h.IsAlive) continue;
 
             float d2 = (c.transform.position - transform.position).sqrMagnitude;
 
-            // RULES:
-            // - Animal: if not provoked => only consider if within animalAggroDistance and hostile (but only if provoked or close)
-            // - NeutralNPC: if not provoked above threshold => ignore
-            // - Monster/AggressiveNPC: consider when faction hostile
+            // rules: animals and neutral NPCs require provocation / proximity
             if (aiType == AIType.Animal)
             {
-                // animals shouldn't auto-engage at long range unless provoked
-                if (provocationCount == 0)
-                {
-                    if (d2 > animalAggroDistance * animalAggroDistance)
-                        continue; // not close enough
-                    // if within close distance, still require hostile faction to attack
-                    if (!IsHostileTo(h))
-                        continue;
-                }
-                // if provoked, allow hostile search
-                else
-                {
-                    if (!IsHostileTo(h)) continue;
-                }
+                if (provocationCount == 0 && d2 > animalAggroDistance * animalAggroDistance) continue;
+                if (!IsHostileTo(h) && provocationCount == 0) continue;
             }
             else if (aiType == AIType.NeutralNPC)
             {
-                // neutral NPC won't auto-engage until provoked enough
                 if (provocationCount < provocationThreshold) continue;
                 if (!IsHostileTo(h)) continue;
             }
-            else // Monster or AggressiveNPC
+            else // Monster / AggressiveNPC
             {
                 if (!IsHostileTo(h)) continue;
             }
@@ -184,36 +169,29 @@ public class CombatController : MonoBehaviour
             }
         }
 
-        if (nearest != null)
-        {
-            // Engage
-            SetTarget(nearest);
-        }
+        if (nearest != null) SetTarget(nearest);
     }
 
-    // Called when this NPC takes damage
     void OnDamageTaken_Local(float dmg)
     {
         provocationCount++;
-        // Neutral NPC attacks after threshold; Animals/aggresives may attack immediately on provocation
         if (aiType == AIType.NeutralNPC)
         {
-            if (provocationCount >= provocationThreshold)
-                TryFindNearestHostileAndSet();
+            if (provocationCount >= provocationThreshold) TryFindNearestHostileAndSet();
         }
         else
         {
-            // Animal/Monster/AggressiveNPC: find nearest hostile and attack
             TryFindNearestHostileAndSet();
         }
     }
 
     void OnDeath_Local()
     {
-        // ensure everything is cleared and movement stopped
         Disengage();
         StopMovement();
         provocationCount = 0;
+        // return to schedule immediately if needed
+        ReturnToScheduleIfNeeded();
         if (disableOnDeath) enabled = false;
     }
 
@@ -239,31 +217,30 @@ public class CombatController : MonoBehaviour
         if (nearest != null) SetTarget(nearest);
     }
 
-    // ---------------- target control ----------------
-
     public void SetTarget(Transform t)
     {
-        // don't set targets if we're dead
         if (myHealth != null && !myHealth.IsAlive) return;
-
         if (t == null) { Disengage(); return; }
         var h = t.GetComponent<Health>();
         if (h == null || !h.IsAlive) return;
 
-        // Animals: optionally require closer distance if not provoked (SetTarget can be called externally to force engage)
         if (aiType == AIType.Animal && provocationCount == 0)
         {
             float d = Vector3.Distance(transform.position, t.position);
-            if (d > animalAggroDistance)
-            {
-                // don't auto-engage if out of animalAggroDistance
-                return;
-            }
+            if (d > animalAggroDistance) return;
         }
 
         currentTarget = t;
         currentTargetHealth = h;
         engaged = true;
+        lastPathUpdateTime = -999f; // force immediate path update next Update
+
+        // Interrupt scheduler so NPC leaves schedule for combat
+        if (scheduler != null)
+        {
+            try { scheduler.Interrupt(); } catch { /* ignore if inaccessible */ }
+        }
+
         OnEngaged?.Invoke(currentTarget);
     }
 
@@ -274,19 +251,15 @@ public class CombatController : MonoBehaviour
         currentTargetHealth = null;
         StopMovement();
         OnDisengaged?.Invoke();
-    }
 
-    // ---------------- movement / attack ----------------
+        // when combat ends, ask scheduler to resume immediately (if it was interrupted)
+        ReturnToScheduleIfNeeded();
+    }
 
     void MoveTo(Vector3 pos)
     {
-        if (movement != null)
-            movement.MoveTo(pos);
-        else if (fallbackAgent != null)
-        {
-            fallbackAgent.isStopped = false;
-            fallbackAgent.SetDestination(pos);
-        }
+        if (movement != null) movement.MoveTo(pos);
+        else if (fallbackAgent != null) { fallbackAgent.isStopped = false; fallbackAgent.SetDestination(pos); }
     }
 
     void StopMovement()
@@ -297,47 +270,46 @@ public class CombatController : MonoBehaviour
 
     void TryAttack()
     {
-        if (myHealth == null || !myHealth.IsAlive) return; // additional guard
-
+        if (myHealth == null || !myHealth.IsAlive) return;
         if (Time.time - lastAttackTime < attackCooldown) return;
         lastAttackTime = Time.time;
 
         if (currentTargetHealth != null && currentTargetHealth.IsAlive)
         {
             currentTargetHealth.TakeDamage(attackDamage);
-
-            // trigger animation if exists
             var animator = GetComponentInChildren<Animator>();
             if (animator != null) animator.SetTrigger("Attack");
         }
     }
 
-    // ---------------- helpers ----------------
-
     bool IsHostileTo(Health targetHealth)
     {
         if (targetHealth == null) return false;
-
-        // If local hostileFactions configured -> use it
-        if (hostileFactions != null && hostileFactions.Count > 0)
-            return hostileFactions.Contains(targetHealth.faction);
-
-        // fallback: different faction considered hostile
+        if (hostileFactions != null && hostileFactions.Count > 0) return hostileFactions.Contains(targetHealth.faction);
         return targetHealth.faction != faction;
     }
 
-    // Debug gizmos
+    // If the NPC has a scheduler and it was interrupted -> tell it to return immediately
+    void ReturnToScheduleIfNeeded()
+    {
+        if (scheduler == null) return;
+
+        try
+        {
+            // ReturnToSchedule checks internal isInterrupted; it's safe to call regardless
+            scheduler.ReturnToSchedule();
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[{name}] Error calling ReturnToSchedule: {e.Message}");
+        }
+    }
+
     void OnDrawGizmosSelected()
     {
-        // don't draw gizmos for dead NPCs
         if (Application.isPlaying && myHealth != null && !myHealth.IsAlive) return;
-
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, detectionRange);
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, attackRange);
-
-        // draw line to current target only if both are alive
+        Gizmos.color = Color.yellow; Gizmos.DrawWireSphere(transform.position, detectionRange);
+        Gizmos.color = Color.red; Gizmos.DrawWireSphere(transform.position, attackRange);
         if (currentTarget != null && currentTargetHealth != null && currentTargetHealth.IsAlive)
         {
             Gizmos.color = Color.red;
