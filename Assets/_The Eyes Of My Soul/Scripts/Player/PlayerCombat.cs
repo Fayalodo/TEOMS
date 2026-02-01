@@ -1,13 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-/// <summary>
-/// Боевка 2.5D, оптимизированная версия:
-/// - не вращает корневой Transform (по умолчанию)
-/// - использует набор спрайтов из PlayerMovement / spriteRenderer
-/// - OverlapSphereNonAlloc можно использовать при высокой частоте (тут простой OverlapSphere)
-/// - убраны лишние аллокации и вызовы GetComponent в цикле
-/// </summary>
 [RequireComponent(typeof(Collider))]
 public class PlayerCombat : MonoBehaviour
 {
@@ -28,6 +21,16 @@ public class PlayerCombat : MonoBehaviour
     public string attackAnimatorTrigger = "Attack";
     public Animator animator;
 
+    [Header("Attack Indicator")]
+    public GameObject attackIndicatorPrefab; // Префаб индикатора
+    public bool showIndicatorAlways = false; // Показывать всегда или только при атаке
+    public float indicatorFadeInTime = 0.1f;
+    public float indicatorFadeOutTime = 0.2f;
+    [ColorUsage(true, true)]
+    public Color indicatorReadyColor = new Color(1f, 0f, 0f, 0.3f); // Цвет при готовности
+    [ColorUsage(true, true)]
+    public Color indicatorCooldownColor = new Color(0.5f, 0.5f, 0.5f, 0.2f); // Цвет на кулдауне
+
     [Header("Debug")]
     public bool showDebugGizmos = true;
 
@@ -36,6 +39,9 @@ public class PlayerCombat : MonoBehaviour
     private PlayerMovement movement;
     private bool isAttacking = false;
     private SpriteRenderer spriteRenderer;
+    private GameObject currentIndicator; // Текущий индикатор
+    private SpriteRenderer indicatorRenderer; // Рендерер индикатора
+    private bool isIndicatorVisible = false;
 
     void Awake()
     {
@@ -43,6 +49,21 @@ public class PlayerCombat : MonoBehaviour
         movement = GetComponent<PlayerMovement>();
         if (animator == null) animator = GetComponentInChildren<Animator>();
         spriteRenderer = movement != null ? movement.spriteRenderer : GetComponentInChildren<SpriteRenderer>();
+
+        // Создаем индикатор если задан префаб
+        if (attackIndicatorPrefab != null)
+        {
+            currentIndicator = Instantiate(attackIndicatorPrefab, transform.position, Quaternion.identity);
+            currentIndicator.transform.SetParent(transform);
+            currentIndicator.transform.localPosition = Vector3.zero;
+            indicatorRenderer = currentIndicator.GetComponent<SpriteRenderer>();
+
+            if (indicatorRenderer != null)
+            {
+                indicatorRenderer.enabled = showIndicatorAlways;
+                UpdateIndicatorColor();
+            }
+        }
     }
 
     void Update()
@@ -54,6 +75,9 @@ public class PlayerCombat : MonoBehaviour
         aimDir.y = 0f;
         if (aimDir.sqrMagnitude < 0.0001f) aimDir = transform.forward;
 
+        // Обновляем позицию и поворот индикатора
+        UpdateAttackIndicator(aimDir.normalized);
+
         if (Input.GetMouseButtonDown(0) && Time.time - lastAttackTime >= attackCooldown)
         {
             lastAttackTime = Time.time;
@@ -63,12 +87,10 @@ public class PlayerCombat : MonoBehaviour
         bool shouldAim = !aimOnlyWhenIdle || (movement != null && movement.IsMoving == false);
         if (shouldAim && !isAttacking)
         {
-            // Меняем спрайт или поворачиваем визуал, не трогая корневой Transform
             UpdateSpriteFromDirection(aimDir.normalized);
 
             if (!rotateVisualOnly)
             {
-                // Опционально: плавный поворот корня (если включено)
                 Quaternion target = Quaternion.LookRotation(aimDir.normalized);
                 transform.rotation = Quaternion.RotateTowards(transform.rotation, target, aimRotationSpeed * Time.deltaTime);
             }
@@ -78,13 +100,54 @@ public class PlayerCombat : MonoBehaviour
                 spriteRenderer.transform.rotation = Quaternion.RotateTowards(spriteRenderer.transform.rotation, target, aimRotationSpeed * Time.deltaTime);
             }
         }
+
+        // Обновляем цвет индикатора в зависимости от кулдауна
+        UpdateIndicatorColor();
+    }
+
+    void UpdateAttackIndicator(Vector3 direction)
+    {
+        if (currentIndicator == null || indicatorRenderer == null) return;
+
+        // Позиция индикатора - впереди на расстоянии атаки
+        Vector3 indicatorPos = transform.position + direction.normalized * attackRange;
+        indicatorPos.y = transform.position.y + 0.01f; // Немного выше земли чтобы не z-fighting
+
+        currentIndicator.transform.position = indicatorPos;
+
+        // Поворачиваем индикатор в сторону направления атаки
+        if (direction.sqrMagnitude > 0.001f)
+        {
+            Quaternion targetRotation = Quaternion.LookRotation(direction);
+            currentIndicator.transform.rotation = targetRotation;
+        }
+
+        // Масштабируем под радиус атаки
+        float scale = attackRadius * 2f; // Диаметр
+        currentIndicator.transform.localScale = new Vector3(scale, scale, 1f);
+    }
+
+    void UpdateIndicatorColor()
+    {
+        if (indicatorRenderer == null) return;
+
+        bool canAttack = Time.time - lastAttackTime >= attackCooldown;
+        Color targetColor = canAttack ? indicatorReadyColor : indicatorCooldownColor;
+
+        // Плавное изменение цвета
+        indicatorRenderer.color = Color.Lerp(indicatorRenderer.color, targetColor, Time.deltaTime * 10f);
     }
 
     IEnumerator DoAttack(Vector3 direction)
     {
         isAttacking = true;
 
-        // Мгновенно поменять визуал под направление атаки
+        // Анимация индикатора перед атакой
+        if (indicatorRenderer != null && !showIndicatorAlways)
+        {
+            yield return StartCoroutine(FadeIndicator(true));
+        }
+
         UpdateSpriteFromDirection(direction);
 
         if (animator != null && !string.IsNullOrEmpty(attackAnimatorTrigger))
@@ -108,8 +171,44 @@ public class PlayerCombat : MonoBehaviour
             }
         }
 
+        // Анимация индикатора после атаки
+        if (indicatorRenderer != null && !showIndicatorAlways)
+        {
+            yield return StartCoroutine(FadeIndicator(false));
+        }
+
         yield return new WaitForSeconds(0.02f);
         isAttacking = false;
+    }
+
+    IEnumerator FadeIndicator(bool fadeIn)
+    {
+        float timer = 0f;
+        float duration = fadeIn ? indicatorFadeInTime : indicatorFadeOutTime;
+        float startAlpha = indicatorRenderer.color.a;
+        float targetAlpha = fadeIn ? indicatorReadyColor.a : 0f;
+
+        if (fadeIn && !isIndicatorVisible)
+        {
+            indicatorRenderer.enabled = true;
+            isIndicatorVisible = true;
+        }
+
+        while (timer < duration)
+        {
+            timer += Time.deltaTime;
+            float t = Mathf.Clamp01(timer / duration);
+            Color currentColor = indicatorRenderer.color;
+            currentColor.a = Mathf.Lerp(startAlpha, targetAlpha, t);
+            indicatorRenderer.color = currentColor;
+            yield return null;
+        }
+
+        if (!fadeIn && isIndicatorVisible)
+        {
+            indicatorRenderer.enabled = false;
+            isIndicatorVisible = false;
+        }
     }
 
     bool GetMouseWorldPosition(out Vector3 worldPos)
@@ -173,6 +272,14 @@ public class PlayerCombat : MonoBehaviour
 
         if (chosen != null) spriteRenderer.sprite = chosen;
         else if (movement.idleSprite != null) spriteRenderer.sprite = movement.idleSprite;
+    }
+
+    void OnDestroy()
+    {
+        if (currentIndicator != null)
+        {
+            Destroy(currentIndicator);
+        }
     }
 
     void OnDrawGizmosSelected()

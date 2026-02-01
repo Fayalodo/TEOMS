@@ -15,6 +15,18 @@ public class CombatController : MonoBehaviour
     public float attackRange = 2f;
     public float attackDamage = 10f;
     public float attackCooldown = 1f;
+    public float attackRadius = 0.8f; // Добавлено для индикатора
+
+    [Header("Attack Indicator")]
+    public GameObject attackIndicatorPrefab; // Префаб индикатора
+    public bool showIndicatorAlways = false; // Показывать всегда или только при атаке
+    public float indicatorFadeInTime = 0.1f;
+    public float indicatorFadeOutTime = 0.2f;
+    [ColorUsage(true, true)]
+    public Color indicatorReadyColor = new Color(1f, 0f, 0f, 0.3f); // Цвет при готовности
+    [ColorUsage(true, true)]
+    public Color indicatorCooldownColor = new Color(0.5f, 0.5f, 0.5f, 0.2f); // Цвет на кулдауне
+    public float indicatorYOffset = 0.01f; // Смещение по Y для избежания z-fighting
 
     [Header("Detection & Path Update")]
     public float detectionRange = 15f;
@@ -34,6 +46,7 @@ public class CombatController : MonoBehaviour
 
     [Header("Options")]
     public bool disableOnDeath = true;
+    public bool showAttackIndicator = true; // Включить/выключить индикатор атаки
 
     public event Action<Transform> OnEngaged;
     public event Action OnDisengaged;
@@ -54,12 +67,44 @@ public class CombatController : MonoBehaviour
     // Scheduler integration
     private NPCDailyScheduler scheduler;
 
+    // Индикатор атаки
+    private GameObject currentIndicator;
+    private SpriteRenderer indicatorRenderer;
+    private bool isIndicatorVisible = false;
+    private bool isAttacking = false;
+
     void Awake()
     {
         myHealth = GetComponent<Health>();
         movement = GetComponent<MovementController>();
         fallbackAgent = GetComponent<NavMeshAgent>();
         scheduler = GetComponent<NPCDailyScheduler>(); // optional; used to interrupt/return to schedule
+
+        // Инициализация индикатора атаки
+        InitializeAttackIndicator();
+    }
+
+    void InitializeAttackIndicator()
+    {
+        if (!showAttackIndicator || attackIndicatorPrefab == null) return;
+
+        currentIndicator = Instantiate(attackIndicatorPrefab, transform.position, Quaternion.identity);
+        currentIndicator.transform.SetParent(transform);
+        currentIndicator.transform.localPosition = Vector3.zero;
+        indicatorRenderer = currentIndicator.GetComponent<SpriteRenderer>();
+
+        if (indicatorRenderer != null)
+        {
+            indicatorRenderer.enabled = showIndicatorAlways;
+            UpdateIndicatorColor();
+            if (!showIndicatorAlways)
+            {
+                Color color = indicatorRenderer.color;
+                color.a = 0f;
+                indicatorRenderer.color = color;
+                indicatorRenderer.enabled = false;
+            }
+        }
     }
 
     void OnEnable()
@@ -76,7 +121,7 @@ public class CombatController : MonoBehaviour
         if (myHealth != null)
         {
             if (autoEngageOnDamage) myHealth.OnDamageTaken -= OnDamageTaken_Local;
-            myHealth.OnDeath -= OnDeath_Local;
+            myHealth.OnDeath -= OnDeath_Local; // Исправлено: было OnDamageTaken_Local
         }
         Disengage();
     }
@@ -84,6 +129,9 @@ public class CombatController : MonoBehaviour
     void Update()
     {
         if (myHealth == null || !myHealth.IsAlive) return;
+
+        // Обновление индикатора атаки
+        UpdateAttackIndicator();
 
         // periodic scanning for targets
         if (Time.time - lastDetectionTime >= detectionInterval)
@@ -125,6 +173,117 @@ public class CombatController : MonoBehaviour
         {
             lastPathUpdateTime = Time.time;
             MoveTo(currentTarget.position);
+        }
+    }
+
+    void UpdateAttackIndicator()
+    {
+        if (!showAttackIndicator || currentIndicator == null || indicatorRenderer == null) return;
+
+        // Обновляем позицию индикатора только если есть цель и мы в зоне атаки
+        if (engaged && currentTarget != null && currentTargetHealth != null && currentTargetHealth.IsAlive)
+        {
+            float distSqr = (currentTarget.position - transform.position).sqrMagnitude;
+            bool isInAttackRange = distSqr <= attackRange * attackRange;
+
+            if (isInAttackRange)
+            {
+                // Направление к цели
+                Vector3 direction = (currentTarget.position - transform.position).normalized;
+                UpdateIndicatorPositionAndRotation(direction);
+
+                // Показываем индикатор только при готовности атаковать
+                bool canAttack = Time.time - lastAttackTime >= attackCooldown;
+                if (!showIndicatorAlways)
+                {
+                    if (canAttack && !isIndicatorVisible && !isAttacking)
+                    {
+                        StartCoroutine(FadeIndicator(true));
+                    }
+                    else if (!canAttack && isIndicatorVisible)
+                    {
+                        StartCoroutine(FadeIndicator(false));
+                    }
+                }
+            }
+            else if (!showIndicatorAlways && isIndicatorVisible)
+            {
+                // Скрываем индикатор если цель вне зоны атаки
+                StartCoroutine(FadeIndicator(false));
+            }
+        }
+        else if (!showIndicatorAlways && isIndicatorVisible)
+        {
+            // Скрываем индикатор если нет цели
+            StartCoroutine(FadeIndicator(false));
+        }
+
+        // Обновляем цвет индикатора
+        UpdateIndicatorColor();
+    }
+
+    void UpdateIndicatorPositionAndRotation(Vector3 direction)
+    {
+        if (currentIndicator == null) return;
+
+        // Позиция индикатора - впереди на расстоянии атаки
+        Vector3 indicatorPos = transform.position + direction.normalized * attackRange;
+        indicatorPos.y = transform.position.y + indicatorYOffset;
+
+        currentIndicator.transform.position = indicatorPos;
+
+        // Поворачиваем индикатор в сторону цели
+        if (direction.sqrMagnitude > 0.001f)
+        {
+            Quaternion targetRotation = Quaternion.LookRotation(direction);
+            currentIndicator.transform.rotation = targetRotation;
+        }
+
+        // Масштабируем под радиус атаки
+        float scale = attackRadius * 2f; // Диаметр
+        currentIndicator.transform.localScale = new Vector3(scale, scale, 1f);
+    }
+
+    void UpdateIndicatorColor()
+    {
+        if (indicatorRenderer == null) return;
+
+        bool canAttack = Time.time - lastAttackTime >= attackCooldown;
+        Color targetColor = canAttack ? indicatorReadyColor : indicatorCooldownColor;
+
+        // Плавное изменение цвета
+        indicatorRenderer.color = Color.Lerp(indicatorRenderer.color, targetColor, Time.deltaTime * 10f);
+    }
+
+    System.Collections.IEnumerator FadeIndicator(bool fadeIn)
+    {
+        if (indicatorRenderer == null) yield break;
+
+        float timer = 0f;
+        float duration = fadeIn ? indicatorFadeInTime : indicatorFadeOutTime;
+        float startAlpha = indicatorRenderer.color.a;
+        float targetAlpha = fadeIn ? indicatorReadyColor.a : 0f;
+
+        if (fadeIn && !isIndicatorVisible)
+        {
+            indicatorRenderer.enabled = true;
+            isIndicatorVisible = true;
+        }
+
+        while (timer < duration)
+        {
+            timer += Time.deltaTime;
+            float t = Mathf.Clamp01(timer / duration);
+            Color currentColor = indicatorRenderer.color;
+            currentColor.a = Mathf.Lerp(startAlpha, targetAlpha, t);
+            indicatorRenderer.color = currentColor;
+            yield return null;
+        }
+
+        if (!fadeIn && isIndicatorVisible)
+        {
+            indicatorRenderer.enabled = false;
+            isIndicatorVisible = false;
         }
     }
 
@@ -193,6 +352,13 @@ public class CombatController : MonoBehaviour
         // return to schedule immediately if needed
         ReturnToScheduleIfNeeded();
         if (disableOnDeath) enabled = false;
+
+        // Скрываем индикатор при смерти
+        if (indicatorRenderer != null && indicatorRenderer.enabled)
+        {
+            indicatorRenderer.enabled = false;
+            isIndicatorVisible = false;
+        }
     }
 
     void TryFindNearestHostileAndSet()
@@ -250,6 +416,13 @@ public class CombatController : MonoBehaviour
         currentTarget = null;
         currentTargetHealth = null;
         StopMovement();
+
+        // Скрываем индикатор при прекращении боя
+        if (!showIndicatorAlways && indicatorRenderer != null && indicatorRenderer.enabled)
+        {
+            StartCoroutine(FadeIndicator(false));
+        }
+
         OnDisengaged?.Invoke();
 
         // when combat ends, ask scheduler to resume immediately (if it was interrupted)
@@ -272,7 +445,15 @@ public class CombatController : MonoBehaviour
     {
         if (myHealth == null || !myHealth.IsAlive) return;
         if (Time.time - lastAttackTime < attackCooldown) return;
+
         lastAttackTime = Time.time;
+        isAttacking = true;
+
+        // Анимация индикатора перед атакой
+        if (showAttackIndicator && indicatorRenderer != null && !showIndicatorAlways)
+        {
+            StartCoroutine(AttackIndicatorAnimation());
+        }
 
         if (currentTargetHealth != null && currentTargetHealth.IsAlive)
         {
@@ -280,6 +461,28 @@ public class CombatController : MonoBehaviour
             var animator = GetComponentInChildren<Animator>();
             if (animator != null) animator.SetTrigger("Attack");
         }
+
+        // Исправлено: isAttacking должен сбрасываться в корутине анимации или после её завершения
+        // Добавлено в корутину AttackIndicatorAnimation()
+    }
+
+    System.Collections.IEnumerator AttackIndicatorAnimation()
+    {
+        // Мигание индикатора при атаке
+        if (indicatorRenderer == null) yield break;
+
+        // Быстрое мигание
+        for (int i = 0; i < 2; i++)
+        {
+            Color originalColor = indicatorRenderer.color;
+            indicatorRenderer.color = Color.white;
+            yield return new WaitForSeconds(0.05f);
+            indicatorRenderer.color = originalColor;
+            yield return new WaitForSeconds(0.05f);
+        }
+
+        // Исправлено: сбрасываем флаг атаки после завершения анимации
+        isAttacking = false;
     }
 
     bool IsHostileTo(Health targetHealth)
@@ -305,15 +508,33 @@ public class CombatController : MonoBehaviour
         }
     }
 
+    void OnDestroy()
+    {
+        if (currentIndicator != null)
+        {
+            Destroy(currentIndicator);
+        }
+    }
+
     void OnDrawGizmosSelected()
     {
         if (Application.isPlaying && myHealth != null && !myHealth.IsAlive) return;
-        Gizmos.color = Color.yellow; Gizmos.DrawWireSphere(transform.position, detectionRange);
-        Gizmos.color = Color.red; Gizmos.DrawWireSphere(transform.position, attackRange);
+
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, detectionRange);
+
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, attackRange);
+
         if (currentTarget != null && currentTargetHealth != null && currentTargetHealth.IsAlive)
         {
             Gizmos.color = Color.red;
             Gizmos.DrawLine(transform.position, currentTarget.position);
+
+            // Отображаем зону атаки на цели
+            Gizmos.color = new Color(1f, 0f, 0f, 0.3f);
+            Vector3 attackCenter = transform.position + (currentTarget.position - transform.position).normalized * attackRange;
+            Gizmos.DrawSphere(attackCenter, attackRadius);
         }
     }
 }

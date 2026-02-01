@@ -172,6 +172,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playerHealth: {fileID: 1120369928}
   healthSlider: {fileID: 1649084067}
+--- !u!1 &39014210 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1463385527509750349, guid: cb046b263178e834baa2fc829ccb7c71,
+    type: 3}
+  m_PrefabInstance: {fileID: 7055905018828700484}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &39014212 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 8475164437731357899, guid: cb046b263178e834baa2fc829ccb7c71,
+    type: 3}
+  m_PrefabInstance: {fileID: 7055905018828700484}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &46607518 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: -7029948723529949830, guid: 47cf647f14a3f044f88be708a89b33d6,
@@ -2607,6 +2619,14 @@ MonoBehaviour:
   attackRange: 2
   attackDamage: 10
   attackCooldown: 1
+  attackRadius: 0.8
+  attackIndicatorPrefab: {fileID: 39014210}
+  showIndicatorAlways: 0
+  indicatorFadeInTime: 0.1
+  indicatorFadeOutTime: 0.2
+  indicatorReadyColor: {r: 1, g: 0, b: 0, a: 0.3}
+  indicatorCooldownColor: {r: 0.5, g: 0.5, b: 0.5, a: 0.2}
+  indicatorYOffset: 0.01
   detectionRange: 15
   animalAggroDistance: 2
   detectionMask:
@@ -2617,6 +2637,7 @@ MonoBehaviour:
   provocationThreshold: 2
   autoEngageOnDamage: 1
   disableOnDeath: 1
+  showAttackIndicator: 1
 --- !u!114 &588179741
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4151,6 +4172,14 @@ MonoBehaviour:
   attackRange: 2
   attackDamage: 10
   attackCooldown: 1
+  attackRadius: 0.8
+  attackIndicatorPrefab: {fileID: 39014210}
+  showIndicatorAlways: 0
+  indicatorFadeInTime: 0.1
+  indicatorFadeOutTime: 0.2
+  indicatorReadyColor: {r: 1, g: 0, b: 0, a: 0.3}
+  indicatorCooldownColor: {r: 0.5, g: 0.5, b: 0.5, a: 0.2}
+  indicatorYOffset: 0.01
   detectionRange: 15
   animalAggroDistance: 2
   detectionMask:
@@ -4161,6 +4190,7 @@ MonoBehaviour:
   provocationThreshold: 2
   autoEngageOnDamage: 1
   disableOnDeath: 1
+  showAttackIndicator: 1
 --- !u!114 &981688774
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4344,6 +4374,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1640918008}
+  - {fileID: 39014212}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1120369920
@@ -4691,6 +4722,12 @@ MonoBehaviour:
     m_Bits: 4294967295
   attackAnimatorTrigger: Attack
   animator: {fileID: 0}
+  attackIndicatorPrefab: {fileID: 39014210}
+  showIndicatorAlways: 0
+  indicatorFadeInTime: 0.1
+  indicatorFadeOutTime: 0.2
+  indicatorReadyColor: {r: 1, g: 0, b: 0, a: 0.3}
+  indicatorCooldownColor: {r: 0.5, g: 0.5, b: 0.5, a: 0.2}
   showDebugGizmos: 1
 --- !u!114 &1120369931
 MonoBehaviour:
@@ -5882,12 +5919,12 @@ GameObject:
   - component: {fileID: 1523173303}
   - component: {fileID: 1523173302}
   - component: {fileID: 1523173301}
-  - component: {fileID: 1523173300}
   - component: {fileID: 1523173299}
   - component: {fileID: 1523173305}
   - component: {fileID: 1523173306}
   - component: {fileID: 1523173308}
   - component: {fileID: 1523173307}
+  - component: {fileID: 1523173309}
   m_Layer: 0
   m_Name: testenemy (1)
   m_TagString: Untagged
@@ -5917,35 +5954,6 @@ NavMeshAgent:
   m_BaseOffset: 1
   m_WalkableMask: 4294967295
   m_ObstacleAvoidanceType: 4
---- !u!114 &1523173300
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1523173298}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2b29d50a289d199429e07b6fdd79ba07, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  aiType: 0
-  faction: 2
-  targetLayerMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  hostileFactions: 0000000003000000
-  minWanderDelay: 5
-  maxWanderDelay: 15
-  wanderRadius: 10
-  wanderCenterPoint: {fileID: 1817545010}
-  detectionRange: 10
-  showDebugInfo: 1
-  detectionGizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  wanderAreaColor: {r: 0, g: 1, b: 1, a: 1}
-  thinkInterval: 0.2
-  targetSearchInterval: 1
-  pathUpdateInterval: 0.5
 --- !u!136 &1523173301
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -6105,6 +6113,43 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a450856bb1c580c49b3ae637d71a9ea2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &1523173309
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1523173298}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c4058daf833a37541a8d3032c285cc14, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  aiType: 3
+  faction: 2
+  hostileFactions: 
+  attackRange: 2
+  attackDamage: 10
+  attackCooldown: 1
+  attackRadius: 0.8
+  attackIndicatorPrefab: {fileID: 39014210}
+  showIndicatorAlways: 0
+  indicatorFadeInTime: 0.1
+  indicatorFadeOutTime: 0.2
+  indicatorReadyColor: {r: 1, g: 0, b: 0, a: 0.3}
+  indicatorCooldownColor: {r: 0.5, g: 0.5, b: 0.5, a: 0.2}
+  indicatorYOffset: 0.01
+  detectionRange: 15
+  animalAggroDistance: 2
+  detectionMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  detectionInterval: 0.6
+  pathUpdateInterval: 0.5
+  provocationThreshold: 2
+  autoEngageOnDamage: 1
+  disableOnDeath: 1
+  showAttackIndicator: 1
 --- !u!1 &1533681393
 GameObject:
   m_ObjectHideFlags: 0
@@ -8641,6 +8686,84 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 4493585093827132993, guid: 47cf647f14a3f044f88be708a89b33d6, type: 3}
+--- !u!1001 &7055905018828700484
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1120369919}
+    m_Modifications:
+    - target: {fileID: 1463385527509750349, guid: cb046b263178e834baa2fc829ccb7c71,
+        type: 3}
+      propertyPath: m_Name
+      value: attack
+      objectReference: {fileID: 0}
+    - target: {fileID: 1463385527509750349, guid: cb046b263178e834baa2fc829ccb7c71,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8475164437731357899, guid: cb046b263178e834baa2fc829ccb7c71,
+        type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -3.8844204
+      objectReference: {fileID: 0}
+    - target: {fileID: 8475164437731357899, guid: cb046b263178e834baa2fc829ccb7c71,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -5.15
+      objectReference: {fileID: 0}
+    - target: {fileID: 8475164437731357899, guid: cb046b263178e834baa2fc829ccb7c71,
+        type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 7.8667707
+      objectReference: {fileID: 0}
+    - target: {fileID: 8475164437731357899, guid: cb046b263178e834baa2fc829ccb7c71,
+        type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8475164437731357899, guid: cb046b263178e834baa2fc829ccb7c71,
+        type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8475164437731357899, guid: cb046b263178e834baa2fc829ccb7c71,
+        type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8475164437731357899, guid: cb046b263178e834baa2fc829ccb7c71,
+        type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8475164437731357899, guid: cb046b263178e834baa2fc829ccb7c71,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8475164437731357899, guid: cb046b263178e834baa2fc829ccb7c71,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8475164437731357899, guid: cb046b263178e834baa2fc829ccb7c71,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9207186969671676555, guid: cb046b263178e834baa2fc829ccb7c71,
+        type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: cb046b263178e834baa2fc829ccb7c71, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
