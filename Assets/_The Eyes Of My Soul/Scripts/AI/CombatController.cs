@@ -287,7 +287,7 @@ public class CombatController : MonoBehaviour
         }
     }
 
-    void ScanForTargets()
+    public void ScanForTargets()
     {
         // If we already have engaged target -> skip scanning
         if (engaged && currentTarget != null) return;
@@ -429,19 +429,19 @@ public class CombatController : MonoBehaviour
         ReturnToScheduleIfNeeded();
     }
 
-    void MoveTo(Vector3 pos)
+    public void MoveTo(Vector3 pos)
     {
         if (movement != null) movement.MoveTo(pos);
         else if (fallbackAgent != null) { fallbackAgent.isStopped = false; fallbackAgent.SetDestination(pos); }
     }
 
-    void StopMovement()
+    public void StopMovement()
     {
         if (movement != null) movement.StopMovement();
         else if (fallbackAgent != null) { fallbackAgent.ResetPath(); fallbackAgent.isStopped = true; }
     }
 
-    void TryAttack()
+    public void TryAttack()
     {
         if (myHealth == null || !myHealth.IsAlive) return;
         if (Time.time - lastAttackTime < attackCooldown) return;
@@ -537,4 +537,8 @@ public class CombatController : MonoBehaviour
             Gizmos.DrawSphere(attackCenter, attackRadius);
         }
     }
+
+    public Transform CurrentTarget => currentTarget;
+
+    public bool HasValidTarget => currentTarget != null && currentTargetHealth != null && currentTargetHealth.IsAlive;
 }
