@@ -48,6 +48,9 @@ public class CombatController : MonoBehaviour
     public bool disableOnDeath = true;
     public bool showAttackIndicator = true; // Включить/выключить индикатор атаки
 
+    [Header("Debug")]
+    public bool LogTransitions = false;
+
     public event Action<Transform> OnEngaged;
     public event Action OnDisengaged;
 
@@ -73,6 +76,10 @@ public class CombatController : MonoBehaviour
     private bool isIndicatorVisible = false;
     private bool isAttacking = false;
 
+    private EnemyStateMachine _stateMachine;
+    private EnemyStateContext _context;
+    [SerializeField] private string _currentStateName; // для Inspector
+
     void Awake()
     {
         myHealth = GetComponent<Health>();
@@ -82,6 +89,24 @@ public class CombatController : MonoBehaviour
 
         // Инициализация индикатора атаки
         InitializeAttackIndicator();
+
+        _context = new EnemyStateContext
+        {
+            Transform = transform,
+            FallbackAgent = fallbackAgent,
+            Health = myHealth,
+            Animator = GetComponentInChildren<Animator>(),
+            CombatController = this,
+            MovementController = movement,
+            AttackRange = attackRange,
+            AttackCooldown = attackCooldown,
+            DetectionRange = detectionRange,
+            DetectionMask = detectionMask,
+            LogTransitions = LogTransitions
+        };
+        _stateMachine = new EnemyStateMachine(_context);
+        _stateMachine.ChangeState(new IdleState(_context, _stateMachine));
+        _currentStateName = _stateMachine.CurrentStateName;
     }
 
     void InitializeAttackIndicator()
@@ -128,52 +153,55 @@ public class CombatController : MonoBehaviour
 
     void Update()
     {
-        if (myHealth == null || !myHealth.IsAlive) return;
+        _stateMachine.Update();
+        _currentStateName = _stateMachine.CurrentStateName;
 
-        // Обновление индикатора атаки
-        UpdateAttackIndicator();
-
-        // periodic scanning for targets
-        if (Time.time - lastDetectionTime >= detectionInterval)
-        {
-            lastDetectionTime = Time.time;
-            ScanForTargets();
-        }
-
-        // engaged behaviour
-        if (!engaged || currentTarget == null || currentTargetHealth == null) return;
-
-        if (!currentTargetHealth.IsAlive)
-        {
-            // target died -> finish combat and return to schedule
-            Disengage();
-            ReturnToScheduleIfNeeded();
-            return;
-        }
-
-        float distSqr = (currentTarget.position - transform.position).sqrMagnitude;
-
-        if (distSqr <= attackRange * attackRange)
-        {
-            StopMovement();
-            TryAttack();
-            return;
-        }
-
-        // if too far — disengage and return to schedule
-        if (distSqr > detectionRange * detectionRange)
-        {
-            Disengage();
-            ReturnToScheduleIfNeeded();
-            return;
-        }
-
-        // Update path only at intervals to reduce SetDestination frequency
-        if (Time.time - lastPathUpdateTime >= pathUpdateInterval)
-        {
-            lastPathUpdateTime = Time.time;
-            MoveTo(currentTarget.position);
-        }
+        // if (myHealth == null || !myHealth.IsAlive) return;
+        //
+        // // Обновление индикатора атаки
+        // UpdateAttackIndicator();
+        //
+        // // periodic scanning for targets
+        // if (Time.time - lastDetectionTime >= detectionInterval)
+        // {
+        //     lastDetectionTime = Time.time;
+        //     ScanForTargets();
+        // }
+        //
+        // // engaged behaviour
+        // if (!engaged || currentTarget == null || currentTargetHealth == null) return;
+        //
+        // if (!currentTargetHealth.IsAlive)
+        // {
+        //     // target died -> finish combat and return to schedule
+        //     Disengage();
+        //     ReturnToScheduleIfNeeded();
+        //     return;
+        // }
+        //
+        // float distSqr = (currentTarget.position - transform.position).sqrMagnitude;
+        //
+        // if (distSqr <= attackRange * attackRange)
+        // {
+        //     StopMovement();
+        //     TryAttack();
+        //     return;
+        // }
+        //
+        // // if too far — disengage and return to schedule
+        // if (distSqr > detectionRange * detectionRange)
+        // {
+        //     Disengage();
+        //     ReturnToScheduleIfNeeded();
+        //     return;
+        // }
+        //
+        // // Update path only at intervals to reduce SetDestination frequency
+        // if (Time.time - lastPathUpdateTime >= pathUpdateInterval)
+        // {
+        //     lastPathUpdateTime = Time.time;
+        //     MoveTo(currentTarget.position);
+        // }
     }
 
     void UpdateAttackIndicator()
@@ -416,6 +444,10 @@ public class CombatController : MonoBehaviour
         currentTarget = null;
         currentTargetHealth = null;
         StopMovement();
+        if (_stateMachine != null && _context != null)
+        {
+            _stateMachine.ResetState(new IdleState(_context, _stateMachine));
+        }
 
         // Скрываем индикатор при прекращении боя
         if (!showIndicatorAlways && indicatorRenderer != null && indicatorRenderer.enabled)
@@ -435,10 +467,20 @@ public class CombatController : MonoBehaviour
         else if (fallbackAgent != null) { fallbackAgent.isStopped = false; fallbackAgent.SetDestination(pos); }
     }
 
+    public void MoveToPublic(Vector3 pos)
+    {
+        MoveTo(pos);
+    }
+
     void StopMovement()
     {
         if (movement != null) movement.StopMovement();
         else if (fallbackAgent != null) { fallbackAgent.ResetPath(); fallbackAgent.isStopped = true; }
+    }
+
+    public void StopMovementPublic()
+    {
+        StopMovement();
     }
 
     void TryAttack()
@@ -464,6 +506,11 @@ public class CombatController : MonoBehaviour
 
         // Исправлено: isAttacking должен сбрасываться в корутине анимации или после её завершения
         // Добавлено в корутину AttackIndicatorAnimation()
+    }
+
+    public void TryAttackPublic()
+    {
+        TryAttack();
     }
 
     System.Collections.IEnumerator AttackIndicatorAnimation()
@@ -514,6 +561,11 @@ public class CombatController : MonoBehaviour
         {
             Destroy(currentIndicator);
         }
+    }
+
+    public void ScanForTargetsPublic()
+    {
+        ScanForTargets();
     }
 
     void OnDrawGizmosSelected()
