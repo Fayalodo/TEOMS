@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b49c662e753549a4e901df41a08dac01, type: 3}
-  m_Name: Sword
+  m_Name: Sharp Sword
   m_EditorClassIdentifier: 
-  id: 1Sword
-  displayName: Sword
+  id: 2Sword
+  displayName: Sharp Sword
   description: 
-  icon: {fileID: 21300000, guid: f43a87db343a82d4699ba9d4a5b241d8, type: 3}
+  icon: {fileID: 21300000, guid: ecbeb20808597074294826d4df16cbb3, type: 3}
   worldPrefab: {fileID: 0}
   category: 1
   stackable: 1
@@ -24,11 +24,11 @@ MonoBehaviour:
   consumable: 0
   useEffect: 0
   effectValue: 0
-  weaponDamage: 50
-  weaponRange: 4
-  weaponCooldown: 1
-  weaponRadius: 3
-  weaponAttackIndicatorPrefab: {fileID: 4652489540633363087, guid: d9e268fe96d70b140ac52af7db46d89c,
+  weaponDamage: 5
+  weaponRange: 3
+  weaponCooldown: 0.2
+  weaponRadius: 2
+  weaponAttackIndicatorPrefab: {fileID: 3495619611197978865, guid: 669b27546208cf24c95b1300fbe63fcf,
     type: 3}
   weaponIndicatorReadyColor: {r: 1, g: 0, b: 0, a: 0.3}
   weaponIndicatorCooldownColor: {r: 0.5, g: 0.5, b: 0.5, a: 0.2}

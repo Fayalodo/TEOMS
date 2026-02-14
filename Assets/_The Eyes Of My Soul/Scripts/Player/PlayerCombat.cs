@@ -4,6 +4,12 @@ using System.Collections;
 [RequireComponent(typeof(Collider))]
 public class PlayerCombat : MonoBehaviour
 {
+    [Header("Base Stats (without weapon)")]
+    [SerializeField] private float baseDamage = 25f;
+    [SerializeField] private float baseRange = 1.6f;
+    [SerializeField] private float baseCooldown = 0.6f;
+    [SerializeField] private float baseRadius = 0.8f;
+
     [Header("Attack")]
     public float attackDamage = 25f;
     public float attackRange = 1.6f;
@@ -21,15 +27,15 @@ public class PlayerCombat : MonoBehaviour
     public string attackAnimatorTrigger = "Attack";
     public Animator animator;
 
-    [Header("Attack Indicator")]
-    public GameObject attackIndicatorPrefab; // Префаб индикатора
-    public bool showIndicatorAlways = false; // Показывать всегда или только при атаке
+    [Header("Attack Indicator (Default)")]
+    public GameObject defaultAttackIndicatorPrefab; // Префаб индикатора по умолчанию
+    public bool defaultShowIndicatorAlways = false; // Показывать всегда или только при атаке
     public float indicatorFadeInTime = 0.1f;
     public float indicatorFadeOutTime = 0.2f;
     [ColorUsage(true, true)]
-    public Color indicatorReadyColor = new Color(1f, 0f, 0f, 0.3f); // Цвет при готовности
+    public Color defaultIndicatorReadyColor = new Color(1f, 0f, 0f, 0.3f); // Цвет при готовности
     [ColorUsage(true, true)]
-    public Color indicatorCooldownColor = new Color(0.5f, 0.5f, 0.5f, 0.2f); // Цвет на кулдауне
+    public Color defaultIndicatorCooldownColor = new Color(0.5f, 0.5f, 0.5f, 0.2f); // Цвет на кулдауне
 
     [Header("Debug")]
     public bool showDebugGizmos = true;
@@ -39,9 +45,20 @@ public class PlayerCombat : MonoBehaviour
     private PlayerMovement movement;
     private bool isAttacking = false;
     private SpriteRenderer spriteRenderer;
+    
+    // Индикатор атаки
     private GameObject currentIndicator; // Текущий индикатор
     private SpriteRenderer indicatorRenderer; // Рендерер индикатора
     private bool isIndicatorVisible = false;
+    
+    // Текущие настройки индикатора
+    private GameObject currentIndicatorPrefab;
+    private Color currentReadyColor;
+    private Color currentCooldownColor;
+    private bool currentShowAlways;
+
+    private Inventory playerInventory;
+    private ItemDefinition currentWeapon; // Текущее активное оружие
 
     void Awake()
     {
@@ -50,19 +67,152 @@ public class PlayerCombat : MonoBehaviour
         if (animator == null) animator = GetComponentInChildren<Animator>();
         spriteRenderer = movement != null ? movement.spriteRenderer : GetComponentInChildren<SpriteRenderer>();
 
-        // Создаем индикатор если задан префаб
-        if (attackIndicatorPrefab != null)
+        // Сохраняем базовые значения из инспектора
+        baseDamage = attackDamage;
+        baseRange = attackRange;
+        baseCooldown = attackCooldown;
+        baseRadius = attackRadius;
+
+        // Устанавливаем настройки индикатора по умолчанию
+        currentIndicatorPrefab = defaultAttackIndicatorPrefab;
+        currentReadyColor = defaultIndicatorReadyColor;
+        currentCooldownColor = defaultIndicatorCooldownColor;
+        currentShowAlways = defaultShowIndicatorAlways;
+
+        // Получаем инвентарь
+        playerInventory = GetComponent<Inventory>();
+        if (playerInventory == null)
+            playerInventory = GetComponentInChildren<Inventory>();
+
+        if (playerInventory != null)
         {
-            currentIndicator = Instantiate(attackIndicatorPrefab, transform.position, Quaternion.identity);
+            playerInventory.OnActiveWeaponChanged += OnActiveWeaponChanged;
+            playerInventory.OnItemRemoved += OnItemRemoved;
+            UpdateWeaponStats(); // применяем, если уже есть активное оружие
+        }
+
+        // Создаем индикатор
+        CreateAttackIndicator();
+    }
+
+    void CreateAttackIndicator()
+    {
+        // Удаляем старый индикатор если есть
+        if (currentIndicator != null)
+        {
+            Destroy(currentIndicator);
+            currentIndicator = null;
+            indicatorRenderer = null;
+        }
+
+        // Создаем новый индикатор если задан префаб
+        if (currentIndicatorPrefab != null)
+        {
+            currentIndicator = Instantiate(currentIndicatorPrefab, transform.position, Quaternion.identity);
             currentIndicator.transform.SetParent(transform);
             currentIndicator.transform.localPosition = Vector3.zero;
             indicatorRenderer = currentIndicator.GetComponent<SpriteRenderer>();
 
             if (indicatorRenderer != null)
             {
-                indicatorRenderer.enabled = showIndicatorAlways;
+                indicatorRenderer.enabled = currentShowAlways;
                 UpdateIndicatorColor();
             }
+        }
+    }
+
+    void OnDestroy()
+    {
+        if (playerInventory != null)
+        {
+            playerInventory.OnActiveWeaponChanged -= OnActiveWeaponChanged;
+            playerInventory.OnItemRemoved -= OnItemRemoved;
+        }
+
+        if (currentIndicator != null)
+        {
+            Destroy(currentIndicator);
+        }
+    }
+
+    private void OnActiveWeaponChanged(int newSlot)
+    {
+        UpdateWeaponStats();
+    }
+
+    private void OnItemRemoved(ItemDefinition def, int qty, int slot, ItemSource source)
+    {
+        UpdateWeaponStats();
+    }
+
+    private void UpdateWeaponStats()
+    {
+        ItemDefinition newWeapon = null;
+        
+        if (playerInventory != null)
+        {
+            int activeSlot = playerInventory.activeWeaponSlotIndex;
+            if (activeSlot >= 0 && activeSlot < playerInventory.Items.Count)
+            {
+                var item = playerInventory.Items[activeSlot];
+                if (!item.IsEmpty && item.item.category == ItemCategory.Weapon)
+                {
+                    newWeapon = item.item;
+                }
+            }
+        }
+
+        // Если оружие не изменилось - ничего не делаем
+        if (currentWeapon == newWeapon) return;
+        
+        currentWeapon = newWeapon;
+
+        if (currentWeapon != null)
+        {
+            // Применяем характеристики оружия
+            attackDamage = currentWeapon.weaponDamage;
+            attackRange = currentWeapon.weaponRange;
+            attackCooldown = currentWeapon.weaponCooldown;
+            attackRadius = currentWeapon.weaponRadius;
+            
+            // Применяем настройки индикатора от оружия
+            bool indicatorChanged = false;
+            
+            if (currentWeapon.weaponAttackIndicatorPrefab != null)
+            {
+                currentIndicatorPrefab = currentWeapon.weaponAttackIndicatorPrefab;
+                indicatorChanged = true;
+            }
+            else
+            {
+                currentIndicatorPrefab = defaultAttackIndicatorPrefab;
+                indicatorChanged = true;
+            }
+            
+            currentReadyColor = currentWeapon.weaponIndicatorReadyColor;
+            currentCooldownColor = currentWeapon.weaponIndicatorCooldownColor;
+            currentShowAlways = currentWeapon.weaponShowIndicatorAlways;
+            
+            if (indicatorChanged)
+            {
+                CreateAttackIndicator();
+            }
+        }
+        else
+        {
+            // Сброс к базовым значениям
+            attackDamage = baseDamage;
+            attackRange = baseRange;
+            attackCooldown = baseCooldown;
+            attackRadius = baseRadius;
+            
+            // Сброс индикатора к настройкам по умолчанию
+            currentIndicatorPrefab = defaultAttackIndicatorPrefab;
+            currentReadyColor = defaultIndicatorReadyColor;
+            currentCooldownColor = defaultIndicatorCooldownColor;
+            currentShowAlways = defaultShowIndicatorAlways;
+            
+            CreateAttackIndicator();
         }
     }
 
@@ -132,7 +282,7 @@ public class PlayerCombat : MonoBehaviour
         if (indicatorRenderer == null) return;
 
         bool canAttack = Time.time - lastAttackTime >= attackCooldown;
-        Color targetColor = canAttack ? indicatorReadyColor : indicatorCooldownColor;
+        Color targetColor = canAttack ? currentReadyColor : currentCooldownColor;
 
         // Плавное изменение цвета
         indicatorRenderer.color = Color.Lerp(indicatorRenderer.color, targetColor, Time.deltaTime * 10f);
@@ -143,7 +293,7 @@ public class PlayerCombat : MonoBehaviour
         isAttacking = true;
 
         // Анимация индикатора перед атакой
-        if (indicatorRenderer != null && !showIndicatorAlways)
+        if (indicatorRenderer != null && !currentShowAlways)
         {
             yield return StartCoroutine(FadeIndicator(true));
         }
@@ -172,7 +322,7 @@ public class PlayerCombat : MonoBehaviour
         }
 
         // Анимация индикатора после атаки
-        if (indicatorRenderer != null && !showIndicatorAlways)
+        if (indicatorRenderer != null && !currentShowAlways)
         {
             yield return StartCoroutine(FadeIndicator(false));
         }
@@ -186,7 +336,7 @@ public class PlayerCombat : MonoBehaviour
         float timer = 0f;
         float duration = fadeIn ? indicatorFadeInTime : indicatorFadeOutTime;
         float startAlpha = indicatorRenderer.color.a;
-        float targetAlpha = fadeIn ? indicatorReadyColor.a : 0f;
+        float targetAlpha = fadeIn ? currentReadyColor.a : 0f;
 
         if (fadeIn && !isIndicatorVisible)
         {
@@ -272,14 +422,6 @@ public class PlayerCombat : MonoBehaviour
 
         if (chosen != null) spriteRenderer.sprite = chosen;
         else if (movement.idleSprite != null) spriteRenderer.sprite = movement.idleSprite;
-    }
-
-    void OnDestroy()
-    {
-        if (currentIndicator != null)
-        {
-            Destroy(currentIndicator);
-        }
     }
 
     void OnDrawGizmosSelected()

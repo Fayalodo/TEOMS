@@ -16,12 +16,17 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
     public Image background; // optional: background to tint on highlight
     public Color highlightColor = new Color(0.8f, 1f, 0.6f);
     public float highlightDuration = 1.0f;
+    
+    [Header("Active Weapon")]
+    public Color activeWeaponColor = Color.yellow;
+    public bool showActiveWeaponGlow = true;
 
     private int slotIndex;
     private InventoryItem data;
     private Inventory inventory;
 
     private Coroutine highlightCoroutine;
+    private Color originalBackgroundColor;
 
     private void Reset()
     {
@@ -36,6 +41,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
             inventory.OnItemAdded -= OnInventoryItemAdded;
             inventory.OnItemRemoved -= OnInventoryItemRemoved;
             inventory.OnItemUsed -= OnInventoryItemUsed;
+            inventory.OnActiveWeaponChanged -= OnActiveWeaponChanged;
         }
 
         slotIndex = index;
@@ -60,7 +66,15 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
             inventory.OnItemAdded += OnInventoryItemAdded;
             inventory.OnItemRemoved += OnInventoryItemRemoved;
             inventory.OnItemUsed += OnInventoryItemUsed;
+            inventory.OnActiveWeaponChanged += OnActiveWeaponChanged;
         }
+
+        // Save original background color
+        if (background != null)
+            originalBackgroundColor = background.color;
+
+        // Update active weapon highlight
+        UpdateActiveWeaponHighlight();
     }
 
     private void OnDestroy()
@@ -70,7 +84,21 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
             inventory.OnItemAdded -= OnInventoryItemAdded;
             inventory.OnItemRemoved -= OnInventoryItemRemoved;
             inventory.OnItemUsed -= OnInventoryItemUsed;
+            inventory.OnActiveWeaponChanged -= OnActiveWeaponChanged;
         }
+    }
+
+    private void OnActiveWeaponChanged(int newSlot)
+    {
+        UpdateActiveWeaponHighlight();
+    }
+
+    private void UpdateActiveWeaponHighlight()
+    {
+        if (background == null || !showActiveWeaponGlow) return;
+
+        bool isActive = (inventory != null && inventory.activeWeaponSlotIndex == slotIndex);
+        background.color = isActive ? activeWeaponColor : originalBackgroundColor;
     }
 
     // Inventory event handlers - highlight this slot if changed
@@ -78,12 +106,14 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
     {
         if (changedSlot == slotIndex)
         {
-            // обновить UI
+            // РћР±РЅРѕРІРёС‚СЊ UI
             data = inventory.Items[slotIndex];
             if (icon != null) icon.sprite = data.item != null ? data.item.icon : null;
             if (qtyText != null) qtyText.text = data.quantity > 1 ? data.quantity.ToString() : "";
             // highlight
             HighlightTemporary(highlightColor, highlightDuration);
+            // Update active weapon highlight in case this slot became active
+            UpdateActiveWeaponHighlight();
         }
     }
 
@@ -91,12 +121,14 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
     {
         if (changedSlot == slotIndex)
         {
-            // обновить UI
+            // РћР±РЅРѕРІРёС‚СЊ UI
             data = inventory.Items[slotIndex];
             if (icon != null) icon.sprite = data.item != null ? data.item.icon : null;
             if (qtyText != null) qtyText.text = data.quantity > 1 ? data.quantity.ToString() : "";
             // small visual feedback: tint red
             HighlightTemporary(new Color(1f, 0.6f, 0.6f), highlightDuration);
+            // Update active weapon highlight in case this slot was active
+            UpdateActiveWeaponHighlight();
         }
     }
 
@@ -108,6 +140,8 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
             if (icon != null) icon.sprite = data.item != null ? data.item.icon : null;
             if (qtyText != null) qtyText.text = data.quantity > 1 ? data.quantity.ToString() : "";
             HighlightTemporary(new Color(0.6f, 0.9f, 1f), highlightDuration);
+            // Update active weapon highlight in case this slot became active/inactive
+            UpdateActiveWeaponHighlight();
         }
     }
 
