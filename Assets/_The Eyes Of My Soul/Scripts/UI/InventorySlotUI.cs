@@ -5,7 +5,7 @@ using TMPro;
 using UnityEngine.EventSystems;
 
 [RequireComponent(typeof(Button))]
-public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
+public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
 {
     [Header("UI Elements")]
     public Image icon;
@@ -21,12 +21,19 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
     public Color activeWeaponColor = Color.yellow;
     public bool showActiveWeaponGlow = true;
 
+    [Header("Tooltip Settings")]
+    public bool showTooltipOnHover = true;
+    public float tooltipDelay = 0.5f; // задержка перед показом тултипа
+
     private int slotIndex;
     private InventoryItem data;
     private Inventory inventory;
 
     private Coroutine highlightCoroutine;
     private Color originalBackgroundColor;
+    
+    private Coroutine tooltipCoroutine;
+    private bool isPointerOver = false;
 
     private void Reset()
     {
@@ -48,10 +55,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
         data = itemData;
         inventory = inv;
 
-        if (icon != null)
-            icon.sprite = (data != null && data.item != null) ? data.item.icon : null;
-        if (qtyText != null)
-            qtyText.text = (data != null && data.quantity > 1) ? data.quantity.ToString() : "";
+        UpdateUI();
 
         // assign onClick
         if (button != null)
@@ -77,6 +81,22 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
         UpdateActiveWeaponHighlight();
     }
 
+    private void UpdateUI()
+    {
+        if (icon != null)
+            icon.sprite = (data != null && data.item != null) ? data.item.icon : null;
+        
+        if (qtyText != null)
+        {
+            if (data != null && data.quantity > 1)
+                qtyText.text = data.quantity.ToString();
+            else if (data != null && data.quantity == 1 && data.item != null && data.item.stackable)
+                qtyText.text = "1"; // показываем 1 для стекуемых предметов
+            else
+                qtyText.text = "";
+        }
+    }
+
     private void OnDestroy()
     {
         if (inventory != null)
@@ -85,6 +105,26 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
             inventory.OnItemRemoved -= OnInventoryItemRemoved;
             inventory.OnItemUsed -= OnInventoryItemUsed;
             inventory.OnActiveWeaponChanged -= OnActiveWeaponChanged;
+        }
+        
+        // Скрываем тултип при уничтожении
+        if (showTooltipOnHover && ItemTooltip.Instance != null)
+            ItemTooltip.Instance.HideTooltip();
+    }
+
+    private void OnDisable()
+    {
+        // Скрываем тултип когда слот отключается
+        if (showTooltipOnHover && isPointerOver && ItemTooltip.Instance != null)
+        {
+            ItemTooltip.Instance.HideTooltip();
+            isPointerOver = false;
+        }
+        
+        if (tooltipCoroutine != null)
+        {
+            StopCoroutine(tooltipCoroutine);
+            tooltipCoroutine = null;
         }
     }
 
@@ -108,10 +148,11 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
         {
             // Обновить UI
             data = inventory.Items[slotIndex];
-            if (icon != null) icon.sprite = data.item != null ? data.item.icon : null;
-            if (qtyText != null) qtyText.text = data.quantity > 1 ? data.quantity.ToString() : "";
+            UpdateUI();
+            
             // highlight
             HighlightTemporary(highlightColor, highlightDuration);
+            
             // Update active weapon highlight in case this slot became active
             UpdateActiveWeaponHighlight();
         }
@@ -123,12 +164,20 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
         {
             // Обновить UI
             data = inventory.Items[slotIndex];
-            if (icon != null) icon.sprite = data.item != null ? data.item.icon : null;
-            if (qtyText != null) qtyText.text = data.quantity > 1 ? data.quantity.ToString() : "";
+            UpdateUI();
+            
             // small visual feedback: tint red
             HighlightTemporary(new Color(1f, 0.6f, 0.6f), highlightDuration);
+            
             // Update active weapon highlight in case this slot was active
             UpdateActiveWeaponHighlight();
+            
+            // Если предмет удалили во время наведения, скрываем тултип
+            if (isPointerOver && (data == null || data.IsEmpty))
+            {
+                if (ItemTooltip.Instance != null)
+                    ItemTooltip.Instance.HideTooltip();
+            }
         }
     }
 
@@ -137,9 +186,10 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
         if (usedSlot == slotIndex)
         {
             data = inventory.Items[slotIndex];
-            if (icon != null) icon.sprite = data.item != null ? data.item.icon : null;
-            if (qtyText != null) qtyText.text = data.quantity > 1 ? data.quantity.ToString() : "";
+            UpdateUI();
+            
             HighlightTemporary(new Color(0.6f, 0.9f, 1f), highlightDuration);
+            
             // Update active weapon highlight in case this slot became active/inactive
             UpdateActiveWeaponHighlight();
         }
@@ -157,6 +207,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
         Color original = background.color;
         float half = duration * 0.5f;
         float t = 0f;
+        
         // quick flash in
         while (t < half)
         {
@@ -164,6 +215,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
             background.color = Color.Lerp(original, color, t / half);
             yield return null;
         }
+        
         // fade back
         t = 0f;
         while (t < half)
@@ -172,6 +224,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
             background.color = Color.Lerp(color, original, t / half);
             yield return null;
         }
+        
         background.color = original;
         highlightCoroutine = null;
     }
@@ -179,6 +232,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
     public void OnClick()
     {
         if (data == null || data.IsEmpty) return;
+        
         bool used = inventory.UseItemAt(slotIndex);
         if (!used)
         {
@@ -191,7 +245,51 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
         // Right click = remove 1 as example
         if (eventData.button == PointerEventData.InputButton.Right)
         {
-            inventory.RemoveItemAt(slotIndex, 1, ItemSource.Other);
+            if (data != null && !data.IsEmpty)
+                inventory.RemoveItemAt(slotIndex, 1, ItemSource.Other);
         }
+    }
+
+    // IPointerEnterHandler implementation
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        isPointerOver = true;
+        
+        if (!showTooltipOnHover) return;
+        if (data == null || data.IsEmpty || data.item == null) return;
+        
+        // Запускаем корутину с задержкой перед показом тултипа
+        if (tooltipCoroutine != null)
+            StopCoroutine(tooltipCoroutine);
+        
+        tooltipCoroutine = StartCoroutine(ShowTooltipAfterDelay());
+    }
+
+    // IPointerExitHandler implementation
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        isPointerOver = false;
+        
+        if (tooltipCoroutine != null)
+        {
+            StopCoroutine(tooltipCoroutine);
+            tooltipCoroutine = null;
+        }
+        
+        if (showTooltipOnHover && ItemTooltip.Instance != null)
+            ItemTooltip.Instance.HideTooltip();
+    }
+
+    private IEnumerator ShowTooltipAfterDelay()
+    {
+        yield return new WaitForSecondsRealtime(tooltipDelay);
+        
+        if (isPointerOver && data != null && !data.IsEmpty && data.item != null)
+        {
+            if (ItemTooltip.Instance != null)
+                ItemTooltip.Instance.ShowTooltip(data.item, data.quantity);
+        }
+        
+        tooltipCoroutine = null;
     }
 }
