@@ -15,19 +15,22 @@ public class ItemTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
     public Image itemIcon;
 
     [Header("Position Settings")]
-    public Vector2 offset = new Vector2(20f, -20f);
+    public Vector2 offset = new Vector2(18f, -18f);
     public bool followMouse = true;
+    public bool keepWithinScreenBounds = true;
+    public Vector2 screenMargin = new Vector2(12f, 12f);
 
     [Header("Behavior")]
     public bool dontHideOnHover = true;
     public float hideDelay = 0.1f;
 
     private RectTransform rectTransform;
+    private Canvas parentCanvas;
+    private RectTransform canvasRect;
     private static ItemTooltip instance;
+
     private bool isMouseOverTooltip = false;
     private Coroutine hideCoroutine;
-
-    // Добавляем поле для отслеживания текущего слота
     private int currentSlotIndex = -1;
 
     public static ItemTooltip Instance
@@ -35,47 +38,111 @@ public class ItemTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         get
         {
             if (instance == null)
-            {
                 instance = FindFirstObjectByType<ItemTooltip>();
-                if (instance != null && !instance.gameObject.activeSelf)
-                    instance.gameObject.SetActive(true);
-            }
             return instance;
         }
     }
 
-    // Свойство для доступа к текущему индексу слота
     public int CurrentSlotIndex => currentSlotIndex;
 
     private void Awake()
     {
         instance = this;
         rectTransform = GetComponent<RectTransform>();
+        parentCanvas = GetComponentInParent<Canvas>();
+
+        if (parentCanvas != null)
+            canvasRect = parentCanvas.GetComponent<RectTransform>();
 
         if (tooltipPanel == null)
             tooltipPanel = gameObject;
 
-        gameObject.SetActive(true);
         tooltipPanel.SetActive(false);
+
+        // Чтобы tooltip не блокировал raycast (важно!)
+        CanvasGroup cg = GetComponent<CanvasGroup>();
+        if (cg == null)
+            cg = gameObject.AddComponent<CanvasGroup>();
+
+        cg.blocksRaycasts = true; // можно поставить false если не нужен hover
     }
 
     private void Update()
     {
-        if (!followMouse || tooltipPanel == null || !tooltipPanel.activeSelf)
+        if (!followMouse || !tooltipPanel.activeSelf)
             return;
 
-        // Двигаем только если мышь НЕ над тултипом или если dontHideOnHover выключен
-        if (!dontHideOnHover || !isMouseOverTooltip)
+        UpdatePosition();
+    }
+
+    private void UpdatePosition()
+    {
+        if (rectTransform == null) return;
+
+        Vector2 mousePos = Input.mousePosition;
+
+        // Динамический pivot
+        Vector2 pivot = new Vector2(
+            mousePos.x > Screen.width * 0.5f ? 1f : 0f,
+            mousePos.y > Screen.height * 0.5f ? 1f : 0f
+        );
+
+        rectTransform.pivot = pivot;
+
+        Vector2 adjustedOffset = new Vector2(
+            pivot.x == 1f ? -Mathf.Abs(offset.x) : Mathf.Abs(offset.x),
+            pivot.y == 1f ? -Mathf.Abs(offset.y) : Mathf.Abs(offset.y)
+        );
+
+        if (parentCanvas.renderMode == RenderMode.ScreenSpaceOverlay)
         {
-            Vector3 mousePos = Input.mousePosition;
-            rectTransform.position = mousePos + (Vector3)offset;
+            rectTransform.position = mousePos + adjustedOffset;
         }
+        else
+        {
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                canvasRect,
+                mousePos,
+                parentCanvas.worldCamera,
+                out Vector2 localPoint);
+
+            rectTransform.localPosition = localPoint + adjustedOffset;
+        }
+
+        if (keepWithinScreenBounds)
+            ClampToScreen();
+    }
+
+    private void ClampToScreen()
+    {
+        Vector3[] corners = new Vector3[4];
+        rectTransform.GetWorldCorners(corners);
+
+        Vector3 position = rectTransform.position;
+
+        float minX = screenMargin.x;
+        float maxX = Screen.width - screenMargin.x;
+        float minY = screenMargin.y;
+        float maxY = Screen.height - screenMargin.y;
+
+        if (corners[0].x < minX)
+            position.x += minX - corners[0].x;
+
+        if (corners[2].x > maxX)
+            position.x -= corners[2].x - maxX;
+
+        if (corners[0].y < minY)
+            position.y += minY - corners[0].y;
+
+        if (corners[2].y > maxY)
+            position.y -= corners[2].y - maxY;
+
+        rectTransform.position = position;
     }
 
     public void ShowTooltip(ItemDefinition item, int quantity = 1, int slotIndex = -1)
     {
-        if (item == null || tooltipPanel == null)
-            return;
+        if (item == null) return;
 
         if (hideCoroutine != null)
         {
@@ -83,48 +150,13 @@ public class ItemTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
             hideCoroutine = null;
         }
 
-        if (!gameObject.activeSelf)
-            gameObject.SetActive(true);
+        PopulateTooltipData(item, quantity);
 
-        // ВАЖНО: Устанавливаем позицию ДО активации панели
-        if (followMouse)
-        {
-            Vector3 mousePos = Input.mousePosition;
-            rectTransform.position = mousePos + (Vector3)offset;
-        }
-
-        // Активируем панель
         tooltipPanel.SetActive(true);
-
-        // Заполняем данные
-        if (itemNameText != null)
-            itemNameText.text = item.displayName;
-
-        if (itemCategoryText != null)
-            itemCategoryText.text = GetCategoryString(item.category);
-
-        if (itemDescriptionText != null)
-            itemDescriptionText.text = item.description;
-
-        if (itemIcon != null)
-        {
-            itemIcon.sprite = item.icon;
-            itemIcon.enabled = item.icon != null;
-        }
-
-        if (itemStatsText != null)
-            itemStatsText.text = GetStatsString(item, quantity);
-
-        // Обновляем позицию еще раз на случай, если мышь двигалась во время заполнения данных
-        if (followMouse)
-        {
-            Vector3 mousePos = Input.mousePosition;
-            rectTransform.position = mousePos + (Vector3)offset;
-        }
-
-        // Сохраняем индекс слота и поднимаем тултип поверх других UI элементов
         currentSlotIndex = slotIndex;
+
         transform.SetAsLastSibling();
+        UpdatePosition();
     }
 
     public void HideTooltip()
@@ -132,11 +164,11 @@ public class ItemTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         if (dontHideOnHover && isMouseOverTooltip)
             return;
 
-        // Сбрасываем индекс слота
+        if (hideCoroutine != null)
+            StopCoroutine(hideCoroutine);
+
         currentSlotIndex = -1;
-        
-        if (tooltipPanel != null)
-            tooltipPanel.SetActive(false);
+        tooltipPanel.SetActive(false);
     }
 
     public void HideTooltipWithDelay()
@@ -163,6 +195,9 @@ public class ItemTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
     public void OnPointerEnter(PointerEventData eventData)
     {
         isMouseOverTooltip = true;
+
+        if (hideCoroutine != null)
+            StopCoroutine(hideCoroutine);
     }
 
     public void OnPointerExit(PointerEventData eventData)
@@ -171,6 +206,27 @@ public class ItemTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
 
         if (dontHideOnHover)
             HideTooltipWithDelay();
+    }
+
+    private void PopulateTooltipData(ItemDefinition item, int quantity)
+    {
+        if (itemNameText != null)
+            itemNameText.text = item.displayName;
+
+        if (itemCategoryText != null)
+            itemCategoryText.text = GetCategoryString(item.category);
+
+        if (itemDescriptionText != null)
+            itemDescriptionText.text = item.description;
+
+        if (itemIcon != null)
+        {
+            itemIcon.sprite = item.icon;
+            itemIcon.enabled = item.icon != null;
+        }
+
+        if (itemStatsText != null)
+            itemStatsText.text = GetStatsString(item, quantity);
     }
 
     private string GetCategoryString(ItemCategory category)
@@ -199,20 +255,17 @@ public class ItemTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         switch (item.category)
         {
             case ItemCategory.Weapon:
-                sb.AppendLine($"\n<color=yellow>⚔ Урон: {item.weaponDamage}</color>");
-                sb.AppendLine($"🏹 Дальность: {item.weaponRange} м");
-                sb.AppendLine($"⚡ Скорость: {1f / item.weaponCooldown:F1}/сек");
+                sb.AppendLine($"\n<color=yellow>Урон: {item.weaponDamage}</color>");
+                sb.AppendLine($"Дальность: {item.weaponRange} м");
+                sb.AppendLine($"Скорость: {1f / item.weaponCooldown:F1}/сек");
                 if (item.weaponRadius > 0)
-                    sb.AppendLine($"💥 Радиус: {item.weaponRadius} м");
+                    sb.AppendLine($"Радиус: {item.weaponRadius} м");
                 break;
 
             case ItemCategory.Consumable:
-                sb.AppendLine($"\n<color=green>✨ Эффект: {GetEffectString(item)}</color>");
+                sb.AppendLine($"\n<color=green>Эффект: {GetEffectString(item)}</color>");
                 break;
         }
-
-        if (!string.IsNullOrEmpty(item.description))
-            sb.AppendLine($"\n<i>{item.description}</i>");
 
         return sb.ToString();
     }
