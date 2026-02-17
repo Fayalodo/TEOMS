@@ -38,7 +38,7 @@ public class CombatController : MonoBehaviour
     public float detectionInterval = 0.6f;
 
     [Tooltip("Как часто (сек) обновляем путь к цели при погоне")]
-    public float pathUpdateInterval = 0.5f;
+    public float pathUpdateInterval = 0.3f;
 
     [Header("Provocation")]
     public int provocationThreshold = 2;

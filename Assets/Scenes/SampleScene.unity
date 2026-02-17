@@ -1299,15 +1299,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.5471698, g: 0.498131, b: 0.498131, a: 0.7647059}
+  m_Color: {r: 0.5471698, g: 0.498131, b: 0.498131, a: 0.78431374}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 10917, guid: 0000000000000000f000000000000000, type: 0}
-  m_Type: 1
+  m_Sprite: {fileID: -339798142, guid: 4cb5e6a7b769a7141bac13cf7aec902a, type: 3}
+  m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -2015,8 +2015,9 @@ MonoBehaviour:
       m_Calls: []
   m_text: New Text
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 9bd16b86d34d78142aaebe116c1c20f8, type: 2}
+  m_sharedMaterial: {fileID: 2056109900367375248, guid: 9bd16b86d34d78142aaebe116c1c20f8,
+    type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -2079,7 +2080,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 0, y: -219.66675, z: 33.426636, w: 22.047836}
+  m_margin: {x: 0, y: -282.19046, z: 33.426636, w: 83.73969}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
@@ -3421,7 +3422,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   detectionInterval: 0.4
-  pathUpdateInterval: 0.5
+  pathUpdateInterval: 0.3
   provocationThreshold: 2
   autoEngageOnDamage: 1
   disableOnDeath: 1
@@ -4782,7 +4783,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 0, y: -429.52792, z: 34.842224, w: 224.13832}
+  m_margin: {x: 0, y: -429.52792, z: 34.842224, w: 281.9035}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
@@ -5318,7 +5319,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   detectionInterval: 0.4
-  pathUpdateInterval: 0.5
+  pathUpdateInterval: 0.3
   provocationThreshold: 2
   autoEngageOnDamage: 1
   disableOnDeath: 1
@@ -7826,7 +7827,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   detectionInterval: 0.6
-  pathUpdateInterval: 0.5
+  pathUpdateInterval: 0.3
   provocationThreshold: 2
   autoEngageOnDamage: 1
   disableOnDeath: 1
