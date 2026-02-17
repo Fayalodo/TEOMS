@@ -1283,7 +1283,7 @@ MonoBehaviour:
   offset: {x: 200, y: 130}
   followMouse: 1
   dontHideOnHover: 1
-  hideDelay: 1
+  hideDelay: 0.1
 --- !u!114 &259559716
 MonoBehaviour:
   m_ObjectHideFlags: 0

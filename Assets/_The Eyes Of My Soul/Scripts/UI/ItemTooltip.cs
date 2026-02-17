@@ -24,9 +24,11 @@ public class ItemTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
 
     private RectTransform rectTransform;
     private static ItemTooltip instance;
-    private Canvas parentCanvas;
     private bool isMouseOverTooltip = false;
     private Coroutine hideCoroutine;
+
+    // Добавляем поле для отслеживания текущего слота
+    private int currentSlotIndex = -1;
 
     public static ItemTooltip Instance
     {
@@ -42,11 +44,13 @@ public class ItemTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         }
     }
 
+    // Свойство для доступа к текущему индексу слота
+    public int CurrentSlotIndex => currentSlotIndex;
+
     private void Awake()
     {
         instance = this;
         rectTransform = GetComponent<RectTransform>();
-        parentCanvas = GetComponentInParent<Canvas>();
 
         if (tooltipPanel == null)
             tooltipPanel = gameObject;
@@ -55,30 +59,20 @@ public class ItemTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         tooltipPanel.SetActive(false);
     }
 
-    private void LateUpdate()
+    private void Update()
     {
-        if (!followMouse || tooltipPanel == null || !tooltipPanel.activeSelf || isMouseOverTooltip)
+        if (!followMouse || tooltipPanel == null || !tooltipPanel.activeSelf)
             return;
 
-        Vector3 mousePos = Input.mousePosition;
-
-        if (parentCanvas != null && parentCanvas.renderMode != RenderMode.ScreenSpaceOverlay)
+        // Двигаем только если мышь НЕ над тултипом или если dontHideOnHover выключен
+        if (!dontHideOnHover || !isMouseOverTooltip)
         {
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                parentCanvas.transform as RectTransform,
-                mousePos,
-                parentCanvas.worldCamera,
-                out Vector2 localPos);
-
-            rectTransform.localPosition = localPos + offset;
-        }
-        else
-        {
+            Vector3 mousePos = Input.mousePosition;
             rectTransform.position = mousePos + (Vector3)offset;
         }
     }
 
-    public void ShowTooltip(ItemDefinition item, int quantity = 1)
+    public void ShowTooltip(ItemDefinition item, int quantity = 1, int slotIndex = -1)
     {
         if (item == null || tooltipPanel == null)
             return;
@@ -92,8 +86,17 @@ public class ItemTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         if (!gameObject.activeSelf)
             gameObject.SetActive(true);
 
+        // ВАЖНО: Устанавливаем позицию ДО активации панели
+        if (followMouse)
+        {
+            Vector3 mousePos = Input.mousePosition;
+            rectTransform.position = mousePos + (Vector3)offset;
+        }
+
+        // Активируем панель
         tooltipPanel.SetActive(true);
 
+        // Заполняем данные
         if (itemNameText != null)
             itemNameText.text = item.displayName;
 
@@ -112,10 +115,15 @@ public class ItemTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         if (itemStatsText != null)
             itemStatsText.text = GetStatsString(item, quantity);
 
-        // 🔥 ВАЖНО — мгновенно обновляем layout
-        Canvas.ForceUpdateCanvases();
-        LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
+        // Обновляем позицию еще раз на случай, если мышь двигалась во время заполнения данных
+        if (followMouse)
+        {
+            Vector3 mousePos = Input.mousePosition;
+            rectTransform.position = mousePos + (Vector3)offset;
+        }
 
+        // Сохраняем индекс слота и поднимаем тултип поверх других UI элементов
+        currentSlotIndex = slotIndex;
         transform.SetAsLastSibling();
     }
 
@@ -124,6 +132,9 @@ public class ItemTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         if (dontHideOnHover && isMouseOverTooltip)
             return;
 
+        // Сбрасываем индекс слота
+        currentSlotIndex = -1;
+        
         if (tooltipPanel != null)
             tooltipPanel.SetActive(false);
     }
@@ -141,7 +152,10 @@ public class ItemTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         yield return new WaitForSecondsRealtime(hideDelay);
 
         if (!isMouseOverTooltip)
+        {
+            currentSlotIndex = -1;
             tooltipPanel.SetActive(false);
+        }
 
         hideCoroutine = null;
     }

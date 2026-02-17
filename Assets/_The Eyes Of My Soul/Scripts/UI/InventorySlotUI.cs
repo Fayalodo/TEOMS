@@ -13,7 +13,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
     public Button button;
 
     [Header("Highlight")]
-    public Image background; // optional: background to tint on highlight
+    public Image background;
     public Color highlightColor = new Color(0.8f, 1f, 0.6f);
     public float highlightDuration = 1.0f;
     
@@ -23,7 +23,8 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
 
     [Header("Tooltip Settings")]
     public bool showTooltipOnHover = true;
-    public float tooltipDelay = 0.5f; // задержка перед показом тултипа
+    [Range(0f, 1f)]
+    public float tooltipDelay = 0.5f; // Задержка перед показом
 
     private int slotIndex;
     private InventoryItem data;
@@ -42,7 +43,6 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
 
     public void Setup(int index, InventoryItem itemData, Inventory inv)
     {
-        // Unsubscribe previous inventory events if any
         if (inventory != null)
         {
             inventory.OnItemAdded -= OnInventoryItemAdded;
@@ -57,14 +57,12 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
 
         UpdateUI();
 
-        // assign onClick
         if (button != null)
         {
             button.onClick.RemoveAllListeners();
             button.onClick.AddListener(OnClick);
         }
 
-        // subscribe to inventory events
         if (inventory != null)
         {
             inventory.OnItemAdded += OnInventoryItemAdded;
@@ -73,11 +71,9 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
             inventory.OnActiveWeaponChanged += OnActiveWeaponChanged;
         }
 
-        // Save original background color
         if (background != null)
             originalBackgroundColor = background.color;
 
-        // Update active weapon highlight
         UpdateActiveWeaponHighlight();
     }
 
@@ -89,11 +85,15 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
         if (qtyText != null)
         {
             if (data != null && data.quantity > 1)
+            {
                 qtyText.text = data.quantity.ToString();
-            else if (data != null && data.quantity == 1 && data.item != null && data.item.stackable)
-                qtyText.text = "1"; // показываем 1 для стекуемых предметов
+                qtyText.enabled = true;
+            }
             else
+            {
                 qtyText.text = "";
+                qtyText.enabled = false;
+            }
         }
     }
 
@@ -107,20 +107,25 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
             inventory.OnActiveWeaponChanged -= OnActiveWeaponChanged;
         }
         
-        // Скрываем тултип при уничтожении
+        CancelTooltip();
+        
         if (showTooltipOnHover && ItemTooltip.Instance != null)
             ItemTooltip.Instance.HideTooltip();
     }
 
     private void OnDisable()
     {
-        // Скрываем тултип когда слот отключается
+        CancelTooltip();
+        
         if (showTooltipOnHover && isPointerOver && ItemTooltip.Instance != null)
         {
             ItemTooltip.Instance.HideTooltip();
             isPointerOver = false;
         }
-        
+    }
+
+    private void CancelTooltip()
+    {
         if (tooltipCoroutine != null)
         {
             StopCoroutine(tooltipCoroutine);
@@ -141,19 +146,13 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
         background.color = isActive ? activeWeaponColor : originalBackgroundColor;
     }
 
-    // Inventory event handlers - highlight this slot if changed
     private void OnInventoryItemAdded(ItemDefinition def, int qty, int changedSlot, ItemSource source)
     {
         if (changedSlot == slotIndex)
         {
-            // Обновить UI
             data = inventory.Items[slotIndex];
             UpdateUI();
-            
-            // highlight
             HighlightTemporary(highlightColor, highlightDuration);
-            
-            // Update active weapon highlight in case this slot became active
             UpdateActiveWeaponHighlight();
         }
     }
@@ -162,14 +161,9 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
     {
         if (changedSlot == slotIndex)
         {
-            // Обновить UI
             data = inventory.Items[slotIndex];
             UpdateUI();
-            
-            // small visual feedback: tint red
             HighlightTemporary(new Color(1f, 0.6f, 0.6f), highlightDuration);
-            
-            // Update active weapon highlight in case this slot was active
             UpdateActiveWeaponHighlight();
             
             // Если предмет удалили во время наведения, скрываем тултип
@@ -187,10 +181,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
         {
             data = inventory.Items[slotIndex];
             UpdateUI();
-            
             HighlightTemporary(new Color(0.6f, 0.9f, 1f), highlightDuration);
-            
-            // Update active weapon highlight in case this slot became active/inactive
             UpdateActiveWeaponHighlight();
         }
     }
@@ -208,7 +199,6 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
         float half = duration * 0.5f;
         float t = 0f;
         
-        // quick flash in
         while (t < half)
         {
             t += Time.unscaledDeltaTime;
@@ -216,7 +206,6 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
             yield return null;
         }
         
-        // fade back
         t = 0f;
         while (t < half)
         {
@@ -242,7 +231,6 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        // Right click = remove 1 as example
         if (eventData.button == PointerEventData.InputButton.Right)
         {
             if (data != null && !data.IsEmpty)
@@ -250,7 +238,6 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
         }
     }
 
-    // IPointerEnterHandler implementation
     public void OnPointerEnter(PointerEventData eventData)
     {
         isPointerOver = true;
@@ -258,33 +245,32 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
         if (!showTooltipOnHover) return;
         if (data == null || data.IsEmpty || data.item == null) return;
         
-        // Запускаем корутину с задержкой перед показом тултипа
-        if (tooltipCoroutine != null)
-            StopCoroutine(tooltipCoroutine);
-        
+        CancelTooltip();
         tooltipCoroutine = StartCoroutine(ShowTooltipAfterDelay());
     }
 
-    // IPointerExitHandler implementation
     public void OnPointerExit(PointerEventData eventData)
     {
         isPointerOver = false;
-        
-        if (tooltipCoroutine != null)
-        {
-            StopCoroutine(tooltipCoroutine);
-            tooltipCoroutine = null;
-        }
+        CancelTooltip();
         
         if (showTooltipOnHover && ItemTooltip.Instance != null)
-            ItemTooltip.Instance.HideTooltip();
+        {
+            // Используем задержку при скрытии, если тултип настроен на dontHideOnHover
+            if (ItemTooltip.Instance.dontHideOnHover)
+                ItemTooltip.Instance.HideTooltipWithDelay();
+            else
+                ItemTooltip.Instance.HideTooltip();
+        }
     }
 
     private IEnumerator ShowTooltipAfterDelay()
     {
         yield return new WaitForSecondsRealtime(tooltipDelay);
         
-        if (isPointerOver && data != null && !data.IsEmpty && data.item != null)
+        // Проверяем, что мы все еще над слотом и предмет не исчез
+        if (isPointerOver && gameObject.activeInHierarchy && 
+            data != null && !data.IsEmpty && data.item != null)
         {
             if (ItemTooltip.Instance != null)
                 ItemTooltip.Instance.ShowTooltip(data.item, data.quantity);
