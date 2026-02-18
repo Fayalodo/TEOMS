@@ -5,6 +5,7 @@
 /// - опция вращать только визуальный child (visualRoot / spriteRenderer.transform)
 /// - камера-релативное движение по умолчанию
 /// - кэширование компонентов, плавное ускорение/торможение
+/// - поддержка спринта (быстрее) и медленной ходьбы (медленнее)
 /// </summary>
 [RequireComponent(typeof(CharacterController))]
 public class PlayerMovement : MonoBehaviour
@@ -12,6 +13,7 @@ public class PlayerMovement : MonoBehaviour
     [Header("Скорости")]
     public float walkSpeed = 4f;
     public float sprintMultiplier = 1.8f;
+    public float slowWalkMultiplier = 0.5f; // множитель для медленной ходьбы
 
     [Header("Плавность движения")]
     public float acceleration = 30f;
@@ -24,6 +26,7 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("Ввод")]
     public KeyCode sprintKey = KeyCode.LeftShift;
+    public KeyCode slowWalkKey = KeyCode.LeftControl; // кнопка для медленной ходьбы
 
     [Header("Камера и направление")]
     public bool cameraRelativeMovement = true;
@@ -55,6 +58,7 @@ public class PlayerMovement : MonoBehaviour
     private Vector3 horizontalVelocity = Vector3.zero;
     private float verticalVelocity = 0f;
     private bool isSprinting = false;
+    private bool isWalkingSlow = false;
     private float jumpVelocity => Mathf.Sqrt(2f * gravity * Mathf.Max(0.001f, jumpHeight));
 
     void Awake()
@@ -77,7 +81,16 @@ public class PlayerMovement : MonoBehaviour
         Vector3 input = new Vector3(inputX, 0f, inputZ);
         input = Vector3.ClampMagnitude(input, 1f);
 
+        // Определяем состояние движения
         isSprinting = Input.GetKey(sprintKey);
+        isWalkingSlow = Input.GetKey(slowWalkKey);
+
+        // Нельзя одновременно бежать и идти медленно
+        if (isSprinting && isWalkingSlow)
+        {
+            // Приоритет: если зажаты обе кнопки, выбираем спринт
+            isWalkingSlow = false;
+        }
 
         Vector3 targetDirection;
         if (cameraRelativeMovement && cameraTransform != null)
@@ -91,7 +104,13 @@ public class PlayerMovement : MonoBehaviour
             targetDirection = transform.right * input.x + transform.forward * input.z;
         }
 
-        float currentMaxSpeed = walkSpeed * (isSprinting ? sprintMultiplier : 1f);
+        // Вычисляем целевую скорость с учетом состояния движения
+        float currentMaxSpeed = walkSpeed;
+        if (isSprinting)
+            currentMaxSpeed *= sprintMultiplier;
+        else if (isWalkingSlow)
+            currentMaxSpeed *= slowWalkMultiplier;
+
         Vector3 targetHorizontalVelocity = targetDirection * currentMaxSpeed;
 
         float usedAccel = controller.isGrounded ? acceleration : acceleration * airControl;
@@ -197,4 +216,8 @@ public class PlayerMovement : MonoBehaviour
     }
 
     public bool IsMoving => horizontalVelocity.sqrMagnitude > 0.001f;
+
+    // Свойства для получения текущего состояния движения
+    public bool IsSprinting => isSprinting;
+    public bool IsWalkingSlow => isWalkingSlow;
 }

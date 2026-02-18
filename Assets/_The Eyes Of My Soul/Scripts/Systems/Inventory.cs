@@ -42,12 +42,12 @@ public class Inventory : MonoBehaviour
     public event Action<ItemDefinition, int, int, ItemSource> OnItemAdded;
     public event Action<ItemDefinition, int, int, ItemSource> OnItemRemoved; // quantity removed, slotIndex
     public event Action<ItemDefinition, int, int> OnItemUsed; // (def, qty, slotIndex)
-    
-    // Новое событие для изменения активного оружия
+
+    // Событие для изменения активного оружия
     public event Action<int> OnActiveWeaponChanged; // новый индекс или -1
 
     public IReadOnlyList<InventoryItem> Items => items;
-    
+
     // Активное оружие
     public int activeWeaponSlotIndex = -1;
 
@@ -62,6 +62,14 @@ public class Inventory : MonoBehaviour
             if (it != null && it.item != null)
                 TryAddItem(it.item, it.quantity, ItemSource.Other);
         }
+    }
+
+    /// <summary>
+    /// Принудительно обновить подсветку всех слотов
+    /// </summary>
+    public void RefreshAllSlotsHighlight()
+    {
+        OnActiveWeaponChanged?.Invoke(activeWeaponSlotIndex);
     }
 
     /// <summary>
@@ -118,9 +126,6 @@ public class Inventory : MonoBehaviour
 
         OnInventoryChanged?.Invoke();
 
-        // УБРАН блок с уведомлением для World-предметов, чтобы избежать дублирования
-        // Уведомления для World-предметов теперь показываются только в PlayerPickupController
-
         return remaining <= 0;
     }
 
@@ -141,14 +146,17 @@ public class Inventory : MonoBehaviour
 
         PlaySound(audioSource, null);
         OnItemRemoved?.Invoke(slot.item, removed, slotIndex, source);
-        
+
         // Если удалили активное оружие - сбрасываем
         if (slotIndex == activeWeaponSlotIndex)
         {
             activeWeaponSlotIndex = -1;
             OnActiveWeaponChanged?.Invoke(-1);
+
+            // Принудительно обновляем подсветку всех слотов
+            RefreshAllSlotsHighlight();
         }
-        
+
         OnInventoryChanged?.Invoke();
 
         if (showNotification && slot.item != null)
@@ -180,6 +188,7 @@ public class Inventory : MonoBehaviour
 
         var a = items[fromIndex];
         var b = items[toIndex];
+        bool activeWeaponChanged = false;
 
         // простой merge если одинаковые и стекуемые
         if (a.item != null && b.item == a.item && a.item.stackable && allowStacking)
@@ -192,43 +201,55 @@ public class Inventory : MonoBehaviour
                 a.quantity -= move;
                 items[toIndex] = b;
                 items[fromIndex] = a.IsEmpty ? new InventoryItem() : a;
-                
+
                 // Проверяем активное оружие при перемещении
                 if (fromIndex == activeWeaponSlotIndex)
                 {
                     activeWeaponSlotIndex = toIndex;
                     OnActiveWeaponChanged?.Invoke(toIndex);
+                    activeWeaponChanged = true;
                 }
                 else if (toIndex == activeWeaponSlotIndex)
                 {
                     activeWeaponSlotIndex = fromIndex;
                     OnActiveWeaponChanged?.Invoke(fromIndex);
+                    activeWeaponChanged = true;
                 }
-                
+
                 OnInventoryChanged?.Invoke();
+
+                if (activeWeaponChanged)
+                    RefreshAllSlotsHighlight();
+
                 return true;
             }
         }
 
         items[toIndex] = a;
         items[fromIndex] = b;
-        
+
         // Проверяем активное оружие при перемещении
         if (fromIndex == activeWeaponSlotIndex)
         {
             activeWeaponSlotIndex = toIndex;
             OnActiveWeaponChanged?.Invoke(toIndex);
+            activeWeaponChanged = true;
         }
         else if (toIndex == activeWeaponSlotIndex)
         {
             activeWeaponSlotIndex = fromIndex;
             OnActiveWeaponChanged?.Invoke(fromIndex);
+            activeWeaponChanged = true;
         }
-        
+
         OnInventoryChanged?.Invoke();
+
+        if (activeWeaponChanged)
+            RefreshAllSlotsHighlight();
+
         return true;
     }
-    
+
     /// <summary>
     /// Устанавливает активное оружие по индексу слота. Если слот уже активен – снимает.
     /// </summary>
@@ -239,6 +260,10 @@ public class Inventory : MonoBehaviour
             activeWeaponSlotIndex = -1;
             OnActiveWeaponChanged?.Invoke(-1);
             OnInventoryChanged?.Invoke();
+
+            // Принудительно обновляем подсветку всех слотов
+            RefreshAllSlotsHighlight();
+
             return true;
         }
 
@@ -254,12 +279,15 @@ public class Inventory : MonoBehaviour
 
         OnActiveWeaponChanged?.Invoke(activeWeaponSlotIndex);
         OnInventoryChanged?.Invoke();
-        
-        string message = activeWeaponSlotIndex == -1 ? 
-            $"Снято: {slot.item.displayName}" : 
+
+        // Принудительно обновляем подсветку всех слотов
+        RefreshAllSlotsHighlight();
+
+        string message = activeWeaponSlotIndex == -1 ?
+            $"Снято: {slot.item.displayName}" :
             $"Экипировано: {slot.item.displayName}";
         CornerNotificationUI.Instance?.Show(message, 1.6f);
-        
+
         return true;
     }
 
@@ -339,7 +367,7 @@ public class Inventory : MonoBehaviour
     {
         public List<string> ids = new List<string>();
         public List<int> quantities = new List<int>();
-        public int activeWeaponIndex = -1; // новое поле
+        public int activeWeaponIndex = -1;
     }
 
     public string ExportToJson()
@@ -350,7 +378,7 @@ public class Inventory : MonoBehaviour
             sd.ids.Add(s.item != null ? s.item.id : "");
             sd.quantities.Add(s.quantity);
         }
-        sd.activeWeaponIndex = activeWeaponSlotIndex; // сохраняем индекс
+        sd.activeWeaponIndex = activeWeaponSlotIndex;
         return JsonUtility.ToJson(sd);
     }
 
@@ -359,7 +387,7 @@ public class Inventory : MonoBehaviour
         if (string.IsNullOrEmpty(json)) return;
         var sd = JsonUtility.FromJson<SaveData>(json);
         if (sd == null) return;
-        
+
         for (int i = 0; i < slots; i++)
         {
             if (i < sd.ids.Count)
@@ -374,13 +402,13 @@ public class Inventory : MonoBehaviour
             }
             else items[i] = new InventoryItem();
         }
-        
+
         // Восстанавливаем активное оружие
         activeWeaponSlotIndex = sd.activeWeaponIndex;
         // проверка валидности: если предмета нет или это не оружие – сбрасываем
-        if (activeWeaponSlotIndex >= 0 && 
-            (activeWeaponSlotIndex >= items.Count || 
-             items[activeWeaponSlotIndex].IsEmpty || 
+        if (activeWeaponSlotIndex >= 0 &&
+            (activeWeaponSlotIndex >= items.Count ||
+             items[activeWeaponSlotIndex].IsEmpty ||
              items[activeWeaponSlotIndex].item.category != ItemCategory.Weapon))
         {
             activeWeaponSlotIndex = -1;
@@ -388,6 +416,9 @@ public class Inventory : MonoBehaviour
 
         OnActiveWeaponChanged?.Invoke(activeWeaponSlotIndex);
         OnInventoryChanged?.Invoke();
+
+        // Принудительно обновляем подсветку после загрузки
+        RefreshAllSlotsHighlight();
     }
 
     #endregion
