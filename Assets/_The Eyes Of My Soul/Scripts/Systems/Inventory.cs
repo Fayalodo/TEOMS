@@ -43,6 +43,9 @@ public class Inventory : MonoBehaviour
     public event Action<ItemDefinition, int, int, ItemSource> OnItemRemoved; // quantity removed, slotIndex
     public event Action<ItemDefinition, int, int> OnItemUsed; // (def, qty, slotIndex)
 
+    // 🔥 НОВОЕ: Событие для swap (обмена предметов между слотами)
+    public event Action<int, int> OnItemsSwapped; // from, to
+
     // Событие для изменения активного оружия
     public event Action<int> OnActiveWeaponChanged; // новый индекс или -1
 
@@ -216,6 +219,9 @@ public class Inventory : MonoBehaviour
                     activeWeaponChanged = true;
                 }
 
+                // 🔥 НОВОЕ: Вызываем событие swap для мержа
+                OnItemsSwapped?.Invoke(fromIndex, toIndex);
+
                 OnInventoryChanged?.Invoke();
 
                 if (activeWeaponChanged)
@@ -225,6 +231,7 @@ public class Inventory : MonoBehaviour
             }
         }
 
+        // Простой обмен
         items[toIndex] = a;
         items[fromIndex] = b;
 
@@ -241,6 +248,9 @@ public class Inventory : MonoBehaviour
             OnActiveWeaponChanged?.Invoke(fromIndex);
             activeWeaponChanged = true;
         }
+
+        // 🔥 НОВОЕ: Вызываем событие swap для простого обмена
+        OnItemsSwapped?.Invoke(fromIndex, toIndex);
 
         OnInventoryChanged?.Invoke();
 

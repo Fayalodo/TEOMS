@@ -279,9 +279,8 @@ MonoBehaviour:
   qtyText: {fileID: 8502389925388642311}
   button: {fileID: 24108400488928772}
   emptySlotIcon: {fileID: -339798142, guid: a44294db94041fd45a3a5d6745cfbbc0, type: 3}
-  showEmptySlotIcon: 1
+  showEmptySlotIcon: 0
   background: {fileID: 5010510314905692414}
-  highlightColor: {r: 0.8, g: 1, b: 0.6, a: 0}
   highlightDuration: 1
   addHighlightColor: {r: 0.8, g: 1, b: 0.6, a: 0.73333335}
   removeHighlightColor: {r: 1, g: 0.6, b: 0.6, a: 0.7254902}
@@ -300,6 +299,9 @@ MonoBehaviour:
   addTrigger: Add
   removeTrigger: Remove
   useTrigger: Use
+  enableDragAndDrop: 1
+  isQuickPanelSlot: 0
+  hotkeyHintText: {fileID: 0}
 --- !u!1 &6236871561672361371
 GameObject:
   m_ObjectHideFlags: 0

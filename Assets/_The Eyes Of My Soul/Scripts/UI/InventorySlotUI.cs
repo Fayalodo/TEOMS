@@ -5,7 +5,8 @@ using TMPro;
 using UnityEngine.EventSystems;
 
 [RequireComponent(typeof(Button))]
-public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
+public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler,
+    IBeginDragHandler, IDragHandler, IEndDragHandler
 {
     [Header("UI Elements")]
     public Image icon;
@@ -17,8 +18,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
     public bool showEmptySlotIcon = true;
 
     [Header("Highlight")]
-    public Image background;
-    // public Color highlightColor = new Color(0.8f, 1f, 0.6f); // УДАЛЕНО: не использовалось
+    public Image background;              // фон слота (ДОБАВЛЕНО)
     public float highlightDuration = 1.0f;
 
     [Header("Temporary Highlight Colors")]
@@ -40,6 +40,9 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
     [Header("Tooltip Advanced")]
     public bool useTooltipDelayOnHide = true;
 
+    [Header("Quickslot Hotkey")]
+    public TextMeshProUGUI hotkeyText;
+
     [Header("Sounds")]
     public AudioClip addItemSound;
     public AudioClip removeItemSound;
@@ -52,16 +55,39 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
     public string removeTrigger = "Remove";
     public string useTrigger = "Use";
 
+    [Header("Drag & Drop")]
+    public bool enableDragAndDrop = true;
+
+    [Header("Quick Panel Settings")]
+    [Tooltip("Является ли этот слот частью панели быстрого доступа")]
+    public bool isQuickPanelSlot = false;
+
+    // ПРАВКА 1: Добавляем отдельное поле для текста горячих клавиш
+    [HideInInspector] public TextMeshProUGUI hotkeyHintText;
+
+    // 🔥 НОВОЕ: базовый цвет фона (скрыт в инспекторе)
+    [HideInInspector]
+    public Color defaultBackgroundColor;  // базовый цвет слота
+
+    private InventoryDragDropHandler dragDropHandler;
+
     private int slotIndex;
     private InventoryItem data;
     private Inventory inventory;
     private AudioSource audioSource;
 
     private Coroutine highlightCoroutine;
-    private Color originalBackgroundColor;
+    private Color originalBackgroundColor; // Оставлено для обратной совместимости
     private Coroutine tooltipCoroutine;
     private bool isPointerOver = false;
     private Animator animator;
+
+    // ВАЖНО: для слотов быстрой панели храним индекс в основном инвентаре
+    private int inventorySourceIndex = -1;
+
+    public int SlotIndex => slotIndex;
+    public InventoryItem SlotData => data;
+    public int InventorySourceIndex => inventorySourceIndex;
 
     private void Reset()
     {
@@ -76,8 +102,28 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
 
         animator = GetComponent<Animator>();
 
+        // 🔥 СОХРАНЯЕМ базовый цвет фона
         if (background != null)
+        {
             originalBackgroundColor = background.color;
+            defaultBackgroundColor = background.color; // Дублируем для нового свойства
+        }
+
+        dragDropHandler = GetComponentInParent<InventoryDragDropHandler>();
+    }
+
+    // 🔥 НОВЫЙ МЕТОД: Для безопасного флеша извне (например, из InventoryUI)
+    public IEnumerator Flash(Color flashColor, float flashTime = 0.1f, int times = 3)
+    {
+        if (background == null) yield break;
+
+        for (int i = 0; i < times; i++)
+        {
+            background.color = flashColor;
+            yield return new WaitForSeconds(flashTime);
+            background.color = defaultBackgroundColor;
+            yield return new WaitForSeconds(flashTime);
+        }
     }
 
     private void PlaySound(AudioClip clip)
@@ -92,7 +138,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
             animator.SetTrigger(trigger);
     }
 
-    public void Setup(int index, InventoryItem itemData, Inventory inv)
+    public void Setup(int index, InventoryItem itemData, Inventory inv, bool isQuickPanel = false, int inventorySourceIdx = -1)
     {
         if (inventory != null)
         {
@@ -103,8 +149,19 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
         }
 
         slotIndex = index;
-        data = itemData;
         inventory = inv;
+        isQuickPanelSlot = isQuickPanel;
+        inventorySourceIndex = inventorySourceIdx;
+
+        // ВАЖНО: для быстрой панели данные берутся из основного инвентаря по inventorySourceIndex
+        if (isQuickPanelSlot && inventory != null && inventorySourceIndex >= 0 && inventorySourceIndex < inventory.Items.Count)
+        {
+            data = inventory.Items[inventorySourceIndex];
+        }
+        else
+        {
+            data = itemData;
+        }
 
         UpdateUI();
 
@@ -120,6 +177,18 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
             inventory.OnItemRemoved += OnInventoryItemRemoved;
             inventory.OnItemUsed += OnInventoryItemUsed;
             inventory.OnActiveWeaponChanged += OnActiveWeaponChanged;
+        }
+
+        if (isQuickPanelSlot && hotkeyText != null)
+        {
+            int keyNumber = slotIndex + 1;
+            if (slotIndex == 9) keyNumber = 0; // для 10-го слота
+            hotkeyText.text = keyNumber.ToString();
+            hotkeyText.gameObject.SetActive(true);
+        }
+        else if (hotkeyText != null)
+        {
+            hotkeyText.gameObject.SetActive(false);
         }
 
         UpdateActiveItemHighlight();
@@ -187,7 +256,6 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
             isPointerOver = false;
         }
 
-        // Останавливаем подсветку и сбрасываем цвет
         if (highlightCoroutine != null)
         {
             StopCoroutine(highlightCoroutine);
@@ -209,13 +277,19 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
         }
     }
 
-    // УПРОЩЕНО: теперь слот обновляет только себя и проигрывает звук при необходимости
     private void OnActiveWeaponChanged(int newSlot)
     {
         UpdateActiveItemHighlight();
 
-        if (slotIndex == newSlot &&
+        // Для быстрой панели проверяем, указывает ли слот на активное оружие
+        if (isQuickPanelSlot && inventorySourceIndex == newSlot &&
             data != null && !data.IsEmpty && data.item != null)
+        {
+            PlaySound(equipItemSound);
+        }
+        // Для обычного инвентаря проверяем по slotIndex
+        else if (!isQuickPanelSlot && slotIndex == newSlot &&
+                 data != null && !data.IsEmpty && data.item != null)
         {
             PlaySound(equipItemSound);
         }
@@ -236,10 +310,20 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
 
     private Color GetTargetColor()
     {
-        if (showActiveItemGlow && inventory != null && inventory.activeWeaponSlotIndex == slotIndex)
+        if (showActiveItemGlow && inventory != null)
         {
-            if (data != null && !data.IsEmpty && data.item != null && ShouldItemBeHighlighted())
-                return activeItemColor;
+            // Для быстрой панели проверяем по inventorySourceIndex
+            if (isQuickPanelSlot && inventorySourceIndex == inventory.activeWeaponSlotIndex)
+            {
+                if (data != null && !data.IsEmpty && data.item != null && ShouldItemBeHighlighted())
+                    return activeItemColor;
+            }
+            // Для обычного инвентаря по slotIndex
+            else if (!isQuickPanelSlot && slotIndex == inventory.activeWeaponSlotIndex)
+            {
+                if (data != null && !data.IsEmpty && data.item != null && ShouldItemBeHighlighted())
+                    return activeItemColor;
+            }
         }
         return originalBackgroundColor;
     }
@@ -247,30 +331,53 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
     private void UpdateActiveItemHighlight()
     {
         if (background == null) return;
-
         background.color = GetTargetColor();
     }
 
-    // НОВЫЙ МЕТОД: объединяет повторяющуюся логику обновления слота
     private void RefreshSlot(Color highlight, AudioClip sound, string trigger)
     {
-        data = inventory.Items[slotIndex];
+        // Для быстрой панели обновляем данные из инвентаря по сохраненному индексу
+        if (isQuickPanelSlot && inventory != null)
+        {
+            if (inventorySourceIndex >= 0 && inventorySourceIndex < inventory.Items.Count)
+            {
+                data = inventory.Items[inventorySourceIndex];
+            }
+            else
+            {
+                // Индекс невалидный - слот пустой
+                data = new InventoryItem();
+                inventorySourceIndex = -1;
+            }
+        }
+        else if (!isQuickPanelSlot && inventory != null && slotIndex >= 0 && slotIndex < inventory.Items.Count)
+        {
+            data = inventory.Items[slotIndex];
+        }
+
         UpdateUI();
         HighlightTemporary(highlight);
         PlaySound(sound);
         PlayAnimation(trigger);
 
-        // Если курсор всё ещё над слотом, а предмета больше нет, скрываем тултип
         if (isPointerOver && (data == null || data.IsEmpty))
         {
             if (ItemTooltip.Instance != null)
                 ItemTooltip.Instance.HideTooltip();
         }
+
+        UpdateActiveItemHighlight();
     }
 
     private void OnInventoryItemAdded(ItemDefinition def, int qty, int changedSlot, ItemSource source)
     {
-        if (changedSlot == slotIndex)
+        // Для быстрой панели проверяем по inventorySourceIndex
+        if (isQuickPanelSlot)
+        {
+            if (changedSlot == inventorySourceIndex)
+                RefreshSlot(addHighlightColor, addItemSound, addTrigger);
+        }
+        else if (changedSlot == slotIndex)
         {
             RefreshSlot(addHighlightColor, addItemSound, addTrigger);
         }
@@ -278,7 +385,13 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
 
     private void OnInventoryItemRemoved(ItemDefinition def, int qty, int changedSlot, ItemSource source)
     {
-        if (changedSlot == slotIndex)
+        // Для быстрой панели проверяем по inventorySourceIndex
+        if (isQuickPanelSlot)
+        {
+            if (changedSlot == inventorySourceIndex)
+                RefreshSlot(removeHighlightColor, removeItemSound, removeTrigger);
+        }
+        else if (changedSlot == slotIndex)
         {
             RefreshSlot(removeHighlightColor, removeItemSound, removeTrigger);
         }
@@ -286,7 +399,13 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
 
     private void OnInventoryItemUsed(ItemDefinition def, int qty, int usedSlot)
     {
-        if (usedSlot == slotIndex)
+        // Для быстрой панели проверяем по inventorySourceIndex
+        if (isQuickPanelSlot)
+        {
+            if (usedSlot == inventorySourceIndex)
+                RefreshSlot(useHighlightColor, useItemSound, useTrigger);
+        }
+        else if (usedSlot == slotIndex)
         {
             RefreshSlot(useHighlightColor, useItemSound, useTrigger);
         }
@@ -310,7 +429,6 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
         Color baseColor = GetTargetColor();
         float halfDuration = highlightDuration * 0.5f;
 
-        // Плавно меняем на целевой цвет
         float elapsedTime = 0f;
         while (elapsedTime < halfDuration)
         {
@@ -322,10 +440,8 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
 
         background.color = targetColor;
 
-        // Небольшая пауза
         yield return new WaitForSecondsRealtime(0.1f);
 
-        // Плавно возвращаемся к правильному целевому цвету
         elapsedTime = 0f;
         while (elapsedTime < halfDuration)
         {
@@ -335,14 +451,12 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
             yield return null;
         }
 
-        // Устанавливаем финальный цвет
         background.color = GetTargetColor();
         highlightCoroutine = null;
     }
 
     public void OnClick()
     {
-        // УЛУЧШЕНО: Добавлена защита от null
         if (inventory == null)
         {
             Debug.LogError("InventorySlotUI: Inventory reference is missing!", this);
@@ -350,10 +464,17 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
         }
         if (data == null || data.IsEmpty) return;
 
-        bool used = inventory.UseItemAt(slotIndex);
-        if (!used)
+        if (isQuickPanelSlot)
         {
-            Debug.Log($"Clicked item: {data.item.displayName} (slot {slotIndex})");
+            // Для быстрой панели используем UseItemAt с inventorySourceIndex
+            if (inventorySourceIndex >= 0)
+            {
+                inventory.UseItemAt(inventorySourceIndex);
+            }
+        }
+        else
+        {
+            inventory.UseItemAt(slotIndex);
         }
     }
 
@@ -362,7 +483,16 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
         if (eventData.button == PointerEventData.InputButton.Right)
         {
             if (inventory != null && data != null && !data.IsEmpty)
-                inventory.RemoveItemAt(slotIndex, 1, ItemSource.Other);
+            {
+                if (isQuickPanelSlot && inventorySourceIndex >= 0)
+                {
+                    inventory.RemoveItemAt(inventorySourceIndex, 1, ItemSource.Other);
+                }
+                else if (!isQuickPanelSlot)
+                {
+                    inventory.RemoveItemAt(slotIndex, 1, ItemSource.Other);
+                }
+            }
         }
     }
 
@@ -403,5 +533,41 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
         }
 
         tooltipCoroutine = null;
+    }
+
+    public void OnBeginDrag(PointerEventData eventData)
+    {
+        if (!enableDragAndDrop || data == null || data.IsEmpty) return;
+
+        if (dragDropHandler != null)
+        {
+            // Для быстрой панели передаем inventorySourceIndex
+            dragDropHandler.StartDrag(this, isQuickPanelSlot ? inventorySourceIndex : slotIndex);
+        }
+    }
+
+    public void OnDrag(PointerEventData eventData)
+    {
+        if (dragDropHandler != null)
+            dragDropHandler.ContinueDrag(eventData);
+    }
+
+    public void OnEndDrag(PointerEventData eventData)
+    {
+        if (icon != null)
+            icon.color = Color.white;
+
+        if (dragDropHandler != null)
+            dragDropHandler.StopDrag();
+    }
+
+    public bool IsQuickPanelSlot()
+    {
+        return isQuickPanelSlot;
+    }
+
+    public void SetQuickPanelSlot(bool value)
+    {
+        isQuickPanelSlot = value;
     }
 }
