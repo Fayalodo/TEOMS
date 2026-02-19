@@ -34,8 +34,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 1.25, y: 1}
-  m_SizeDelta: {x: -2.5, y: -2}
+  m_AnchoredPosition: {x: 0.09499955, y: 1.1}
+  m_SizeDelta: {x: -6.610001, y: -2.2}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &228943195312250426
 CanvasRenderer:
@@ -93,14 +93,14 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 4.5
-  m_fontSizeBase: 4.5
+  m_fontSize: 3.4
+  m_fontSizeBase: 3.4
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 0
-  m_HorizontalAlignment: 2
+  m_HorizontalAlignment: 4
   m_VerticalAlignment: 1024
   m_textAlignment: 65535
   m_characterSpacing: 0
@@ -291,6 +291,7 @@ MonoBehaviour:
   showTooltipOnHover: 1
   tooltipDelay: 0.5
   useTooltipDelayOnHide: 1
+  hotkeyText: {fileID: 0}
   addItemSound: {fileID: 0}
   removeItemSound: {fileID: 0}
   useItemSound: {fileID: 0}
@@ -302,6 +303,7 @@ MonoBehaviour:
   enableDragAndDrop: 1
   isQuickPanelSlot: 0
   hotkeyHintText: {fileID: 0}
+  defaultBackgroundColor: {r: 0, g: 0, b: 0, a: 0}
 --- !u!1 &6236871561672361371
 GameObject:
   m_ObjectHideFlags: 0
