@@ -121,7 +121,7 @@ public class CombatController : MonoBehaviour
         if (myHealth != null)
         {
             if (autoEngageOnDamage) myHealth.OnDamageTaken -= OnDamageTaken_Local;
-            myHealth.OnDeath -= OnDeath_Local; // Исправлено: было OnDamageTaken_Local
+            myHealth.OnDeath -= OnDeath_Local;
         }
         Disengage();
     }
@@ -417,6 +417,12 @@ public class CombatController : MonoBehaviour
         currentTargetHealth = null;
         StopMovement();
 
+        // Сброс провокации для нейтральных NPC
+        if (aiType == AIType.NeutralNPC)
+        {
+            provocationCount = 0;
+        }
+
         // Скрываем индикатор при прекращении боя
         if (!showIndicatorAlways && indicatorRenderer != null && indicatorRenderer.enabled)
         {
@@ -461,9 +467,6 @@ public class CombatController : MonoBehaviour
             var animator = GetComponentInChildren<Animator>();
             if (animator != null) animator.SetTrigger("Attack");
         }
-
-        // Исправлено: isAttacking должен сбрасываться в корутине анимации или после её завершения
-        // Добавлено в корутину AttackIndicatorAnimation()
     }
 
     System.Collections.IEnumerator AttackIndicatorAnimation()
@@ -481,7 +484,7 @@ public class CombatController : MonoBehaviour
             yield return new WaitForSeconds(0.05f);
         }
 
-        // Исправлено: сбрасываем флаг атаки после завершения анимации
+        // Сбрасываем флаг атаки после завершения анимации
         isAttacking = false;
     }
 
