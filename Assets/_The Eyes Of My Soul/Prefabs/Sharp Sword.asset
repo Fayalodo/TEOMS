@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Sharp Sword
   m_EditorClassIdentifier: 
   id: 2Sword
-  displayName: Sharp Sword
+  displayName: "\u0411\u044B\u0441\u0442\u0440\u044B\u0439 \u043C\u0435\u0447"
   description: 
   icon: {fileID: 21300000, guid: ecbeb20808597074294826d4df16cbb3, type: 3}
   worldPrefab: {fileID: 0}
