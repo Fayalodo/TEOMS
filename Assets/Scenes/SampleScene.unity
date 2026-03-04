@@ -3471,7 +3471,6 @@ MonoBehaviour:
   aiType: 1
   faction: 3
   targetLayerMask:
-    serializedVersion: 2
     m_Bits: 4294967295
   hostileFactions: 0000000002000000
   minWanderDelay: 2
@@ -3480,11 +3479,102 @@ MonoBehaviour:
   wanderCenterPoint: {fileID: 1817545010}
   detectionRange: 10
   showDebugInfo: 1
-  detectionGizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  wanderAreaColor: {r: 0, g: 1, b: 1, a: 1}
+  detectionGizmoColor:
+    r: 1
+    g: 0.92156863
+    b: 0.015686275
+    a: 1
+  wanderAreaColor:
+    r: 0
+    g: 1
+    b: 1
+    a: 1
   thinkInterval: 0.2
   targetSearchInterval: 1
   pathUpdateInterval: 0.5
+  agent: {fileID: 0}
+  health: {fileID: 0}
+  tr: {fileID: 0}
+  currentState: 1
+  currentTarget: {fileID: 0}
+  currentTargetHealth: {fileID: 0}
+  provocationCount: 0
+  lastTargetSearchTime: -999
+  wanderTimer: 0
+  nextWanderDelay: 0
+  isWanderPaused: 0
+  spawnPosition: {x: 0, y: 0, z: 0}
+  forceReturnToCenter: 0
+  detectionRangeSqr: 0
+  nearbyColliders:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  lastFrameTargetSearch: 0
+  lastSearchPosition: {x: 0, y: 0, z: 0}
+  lastPathUpdateTime: -999
+  aggressionState: 0
 --- !u!136 &588179734
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -3628,8 +3718,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   aiType: 3
-  faction: 3
-  hostileFactions: 0000000002000000
   attackRange: 2
   attackDamage: 10
   attackCooldown: 1
@@ -3650,6 +3738,8 @@ MonoBehaviour:
   pathUpdateInterval: 0.3
   provocationThreshold: 2
   autoEngageOnDamage: 1
+  provocationResetDelay: 10
+  rotationSpeed: 360
   disableOnDeath: 1
   showAttackIndicator: 1
 --- !u!114 &588179741
@@ -5656,8 +5746,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   aiType: 2
-  faction: 2
-  hostileFactions: 
   attackRange: 2
   attackDamage: 10
   attackCooldown: 1
@@ -5678,6 +5766,8 @@ MonoBehaviour:
   pathUpdateInterval: 0.3
   provocationThreshold: 2
   autoEngageOnDamage: 1
+  provocationResetDelay: 10
+  rotationSpeed: 360
   disableOnDeath: 1
   showAttackIndicator: 1
 --- !u!114 &981688774
@@ -6192,7 +6282,7 @@ MonoBehaviour:
   maxHealth: 100
   currentHealth: 0
   initializeHealthOnAwake: 1
-  faction: 0
+  faction: 1
 --- !u!114 &1120369929
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8372,7 +8462,7 @@ MonoBehaviour:
   maxHealth: 100
   currentHealth: 0
   initializeHealthOnAwake: 1
-  faction: 2
+  faction: 4
 --- !u!114 &1523173306
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8440,8 +8530,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   aiType: 3
-  faction: 2
-  hostileFactions: 
   attackRange: 2
   attackDamage: 10
   attackCooldown: 1
@@ -8462,6 +8550,8 @@ MonoBehaviour:
   pathUpdateInterval: 0.3
   provocationThreshold: 2
   autoEngageOnDamage: 1
+  provocationResetDelay: 10
+  rotationSpeed: 360
   disableOnDeath: 1
   showAttackIndicator: 1
 --- !u!1 &1533681393

@@ -1,86 +1,102 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
 [RequireComponent(typeof(Health))]
 public class CombatController : MonoBehaviour
 {
-    [Header("AI / Faction")]
+    [Header("AI Type")]
     public AIType aiType = AIType.AggressiveNPC;
-    public Faction faction = Faction.Neutral;
-    public List<Faction> hostileFactions = new List<Faction>();
 
     [Header("Combat")]
     public float attackRange = 2f;
     public float attackDamage = 10f;
     public float attackCooldown = 1f;
-    public float attackRadius = 0.8f; // Добавлено для индикатора
+    public float attackRadius = 0.8f;
 
     [Header("Attack Indicator")]
-    public GameObject attackIndicatorPrefab; // Префаб индикатора
-    public bool showIndicatorAlways = false; // Показывать всегда или только при атаке
+    public GameObject attackIndicatorPrefab;
+    public bool showIndicatorAlways = false;
     public float indicatorFadeInTime = 0.1f;
     public float indicatorFadeOutTime = 0.2f;
-    [ColorUsage(true, true)]
-    public Color indicatorReadyColor = new Color(1f, 0f, 0f, 0.3f); // Цвет при готовности
-    [ColorUsage(true, true)]
-    public Color indicatorCooldownColor = new Color(0.5f, 0.5f, 0.5f, 0.2f); // Цвет на кулдауне
-    public float indicatorYOffset = 0.01f; // Смещение по Y для избежания z-fighting
+    [ColorUsage(true, true)] public Color indicatorReadyColor = new Color(1f, 0f, 0f, 0.3f);
+    [ColorUsage(true, true)] public Color indicatorCooldownColor = new Color(0.5f, 0.5f, 0.5f, 0.2f);
+    public float indicatorYOffset = 0.01f;
 
     [Header("Detection & Path Update")]
     public float detectionRange = 15f;
-    [Tooltip("Если цель ближе этого - животное станет агрессивным")]
     public float animalAggroDistance = 2f;
     public LayerMask detectionMask = ~0;
-
-    [Tooltip("Как часто (сек) сканируем окружение на предмет целей")]
     public float detectionInterval = 0.6f;
-
-    [Tooltip("Как часто (сек) обновляем путь к цели при погоне")]
     public float pathUpdateInterval = 0.3f;
 
     [Header("Provocation")]
     public int provocationThreshold = 2;
     public bool autoEngageOnDamage = true;
+    public float provocationResetDelay = 10f;
+
+    [Header("Rotation")]
+    public float rotationSpeed = 360f;
 
     [Header("Options")]
     public bool disableOnDeath = true;
-    public bool showAttackIndicator = true; // Включить/выключить индикатор атаки
+    public bool showAttackIndicator = true;
 
     public event Action<Transform> OnEngaged;
     public event Action OnDisengaged;
 
-    // internals
+    // ── компоненты ───────────────────────────────────────────
     Health myHealth;
     MovementController movement;
     NavMeshAgent fallbackAgent;
+    Animator cachedAnimator;
+
+    // ── состояние боя ────────────────────────────────────────
     Transform currentTarget;
     Health currentTargetHealth;
+
+    // FIX: атакующий приходит прямо из Health.OnDamageTaken — без OverlapSphere
+    Health lastAttackerHealth;
+
     float lastAttackTime = -999f;
     float lastDetectionTime = -999f;
     float lastPathUpdateTime = -999f;
     bool engaged = false;
     int provocationCount = 0;
+
+    float disengageTime = -999f;
+    const float scanCooldownAfterDisengage = 2f;
+
     Collider[] overlapBuffer = new Collider[64];
+    NPCDailyScheduler scheduler;
 
-    // Scheduler integration
-    private NPCDailyScheduler scheduler;
+    // ── индикатор атаки ──────────────────────────────────────
+    GameObject currentIndicator;
+    SpriteRenderer indicatorRenderer;
+    bool isIndicatorVisible = false;
+    bool isAttacking = false;
+    Coroutine fadeIndicatorCoroutine;
+    Coroutine attackAnimCoroutine;
+    Coroutine provocationResetCoroutine;
 
-    // Индикатор атаки
-    private GameObject currentIndicator;
-    private SpriteRenderer indicatorRenderer;
-    private bool isIndicatorVisible = false;
-    private bool isAttacking = false;
+    // FIX: кешируем состояние индикатора чтобы не дёргать его каждый кадр
+    bool lastInRange = false;
+    bool lastCanAttack = false;
+    bool lastEngaged = false;
+
+    // ════════════════════════════════════════════════════════
+    //  ИНИЦИАЛИЗАЦИЯ
+    // ════════════════════════════════════════════════════════
 
     void Awake()
     {
         myHealth = GetComponent<Health>();
         movement = GetComponent<MovementController>();
         fallbackAgent = GetComponent<NavMeshAgent>();
-        scheduler = GetComponent<NPCDailyScheduler>(); // optional; used to interrupt/return to schedule
+        scheduler = GetComponent<NPCDailyScheduler>();
+        cachedAnimator = GetComponentInChildren<Animator>();
 
-        // Инициализация индикатора атаки
         InitializeAttackIndicator();
     }
 
@@ -93,82 +109,88 @@ public class CombatController : MonoBehaviour
         currentIndicator.transform.localPosition = Vector3.zero;
         indicatorRenderer = currentIndicator.GetComponent<SpriteRenderer>();
 
-        if (indicatorRenderer != null)
+        if (indicatorRenderer == null) return;
+
+        if (showIndicatorAlways)
         {
-            indicatorRenderer.enabled = showIndicatorAlways;
-            UpdateIndicatorColor();
-            if (!showIndicatorAlways)
-            {
-                Color color = indicatorRenderer.color;
-                color.a = 0f;
-                indicatorRenderer.color = color;
-                indicatorRenderer.enabled = false;
-            }
+            indicatorRenderer.enabled = true;
+        }
+        else
+        {
+            Color c = indicatorRenderer.color;
+            c.a = 0f;
+            indicatorRenderer.color = c;
+            indicatorRenderer.enabled = false;
+            isIndicatorVisible = false;
         }
     }
 
     void OnEnable()
     {
-        if (myHealth != null)
-        {
-            if (autoEngageOnDamage) myHealth.OnDamageTaken += OnDamageTaken_Local;
-            myHealth.OnDeath += OnDeath_Local;
-        }
+        if (myHealth == null) return;
+        if (autoEngageOnDamage) myHealth.OnDamageTaken += OnDamageTaken_Local;
+        myHealth.OnDeath += OnDeath_Local;
     }
 
     void OnDisable()
     {
-        if (myHealth != null)
-        {
-            if (autoEngageOnDamage) myHealth.OnDamageTaken -= OnDamageTaken_Local;
-            myHealth.OnDeath -= OnDeath_Local;
-        }
+        if (myHealth == null) return;
+        if (autoEngageOnDamage) myHealth.OnDamageTaken -= OnDamageTaken_Local;
+        myHealth.OnDeath -= OnDeath_Local;
         Disengage();
     }
+
+    // ════════════════════════════════════════════════════════
+    //  UPDATE
+    // ════════════════════════════════════════════════════════
 
     void Update()
     {
         if (myHealth == null || !myHealth.IsAlive) return;
 
-        // Обновление индикатора атаки
-        UpdateAttackIndicator();
-
-        // periodic scanning for targets
-        if (Time.time - lastDetectionTime >= detectionInterval)
+        // ── сканирование с интервалом ────────────────────────
+        bool scanReady = Time.time - disengageTime >= scanCooldownAfterDisengage
+                      && Time.time - lastDetectionTime >= detectionInterval;
+        if (scanReady)
         {
             lastDetectionTime = Time.time;
             ScanForTargets();
         }
 
-        // engaged behaviour
-        if (!engaged || currentTarget == null || currentTargetHealth == null) return;
+        if (!engaged || currentTarget == null || currentTargetHealth == null)
+        {
+            UpdateIndicatorEngagedState(false, false);
+            return;
+        }
 
         if (!currentTargetHealth.IsAlive)
         {
-            // target died -> finish combat and return to schedule
             Disengage();
-            ReturnToScheduleIfNeeded();
             return;
         }
 
         float distSqr = (currentTarget.position - transform.position).sqrMagnitude;
+        bool inRange = distSqr <= attackRange * attackRange;
 
-        if (distSqr <= attackRange * attackRange)
+        // FIX: canAttack считается один раз и передаётся дальше
+        bool canAttack = Time.time - lastAttackTime >= attackCooldown;
+
+        UpdateIndicatorEngagedState(inRange, canAttack);
+
+        if (inRange)
         {
             StopMovement();
-            TryAttack();
+            FaceTarget();
+            if (canAttack) ExecuteAttack();
             return;
         }
 
-        // if too far — disengage and return to schedule
         if (distSqr > detectionRange * detectionRange)
         {
             Disengage();
-            ReturnToScheduleIfNeeded();
             return;
         }
 
-        // Update path only at intervals to reduce SetDestination frequency
         if (Time.time - lastPathUpdateTime >= pathUpdateInterval)
         {
             lastPathUpdateTime = Time.time;
@@ -176,123 +198,56 @@ public class CombatController : MonoBehaviour
         }
     }
 
-    void UpdateAttackIndicator()
+    // ════════════════════════════════════════════════════════
+    //  БОЙ
+    // ════════════════════════════════════════════════════════
+
+    void FaceTarget()
     {
-        if (!showAttackIndicator || currentIndicator == null || indicatorRenderer == null) return;
-
-        // Обновляем позицию индикатора только если есть цель и мы в зоне атаки
-        if (engaged && currentTarget != null && currentTargetHealth != null && currentTargetHealth.IsAlive)
-        {
-            float distSqr = (currentTarget.position - transform.position).sqrMagnitude;
-            bool isInAttackRange = distSqr <= attackRange * attackRange;
-
-            if (isInAttackRange)
-            {
-                // Направление к цели
-                Vector3 direction = (currentTarget.position - transform.position).normalized;
-                UpdateIndicatorPositionAndRotation(direction);
-
-                // Показываем индикатор только при готовности атаковать
-                bool canAttack = Time.time - lastAttackTime >= attackCooldown;
-                if (!showIndicatorAlways)
-                {
-                    if (canAttack && !isIndicatorVisible && !isAttacking)
-                    {
-                        StartCoroutine(FadeIndicator(true));
-                    }
-                    else if (!canAttack && isIndicatorVisible)
-                    {
-                        StartCoroutine(FadeIndicator(false));
-                    }
-                }
-            }
-            else if (!showIndicatorAlways && isIndicatorVisible)
-            {
-                // Скрываем индикатор если цель вне зоны атаки
-                StartCoroutine(FadeIndicator(false));
-            }
-        }
-        else if (!showIndicatorAlways && isIndicatorVisible)
-        {
-            // Скрываем индикатор если нет цели
-            StartCoroutine(FadeIndicator(false));
-        }
-
-        // Обновляем цвет индикатора
-        UpdateIndicatorColor();
+        if (currentTarget == null) return;
+        Vector3 dir = currentTarget.position - transform.position;
+        dir.y = 0f;
+        if (dir.sqrMagnitude < 0.001f) return;
+        transform.rotation = Quaternion.RotateTowards(
+            transform.rotation,
+            Quaternion.LookRotation(dir),
+            rotationSpeed * Time.deltaTime);
     }
 
-    void UpdateIndicatorPositionAndRotation(Vector3 direction)
+    void ExecuteAttack()
     {
-        if (currentIndicator == null) return;
+        if (!myHealth.IsAlive) return;
 
-        // Позиция индикатора - впереди на расстоянии атаки
-        Vector3 indicatorPos = transform.position + direction.normalized * attackRange;
-        indicatorPos.y = transform.position.y + indicatorYOffset;
+        lastAttackTime = Time.time;
+        isAttacking = true;
 
-        currentIndicator.transform.position = indicatorPos;
-
-        // Поворачиваем индикатор в сторону цели
-        if (direction.sqrMagnitude > 0.001f)
+        if (showAttackIndicator && indicatorRenderer != null && !showIndicatorAlways)
         {
-            Quaternion targetRotation = Quaternion.LookRotation(direction);
-            currentIndicator.transform.rotation = targetRotation;
+            if (attackAnimCoroutine != null) StopCoroutine(attackAnimCoroutine);
+            attackAnimCoroutine = StartCoroutine(AttackIndicatorAnimation());
         }
 
-        // Масштабируем под радиус атаки
-        float scale = attackRadius * 2f; // Диаметр
-        currentIndicator.transform.localScale = new Vector3(scale, scale, 1f);
+        if (currentTargetHealth != null && currentTargetHealth.IsAlive)
+        {
+            // FIX: передаём себя как атакующего — цель узнает кто её ударил
+            currentTargetHealth.TakeDamage(attackDamage, myHealth);
+            if (cachedAnimator != null) cachedAnimator.SetTrigger("Attack");
+        }
     }
 
-    void UpdateIndicatorColor()
-    {
-        if (indicatorRenderer == null) return;
-
-        bool canAttack = Time.time - lastAttackTime >= attackCooldown;
-        Color targetColor = canAttack ? indicatorReadyColor : indicatorCooldownColor;
-
-        // Плавное изменение цвета
-        indicatorRenderer.color = Color.Lerp(indicatorRenderer.color, targetColor, Time.deltaTime * 10f);
-    }
-
-    System.Collections.IEnumerator FadeIndicator(bool fadeIn)
-    {
-        if (indicatorRenderer == null) yield break;
-
-        float timer = 0f;
-        float duration = fadeIn ? indicatorFadeInTime : indicatorFadeOutTime;
-        float startAlpha = indicatorRenderer.color.a;
-        float targetAlpha = fadeIn ? indicatorReadyColor.a : 0f;
-
-        if (fadeIn && !isIndicatorVisible)
-        {
-            indicatorRenderer.enabled = true;
-            isIndicatorVisible = true;
-        }
-
-        while (timer < duration)
-        {
-            timer += Time.deltaTime;
-            float t = Mathf.Clamp01(timer / duration);
-            Color currentColor = indicatorRenderer.color;
-            currentColor.a = Mathf.Lerp(startAlpha, targetAlpha, t);
-            indicatorRenderer.color = currentColor;
-            yield return null;
-        }
-
-        if (!fadeIn && isIndicatorVisible)
-        {
-            indicatorRenderer.enabled = false;
-            isIndicatorVisible = false;
-        }
-    }
+    // ════════════════════════════════════════════════════════
+    //  ПОИСК ЦЕЛЕЙ
+    // ════════════════════════════════════════════════════════
 
     void ScanForTargets()
     {
-        // If we already have engaged target -> skip scanning
         if (engaged && currentTarget != null) return;
 
-        int count = Physics.OverlapSphereNonAlloc(transform.position, detectionRange, overlapBuffer, detectionMask, QueryTriggerInteraction.Ignore);
+        int count = Physics.OverlapSphereNonAlloc(
+            transform.position, detectionRange,
+            overlapBuffer, detectionMask,
+            QueryTriggerInteraction.Ignore);
+
         Transform nearest = null;
         float minSqr = detectionRange * detectionRange;
 
@@ -300,112 +255,144 @@ public class CombatController : MonoBehaviour
         {
             var c = overlapBuffer[i];
             if (c == null || c.transform == transform) continue;
+
             var h = c.GetComponent<Health>();
             if (h == null || !h.IsAlive) continue;
 
             float d2 = (c.transform.position - transform.position).sqrMagnitude;
+            if (!ShouldAttack(h, d2)) continue;
 
-            // rules: animals and neutral NPCs require provocation / proximity
-            if (aiType == AIType.Animal)
-            {
-                if (provocationCount == 0 && d2 > animalAggroDistance * animalAggroDistance) continue;
-                if (!IsHostileTo(h) && provocationCount == 0) continue;
-            }
-            else if (aiType == AIType.NeutralNPC)
-            {
-                if (provocationCount < provocationThreshold) continue;
-                if (!IsHostileTo(h)) continue;
-            }
-            else // Monster / AggressiveNPC
-            {
-                if (!IsHostileTo(h)) continue;
-            }
-
-            if (d2 < minSqr)
-            {
-                minSqr = d2;
-                nearest = c.transform;
-            }
+            if (d2 < minSqr) { minSqr = d2; nearest = c.transform; }
         }
 
         if (nearest != null) SetTarget(nearest);
     }
 
-    void OnDamageTaken_Local(float dmg)
+    // FIX: атакующий уже известен из события — OverlapSphere не нужен
+    void EngageAttacker()
     {
-        provocationCount++;
-        if (aiType == AIType.NeutralNPC)
+        if (lastAttackerHealth != null && lastAttackerHealth.IsAlive)
         {
-            if (provocationCount >= provocationThreshold) TryFindNearestHostileAndSet();
+            SetTarget(lastAttackerHealth.transform);
+            return;
         }
-        else
-        {
-            TryFindNearestHostileAndSet();
-        }
-    }
 
-    void OnDeath_Local()
-    {
-        Disengage();
-        StopMovement();
-        provocationCount = 0;
-        // return to schedule immediately if needed
-        ReturnToScheduleIfNeeded();
-        if (disableOnDeath) enabled = false;
+        // запасной вариант: OverlapSphere только если источник неизвестен (ловушка и т.д.)
+        int count = Physics.OverlapSphereNonAlloc(
+            transform.position, detectionRange,
+            overlapBuffer, detectionMask,
+            QueryTriggerInteraction.Ignore);
 
-        // Скрываем индикатор при смерти
-        if (indicatorRenderer != null && indicatorRenderer.enabled)
-        {
-            indicatorRenderer.enabled = false;
-            isIndicatorVisible = false;
-        }
-    }
-
-    void TryFindNearestHostileAndSet()
-    {
-        int count = Physics.OverlapSphereNonAlloc(transform.position, detectionRange, overlapBuffer, detectionMask, QueryTriggerInteraction.Ignore);
         Transform nearest = null;
         float minSqr = float.MaxValue;
+
         for (int i = 0; i < count; i++)
         {
             var c = overlapBuffer[i];
             if (c == null || c.transform == transform) continue;
             var h = c.GetComponent<Health>();
             if (h == null || !h.IsAlive) continue;
-            if (!IsHostileTo(h)) continue;
+            if (!IsHostileByTable(h)) continue;
             float d2 = (c.transform.position - transform.position).sqrMagnitude;
-            if (d2 < minSqr)
-            {
-                minSqr = d2;
-                nearest = c.transform;
-            }
+            if (d2 < minSqr) { minSqr = d2; nearest = c.transform; }
         }
+
         if (nearest != null) SetTarget(nearest);
     }
 
+    bool ShouldAttack(Health target, float distSqr)
+    {
+        switch (aiType)
+        {
+            case AIType.Animal:
+                if (provocationCount == 0 && distSqr > animalAggroDistance * animalAggroDistance)
+                    return false;
+                return IsHostileByTable(target) || provocationCount > 0;
+
+            case AIType.NeutralNPC:
+                if (provocationCount < provocationThreshold) return false;
+                // атакует lastAttacker или врага по таблице
+                return target == lastAttackerHealth || IsHostileByTable(target);
+
+            case AIType.AggressiveNPC:
+            case AIType.Monster:
+            default:
+                return IsHostileByTable(target);
+        }
+    }
+
+    bool IsHostileByTable(Health target)
+    {
+        if (target == null || myHealth == null) return false;
+        return FactionRelationshipTable.AreHostile(myHealth.faction, target.faction);
+    }
+
+    // ════════════════════════════════════════════════════════
+    //  СОБЫТИЯ ЗДОРОВЬЯ
+    // ════════════════════════════════════════════════════════
+
+    // FIX: подпись изменилась — получаем атакующего напрямую
+    void OnDamageTaken_Local(float dmg, Health attacker)
+    {
+        CancelProvocationReset();
+        provocationCount++;
+
+        // запоминаем атакующего (может быть null если урон от ловушки)
+        if (attacker != null)
+            lastAttackerHealth = attacker;
+
+        if (aiType == AIType.NeutralNPC)
+        {
+            if (provocationCount >= provocationThreshold)
+                EngageAttacker();
+        }
+        else
+        {
+            EngageAttacker();
+        }
+    }
+
+    void OnDeath_Local()
+    {
+        CancelProvocationReset();
+        Disengage();
+        StopMovement();
+        provocationCount = 0;
+        lastAttackerHealth = null;
+
+        if (indicatorRenderer != null)
+        {
+            indicatorRenderer.enabled = false;
+            isIndicatorVisible = false;
+        }
+
+        if (disableOnDeath) enabled = false;
+    }
+
+    // ════════════════════════════════════════════════════════
+    //  PUBLIC API
+    // ════════════════════════════════════════════════════════
+
     public void SetTarget(Transform t)
     {
-        if (myHealth != null && !myHealth.IsAlive) return;
+        if (myHealth == null || !myHealth.IsAlive) return;
         if (t == null) { Disengage(); return; }
+
         var h = t.GetComponent<Health>();
         if (h == null || !h.IsAlive) return;
 
         if (aiType == AIType.Animal && provocationCount == 0)
-        {
-            float d = Vector3.Distance(transform.position, t.position);
-            if (d > animalAggroDistance) return;
-        }
+            if (Vector3.Distance(transform.position, t.position) > animalAggroDistance) return;
 
         currentTarget = t;
         currentTargetHealth = h;
         engaged = true;
-        lastPathUpdateTime = -999f; // force immediate path update next Update
+        lastPathUpdateTime = -999f;
 
-        // Interrupt scheduler so NPC leaves schedule for combat
+        CancelProvocationReset();
+
         if (scheduler != null)
-        {
-            try { scheduler.Interrupt(); } catch { /* ignore if inaccessible */ }
-        }
+            try { scheduler.Interrupt(); } catch { }
 
         OnEngaged?.Invoke(currentTarget);
     }
@@ -415,25 +402,24 @@ public class CombatController : MonoBehaviour
         engaged = false;
         currentTarget = null;
         currentTargetHealth = null;
+        disengageTime = Time.time;
+
+        if (provocationCount > 0 && provocationResetDelay > 0f)
+        {
+            CancelProvocationReset();
+            provocationResetCoroutine = StartCoroutine(ResetProvocationAfterDelay());
+        }
+
+        ReturnToScheduleIfNeeded();
         StopMovement();
 
-        // Сброс провокации для нейтральных NPC
-        if (aiType == AIType.NeutralNPC)
-        {
-            provocationCount = 0;
-        }
-
-        // Скрываем индикатор при прекращении боя
-        if (!showIndicatorAlways && indicatorRenderer != null && indicatorRenderer.enabled)
-        {
-            StartCoroutine(FadeIndicator(false));
-        }
-
+        if (!showIndicatorAlways) HideIndicatorImmediate();
         OnDisengaged?.Invoke();
-
-        // when combat ends, ask scheduler to resume immediately (if it was interrupted)
-        ReturnToScheduleIfNeeded();
     }
+
+    // ════════════════════════════════════════════════════════
+    //  ВСПОМОГАТЕЛЬНЫЕ
+    // ════════════════════════════════════════════════════════
 
     void MoveTo(Vector3 pos)
     {
@@ -447,76 +433,163 @@ public class CombatController : MonoBehaviour
         else if (fallbackAgent != null) { fallbackAgent.ResetPath(); fallbackAgent.isStopped = true; }
     }
 
-    void TryAttack()
-    {
-        if (myHealth == null || !myHealth.IsAlive) return;
-        if (Time.time - lastAttackTime < attackCooldown) return;
-
-        lastAttackTime = Time.time;
-        isAttacking = true;
-
-        // Анимация индикатора перед атакой
-        if (showAttackIndicator && indicatorRenderer != null && !showIndicatorAlways)
-        {
-            StartCoroutine(AttackIndicatorAnimation());
-        }
-
-        if (currentTargetHealth != null && currentTargetHealth.IsAlive)
-        {
-            currentTargetHealth.TakeDamage(attackDamage);
-            var animator = GetComponentInChildren<Animator>();
-            if (animator != null) animator.SetTrigger("Attack");
-        }
-    }
-
-    System.Collections.IEnumerator AttackIndicatorAnimation()
-    {
-        // Мигание индикатора при атаке
-        if (indicatorRenderer == null) yield break;
-
-        // Быстрое мигание
-        for (int i = 0; i < 2; i++)
-        {
-            Color originalColor = indicatorRenderer.color;
-            indicatorRenderer.color = Color.white;
-            yield return new WaitForSeconds(0.05f);
-            indicatorRenderer.color = originalColor;
-            yield return new WaitForSeconds(0.05f);
-        }
-
-        // Сбрасываем флаг атаки после завершения анимации
-        isAttacking = false;
-    }
-
-    bool IsHostileTo(Health targetHealth)
-    {
-        if (targetHealth == null) return false;
-        if (hostileFactions != null && hostileFactions.Count > 0) return hostileFactions.Contains(targetHealth.faction);
-        return targetHealth.faction != faction;
-    }
-
-    // If the NPC has a scheduler and it was interrupted -> tell it to return immediately
     void ReturnToScheduleIfNeeded()
     {
         if (scheduler == null) return;
-
-        try
-        {
-            // ReturnToSchedule checks internal isInterrupted; it's safe to call regardless
-            scheduler.ReturnToSchedule();
-        }
-        catch (Exception e)
-        {
-            Debug.LogWarning($"[{name}] Error calling ReturnToSchedule: {e.Message}");
-        }
+        try { scheduler.ReturnToSchedule(); }
+        catch (Exception e) { Debug.LogWarning($"[{name}] ReturnToSchedule error: {e.Message}"); }
     }
+
+    void CancelProvocationReset()
+    {
+        if (provocationResetCoroutine == null) return;
+        StopCoroutine(provocationResetCoroutine);
+        provocationResetCoroutine = null;
+    }
+
+    IEnumerator ResetProvocationAfterDelay()
+    {
+        yield return new WaitForSeconds(provocationResetDelay);
+        provocationCount = 0;
+        lastAttackerHealth = null;
+        provocationResetCoroutine = null;
+    }
+
+    // ════════════════════════════════════════════════════════
+    //  ИНДИКАТОР АТАКИ  —  event-driven, не каждый кадр
+    // ════════════════════════════════════════════════════════
+
+    // FIX: вызывается только когда inRange или canAttack меняются — не каждый кадр
+    void UpdateIndicatorEngagedState(bool inRange, bool canAttack)
+    {
+        if (!showAttackIndicator || indicatorRenderer == null || showIndicatorAlways) return;
+
+        bool stateChanged = (inRange != lastInRange) || (canAttack != lastCanAttack) || (engaged != lastEngaged);
+        lastInRange = inRange;
+        lastCanAttack = canAttack;
+        lastEngaged = engaged;
+
+        if (!stateChanged) return;
+
+        if (!engaged || !inRange)
+        {
+            if (isIndicatorVisible) SetFadeIndicator(false);
+            return;
+        }
+
+        // в зоне атаки
+        if (canAttack && !isIndicatorVisible && !isAttacking)
+        {
+            UpdateIndicatorTransform();
+            SetFadeIndicator(true);
+        }
+        else if (!canAttack && isIndicatorVisible)
+        {
+            SetFadeIndicator(false);
+        }
+
+        // цвет обновляем только когда индикатор виден
+        if (isIndicatorVisible) UpdateIndicatorColor(canAttack);
+    }
+
+    void UpdateIndicatorTransform()
+    {
+        if (currentIndicator == null || currentTarget == null) return;
+        Vector3 dir = (currentTarget.position - transform.position).normalized;
+        Vector3 pos = transform.position + dir * attackRange;
+        pos.y = transform.position.y + indicatorYOffset;
+        currentIndicator.transform.position = pos;
+        if (dir.sqrMagnitude > 0.001f)
+            currentIndicator.transform.rotation = Quaternion.LookRotation(dir);
+        float scale = attackRadius * 2f;
+        currentIndicator.transform.localScale = new Vector3(scale, scale, 1f);
+    }
+
+    void UpdateIndicatorColor(bool canAttack)
+    {
+        if (indicatorRenderer == null) return;
+        indicatorRenderer.color = canAttack ? indicatorReadyColor : indicatorCooldownColor;
+    }
+
+    void HideIndicatorImmediate()
+    {
+        if (fadeIndicatorCoroutine != null) { StopCoroutine(fadeIndicatorCoroutine); fadeIndicatorCoroutine = null; }
+        if (indicatorRenderer == null) return;
+        Color c = indicatorRenderer.color;
+        c.a = 0f;
+        indicatorRenderer.color = c;
+        indicatorRenderer.enabled = false;
+        isIndicatorVisible = false;
+        lastInRange = false;
+        lastCanAttack = false;
+    }
+
+    void SetFadeIndicator(bool fadeIn)
+    {
+        if (fadeIndicatorCoroutine != null) StopCoroutine(fadeIndicatorCoroutine);
+        fadeIndicatorCoroutine = StartCoroutine(FadeIndicator(fadeIn));
+    }
+
+    IEnumerator FadeIndicator(bool fadeIn)
+    {
+        if (indicatorRenderer == null) yield break;
+
+        float duration = fadeIn ? indicatorFadeInTime : indicatorFadeOutTime;
+        float startAlpha = indicatorRenderer.color.a;
+        float endAlpha = fadeIn ? indicatorReadyColor.a : 0f;
+        float elapsed = 0f;
+
+        if (fadeIn && !isIndicatorVisible)
+        {
+            indicatorRenderer.enabled = true;
+            isIndicatorVisible = true;
+        }
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            Color c = indicatorRenderer.color;
+            c.a = Mathf.Lerp(startAlpha, endAlpha, Mathf.Clamp01(elapsed / duration));
+            indicatorRenderer.color = c;
+            yield return null;
+        }
+
+        if (!fadeIn)
+        {
+            Color c = indicatorRenderer.color;
+            c.a = 0f;
+            indicatorRenderer.color = c;
+            indicatorRenderer.enabled = false;
+            isIndicatorVisible = false;
+        }
+
+        fadeIndicatorCoroutine = null;
+    }
+
+    IEnumerator AttackIndicatorAnimation()
+    {
+        if (indicatorRenderer == null) yield break;
+
+        for (int i = 0; i < 2; i++)
+        {
+            Color orig = indicatorRenderer.color;
+            indicatorRenderer.color = Color.white;
+            yield return new WaitForSeconds(0.05f);
+            indicatorRenderer.color = orig;
+            yield return new WaitForSeconds(0.05f);
+        }
+
+        isAttacking = false;
+        attackAnimCoroutine = null;
+    }
+
+    // ════════════════════════════════════════════════════════
+    //  CLEANUP & GIZMOS
+    // ════════════════════════════════════════════════════════
 
     void OnDestroy()
     {
-        if (currentIndicator != null)
-        {
-            Destroy(currentIndicator);
-        }
+        if (currentIndicator != null) Destroy(currentIndicator);
     }
 
     void OnDrawGizmosSelected()
@@ -525,19 +598,23 @@ public class CombatController : MonoBehaviour
 
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, detectionRange);
-
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, attackRange);
+
+        if (aiType == AIType.Animal)
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireSphere(transform.position, animalAggroDistance);
+        }
 
         if (currentTarget != null && currentTargetHealth != null && currentTargetHealth.IsAlive)
         {
             Gizmos.color = Color.red;
             Gizmos.DrawLine(transform.position, currentTarget.position);
-
-            // Отображаем зону атаки на цели
             Gizmos.color = new Color(1f, 0f, 0f, 0.3f);
-            Vector3 attackCenter = transform.position + (currentTarget.position - transform.position).normalized * attackRange;
-            Gizmos.DrawSphere(attackCenter, attackRadius);
+            Gizmos.DrawSphere(
+                transform.position + (currentTarget.position - transform.position).normalized * attackRange,
+                attackRadius);
         }
     }
 }

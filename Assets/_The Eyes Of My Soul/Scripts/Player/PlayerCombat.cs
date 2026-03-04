@@ -45,12 +45,15 @@ public class PlayerCombat : MonoBehaviour
     private PlayerMovement movement;
     private bool isAttacking = false;
     private SpriteRenderer spriteRenderer;
-    
+
     // Индикатор атаки
     private GameObject currentIndicator; // Текущий индикатор
     private SpriteRenderer indicatorRenderer; // Рендерер индикатора
     private bool isIndicatorVisible = false;
-    
+    private readonly Collider[] hitBuffer = new Collider[16]; // FIX: NonAlloc буфер — нет аллокаций каждую атаку
+
+    private Coroutine fadeCoroutine; // чтобы останавливать fade при смене оружия
+
     // Текущие настройки индикатора
     private GameObject currentIndicatorPrefab;
     private Color currentReadyColor;
@@ -59,6 +62,10 @@ public class PlayerCombat : MonoBehaviour
 
     private Inventory playerInventory;
     private ItemDefinition currentWeapon; // Текущее активное оружие
+    private Health myHealth; // кешируем чтобы не вызывать GetComponent каждую атаку
+
+    // кеш для индикатора — не пересчитываем canAttack каждый кадр
+    private bool lastCanAttack = true;
 
     void Awake()
     {
@@ -79,6 +86,8 @@ public class PlayerCombat : MonoBehaviour
         currentCooldownColor = defaultIndicatorCooldownColor;
         currentShowAlways = defaultShowIndicatorAlways;
 
+        myHealth = GetComponent<Health>();
+
         // Получаем инвентарь
         playerInventory = GetComponent<Inventory>();
         if (playerInventory == null)
@@ -97,7 +106,10 @@ public class PlayerCombat : MonoBehaviour
 
     void CreateAttackIndicator()
     {
-        // Удаляем старый индикатор если есть
+        // Останавливаем fade перед уничтожением
+        if (fadeCoroutine != null) { StopCoroutine(fadeCoroutine); fadeCoroutine = null; }
+        isIndicatorVisible = false;
+
         if (currentIndicator != null)
         {
             Destroy(currentIndicator);
@@ -115,8 +127,20 @@ public class PlayerCombat : MonoBehaviour
 
             if (indicatorRenderer != null)
             {
-                indicatorRenderer.enabled = currentShowAlways;
-                UpdateIndicatorColor();
+                if (currentShowAlways)
+                {
+                    indicatorRenderer.enabled = true;
+                    indicatorRenderer.color = currentReadyColor;
+                }
+                else
+                {
+                    // FIX: явно обнуляем альфу и скрываем при старте
+                    Color c = indicatorRenderer.color;
+                    c.a = 0f;
+                    indicatorRenderer.color = c;
+                    indicatorRenderer.enabled = false;
+                    isIndicatorVisible = false;
+                }
             }
         }
     }
@@ -148,7 +172,7 @@ public class PlayerCombat : MonoBehaviour
     private void UpdateWeaponStats()
     {
         ItemDefinition newWeapon = null;
-        
+
         if (playerInventory != null)
         {
             int activeSlot = playerInventory.activeWeaponSlotIndex;
@@ -164,7 +188,7 @@ public class PlayerCombat : MonoBehaviour
 
         // Если оружие не изменилось - ничего не делаем
         if (currentWeapon == newWeapon) return;
-        
+
         currentWeapon = newWeapon;
 
         if (currentWeapon != null)
@@ -174,10 +198,10 @@ public class PlayerCombat : MonoBehaviour
             attackRange = currentWeapon.weaponRange;
             attackCooldown = currentWeapon.weaponCooldown;
             attackRadius = currentWeapon.weaponRadius;
-            
+
             // Применяем настройки индикатора от оружия
             bool indicatorChanged = false;
-            
+
             if (currentWeapon.weaponAttackIndicatorPrefab != null)
             {
                 currentIndicatorPrefab = currentWeapon.weaponAttackIndicatorPrefab;
@@ -188,11 +212,11 @@ public class PlayerCombat : MonoBehaviour
                 currentIndicatorPrefab = defaultAttackIndicatorPrefab;
                 indicatorChanged = true;
             }
-            
+
             currentReadyColor = currentWeapon.weaponIndicatorReadyColor;
             currentCooldownColor = currentWeapon.weaponIndicatorCooldownColor;
             currentShowAlways = currentWeapon.weaponShowIndicatorAlways;
-            
+
             if (indicatorChanged)
             {
                 CreateAttackIndicator();
@@ -205,13 +229,13 @@ public class PlayerCombat : MonoBehaviour
             attackRange = baseRange;
             attackCooldown = baseCooldown;
             attackRadius = baseRadius;
-            
+
             // Сброс индикатора к настройкам по умолчанию
             currentIndicatorPrefab = defaultAttackIndicatorPrefab;
             currentReadyColor = defaultIndicatorReadyColor;
             currentCooldownColor = defaultIndicatorCooldownColor;
             currentShowAlways = defaultShowIndicatorAlways;
-            
+
             CreateAttackIndicator();
         }
     }
@@ -279,13 +303,13 @@ public class PlayerCombat : MonoBehaviour
 
     void UpdateIndicatorColor()
     {
-        if (indicatorRenderer == null) return;
+        if (indicatorRenderer == null || !indicatorRenderer.enabled) return;
 
+        // FIX: пересчитываем только при смене состояния кулдауна, не каждый кадр
         bool canAttack = Time.time - lastAttackTime >= attackCooldown;
-        Color targetColor = canAttack ? currentReadyColor : currentCooldownColor;
-
-        // Плавное изменение цвета
-        indicatorRenderer.color = Color.Lerp(indicatorRenderer.color, targetColor, Time.deltaTime * 10f);
+        if (canAttack == lastCanAttack) return;
+        lastCanAttack = canAttack;
+        indicatorRenderer.color = canAttack ? currentReadyColor : currentCooldownColor;
     }
 
     IEnumerator DoAttack(Vector3 direction)
@@ -295,7 +319,9 @@ public class PlayerCombat : MonoBehaviour
         // Анимация индикатора перед атакой
         if (indicatorRenderer != null && !currentShowAlways)
         {
-            yield return StartCoroutine(FadeIndicator(true));
+            if (fadeCoroutine != null) StopCoroutine(fadeCoroutine);
+            fadeCoroutine = StartCoroutine(FadeIndicator(true));
+            yield return fadeCoroutine;
         }
 
         UpdateSpriteFromDirection(direction);
@@ -310,13 +336,13 @@ public class PlayerCombat : MonoBehaviour
         if (fwd.sqrMagnitude < 0.001f) fwd = transform.forward;
         Vector3 center = transform.position + fwd.normalized * attackRange;
 
-        Collider[] hits = Physics.OverlapSphere(center, attackRadius, targetLayers, QueryTriggerInteraction.Ignore);
-        for (int i = 0; i < hits.Length; i++)
+        int hitCount = Physics.OverlapSphereNonAlloc(center, attackRadius, hitBuffer, targetLayers, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < hitCount; i++)
         {
-            var h = hits[i].GetComponent<Health>();
+            var h = hitBuffer[i].GetComponent<Health>();
             if (h != null && h.IsAlive && h.gameObject != gameObject)
             {
-                h.TakeDamage(attackDamage);
+                h.TakeDamage(attackDamage, myHealth); // FIX: передаём себя — NPC узнает кто их ударил
                 if (showDebugGizmos) Debug.Log($"Player attacked {h.gameObject.name} for {attackDamage}");
             }
         }
@@ -324,7 +350,9 @@ public class PlayerCombat : MonoBehaviour
         // Анимация индикатора после атаки
         if (indicatorRenderer != null && !currentShowAlways)
         {
-            yield return StartCoroutine(FadeIndicator(false));
+            if (fadeCoroutine != null) StopCoroutine(fadeCoroutine);
+            fadeCoroutine = StartCoroutine(FadeIndicator(false));
+            yield return fadeCoroutine;
         }
 
         yield return new WaitForSeconds(0.02f);
@@ -354,11 +382,17 @@ public class PlayerCombat : MonoBehaviour
             yield return null;
         }
 
-        if (!fadeIn && isIndicatorVisible)
+        if (!fadeIn)
         {
+            // явно обнуляем альфу чтобы не было артефактов при следующем показе
+            Color c = indicatorRenderer.color;
+            c.a = 0f;
+            indicatorRenderer.color = c;
             indicatorRenderer.enabled = false;
             isIndicatorVisible = false;
         }
+
+        fadeCoroutine = null;
     }
 
     bool GetMouseWorldPosition(out Vector3 worldPos)

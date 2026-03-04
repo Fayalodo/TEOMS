@@ -1,13 +1,13 @@
-using System.Collections;
+п»їusing System.Collections;
 using UnityEngine;
 
 [RequireComponent(typeof(Health))]
 public class DamageFeedback : MonoBehaviour
 {
     [Header("Visual (2D)")]
-    public SpriteRenderer spriteRenderer; // предпочитаемый для 2D
+    public SpriteRenderer spriteRenderer; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ 2D
     [Header("Visual (3D)")]
-    public Renderer meshRenderer; // для 3D/SkinnedMesh
+    public Renderer meshRenderer; // пїЅпїЅпїЅ 3D/SkinnedMesh
 
     [Header("Flash settings")]
     public Color flashColor = Color.red;
@@ -43,7 +43,7 @@ public class DamageFeedback : MonoBehaviour
         if (health != null) health.OnDamageTaken -= OnDamage;
     }
 
-    void OnDamage(float dmg)
+    void OnDamage(float dmg, Health attacker)
     {
         if (spriteRenderer != null)
             StartCoroutine(FlashSprite());
