@@ -36,6 +36,10 @@ public class Inventory : MonoBehaviour
     private List<InventoryItem> items;
 
     private AudioSource audioSource;
+    private float currentWeight = 0f; // FIX: кеш веса — не считаем каждый TryAddItem
+
+    [Header("Звуки")]
+    public AudioClip pickupSound;  // FIX: подключи звук в инспекторе
 
     // C# события — используются для UI/notifications/etc.
     // (itemDef, quantityChanged, slotIndex, source)
@@ -65,15 +69,15 @@ public class Inventory : MonoBehaviour
             if (it != null && it.item != null)
                 TryAddItem(it.item, it.quantity, ItemSource.Other);
         }
+        // FIX: считаем начальный вес один раз
+        currentWeight = CalculateTotalWeight();
     }
 
     /// <summary>
     /// Принудительно обновить подсветку всех слотов
     /// </summary>
-    public void RefreshAllSlotsHighlight()
-    {
-        OnActiveWeaponChanged?.Invoke(activeWeaponSlotIndex);
-    }
+    // FIX: RefreshAllSlotsHighlight удалён — был источником двойного вызова OnActiveWeaponChanged.
+    // OnActiveWeaponChanged уже вызывается там где нужно — подписчики сами обновляют подсветку.
 
     /// <summary>
     /// Попытаться добавить предмет(ы) в инвентарь.
@@ -87,7 +91,7 @@ public class Inventory : MonoBehaviour
         // проверка веса
         if (maxWeight > 0f)
         {
-            float newWeight = GetTotalWeight() + def.weight * quantity;
+            float newWeight = currentWeight + def.weight * quantity; // FIX: кеш веса
             if (newWeight > maxWeight) return false;
         }
 
@@ -107,7 +111,7 @@ public class Inventory : MonoBehaviour
                     items[i] = slot;
                     remaining -= canAdd;
                     addedTotal += canAdd;
-                    PlaySound(audioSource, null);
+                    PlaySound(audioSource, pickupSound);
                     OnItemAdded?.Invoke(def, canAdd, i, source);
                 }
             }
@@ -122,11 +126,13 @@ public class Inventory : MonoBehaviour
                 items[i] = new InventoryItem(def, put);
                 remaining -= put;
                 addedTotal += put;
-                PlaySound(audioSource, null);
+                PlaySound(audioSource, pickupSound);
                 OnItemAdded?.Invoke(def, put, i, source);
             }
         }
 
+        // FIX: обновляем кеш веса
+        currentWeight += (quantity - remaining) * def.weight;
         OnInventoryChanged?.Invoke();
 
         return remaining <= 0;
@@ -147,7 +153,8 @@ public class Inventory : MonoBehaviour
             items[slotIndex] = slot;
         }
 
-        PlaySound(audioSource, null);
+        if (slot.item != null) currentWeight -= slot.item.weight * removed; // FIX: кеш веса
+        PlaySound(audioSource, pickupSound);
         OnItemRemoved?.Invoke(slot.item, removed, slotIndex, source);
 
         // Если удалили активное оружие - сбрасываем
@@ -155,9 +162,6 @@ public class Inventory : MonoBehaviour
         {
             activeWeaponSlotIndex = -1;
             OnActiveWeaponChanged?.Invoke(-1);
-
-            // Принудительно обновляем подсветку всех слотов
-            RefreshAllSlotsHighlight();
         }
 
         OnInventoryChanged?.Invoke();
@@ -173,15 +177,29 @@ public class Inventory : MonoBehaviour
     {
         if (def == null || amount <= 0) return 0;
         int removed = 0;
+
         for (int i = 0; i < items.Count && removed < amount; i++)
         {
-            if (items[i].item == def)
-            {
-                int take = Mathf.Min(items[i].quantity, amount - removed);
-                RemoveItemAt(i, take, source);
-                removed += take;
-            }
+            if (items[i].item != def) continue;
+
+            int take = Mathf.Min(items[i].quantity, amount - removed);
+            var slot = items[i];
+
+            // FIX: обновляем слот напрямую — без N вызовов OnInventoryChanged
+            slot.quantity -= take;
+            items[i] = slot.quantity <= 0 ? new InventoryItem() : slot;
+
+            currentWeight -= def.weight * take; // обновляем кеш веса
+            OnItemRemoved?.Invoke(def, take, i, source);
+            removed += take;
         }
+
+        if (removed > 0)
+        {
+            PlaySound(audioSource, pickupSound);
+            OnInventoryChanged?.Invoke(); // FIX: один раз в конце
+        }
+
         return removed;
     }
 
@@ -224,9 +242,6 @@ public class Inventory : MonoBehaviour
 
                 OnInventoryChanged?.Invoke();
 
-                if (activeWeaponChanged)
-                    RefreshAllSlotsHighlight();
-
                 return true;
             }
         }
@@ -254,9 +269,6 @@ public class Inventory : MonoBehaviour
 
         OnInventoryChanged?.Invoke();
 
-        if (activeWeaponChanged)
-            RefreshAllSlotsHighlight();
-
         return true;
     }
 
@@ -270,9 +282,6 @@ public class Inventory : MonoBehaviour
             activeWeaponSlotIndex = -1;
             OnActiveWeaponChanged?.Invoke(-1);
             OnInventoryChanged?.Invoke();
-
-            // Принудительно обновляем подсветку всех слотов
-            RefreshAllSlotsHighlight();
 
             return true;
         }
@@ -289,9 +298,6 @@ public class Inventory : MonoBehaviour
 
         OnActiveWeaponChanged?.Invoke(activeWeaponSlotIndex);
         OnInventoryChanged?.Invoke();
-
-        // Принудительно обновляем подсветку всех слотов
-        RefreshAllSlotsHighlight();
 
         string message = activeWeaponSlotIndex == -1 ?
             $"Снято: {slot.item.displayName}" :
@@ -336,7 +342,9 @@ public class Inventory : MonoBehaviour
 
     #region Утилиты
 
-    public float GetTotalWeight()
+    public float GetTotalWeight() => currentWeight; // FIX: возвращаем кеш
+
+    private float CalculateTotalWeight()
     {
         float w = 0f;
         foreach (var s in items)
@@ -426,9 +434,6 @@ public class Inventory : MonoBehaviour
 
         OnActiveWeaponChanged?.Invoke(activeWeaponSlotIndex);
         OnInventoryChanged?.Invoke();
-
-        // Принудительно обновляем подсветку после загрузки
-        RefreshAllSlotsHighlight();
     }
 
     #endregion

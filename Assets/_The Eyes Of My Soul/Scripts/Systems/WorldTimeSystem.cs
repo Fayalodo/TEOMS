@@ -22,7 +22,7 @@ public class WorldTimeSystem : MonoBehaviour
     [Range(0, 59)] public int minute = 0;
     public int day = 1;
 
-    [Tooltip("Сколько секунд реального времени = 1 игровой минуте")]
+    [Tooltip("РЎРєРѕР»СЊРєРѕ СЃРµРєСѓРЅРґ СЂРµР°Р»СЊРЅРѕРіРѕ РІСЂРµРјРµРЅРё = 1 РёРіСЂРѕРІРѕР№ РјРёРЅСѓС‚Рµ")]
     [SerializeField] private float realSecondsPerGameMinute = 1f;
 
     [Header("Time Controls")]
@@ -32,9 +32,9 @@ public class WorldTimeSystem : MonoBehaviour
     [Header("Time of Day Settings")]
     public TimeOfDaySettings[] timeOfDaySettings;
 
-    // События
+    // РЎРѕР±С‹С‚РёСЏ
     public static Action<int, int> OnTimeChanged;          // hour, minute
-    public static Action<string> OnTimeOfDayChanged;       // Название времени суток
+    public static Action<string> OnTimeOfDayChanged;       // РќР°Р·РІР°РЅРёРµ РІСЂРµРјРµРЅРё СЃСѓС‚РѕРє
     public static Action<int> OnNewDay;
 
     private float timer;
@@ -104,7 +104,7 @@ public class WorldTimeSystem : MonoBehaviour
     {
         if (timeOfDaySettings == null || timeOfDaySettings.Length == 0)
         {
-            // Стандартное определение времени суток
+            // РЎС‚Р°РЅРґР°СЂС‚РЅРѕРµ РѕРїСЂРµРґРµР»РµРЅРёРµ РІСЂРµРјРµРЅРё СЃСѓС‚РѕРє
             if (hour >= 6 && hour < 10) return "Morning";
             else if (hour >= 10 && hour < 18) return "Day";
             else if (hour >= 18 && hour < 21) return "Evening";
@@ -118,7 +118,7 @@ public class WorldTimeSystem : MonoBehaviour
             int startTotal = setting.startHour * 60 + setting.startMinute;
             int endTotal = setting.endHour * 60 + setting.endMinute;
 
-            if (endTotal < startTotal) // Интервал через полночь
+            if (endTotal < startTotal) // РРЅС‚РµСЂРІР°Р» С‡РµСЂРµР· РїРѕР»РЅРѕС‡СЊ
             {
                 if (currentTotalMinutes >= startTotal || currentTotalMinutes < endTotal)
                     return setting.name;
@@ -130,7 +130,7 @@ public class WorldTimeSystem : MonoBehaviour
             }
         }
 
-        return "Day"; // Значение по умолчанию
+        return "Day"; // Р—РЅР°С‡РµРЅРёРµ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ
     }
 
     void ApplyTimeOfDaySettings()
@@ -248,10 +248,11 @@ public class WorldTimeSystem : MonoBehaviour
     }
     #endregion
 
-    // В конец WorldTimeSystem.cs перед #if UNITY_EDITOR
+    // Р’ РєРѕРЅРµС† WorldTimeSystem.cs РїРµСЂРµРґ #if UNITY_EDITOR
     public float GetTotalGameMinutes()
     {
-        return day * 24 * 60 + hour * 60 + minute + (timer / realSecondsPerGameMinute);
+        // FIX: day РЅР°С‡РёРЅР°РµС‚СЃСЏ СЃ 1, РїРѕСЌС‚РѕРјСѓ РІС‹С‡РёС‚Р°РµРј 1 вЂ” РёРЅР°С‡Рµ РїРµСЂРІС‹Р№ РґРµРЅСЊ РґР°С‘С‚ Р»РёС€РЅРёРµ 1440 РјРёРЅСѓС‚
+        return (day - 1) * 24 * 60 + hour * 60 + minute + (timer / realSecondsPerGameMinute);
     }
 
 #if UNITY_EDITOR

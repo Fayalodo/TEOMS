@@ -414,48 +414,15 @@ public class PlayerCombat : MonoBehaviour
     {
         if (movement == null || spriteRenderer == null) return;
 
-        Vector3 d = dir;
-        d.y = 0f;
-        if (d.sqrMagnitude < 0.001f)
-        {
-            if (movement.idleSprite != null) spriteRenderer.sprite = movement.idleSprite;
-            return;
-        }
+        // FIX: используем SpriteDirectionHelper — без дубликации кода
+        var sprite = SpriteDirectionHelper.GetSpriteForDirection(
+            dir,
+            movement.spriteFacingRelativeToCamera, movement.cameraTransform,
+            movement.spriteForward, movement.spriteForwardRight, movement.spriteRight, movement.spriteBackRight,
+            movement.spriteBack,    movement.spriteBackLeft,    movement.spriteLeft,  movement.spriteForwardLeft,
+            movement.idleSprite);
 
-        if (movement.spriteFacingRelativeToCamera && movement.cameraTransform != null)
-        {
-            Vector3 camF = movement.cameraTransform.forward; camF.y = 0f; camF.Normalize();
-            Vector3 camR = movement.cameraTransform.right; camR.y = 0f; camR.Normalize();
-            float fwd = Vector3.Dot(d, camF);
-            float right = Vector3.Dot(d, camR);
-            d = new Vector3(right, 0f, fwd);
-            if (d.sqrMagnitude > 0.001f) d.Normalize();
-        }
-        else
-        {
-            d.y = 0f;
-            if (d.sqrMagnitude > 0.001f) d.Normalize();
-        }
-
-        float angle = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg;
-        float angleNormalized = (angle + 360f) % 360f;
-        int sector = Mathf.RoundToInt(angleNormalized / 45f) % 8;
-
-        Sprite chosen = null;
-        switch (sector)
-        {
-            case 0: chosen = movement.spriteForward; break;
-            case 1: chosen = movement.spriteForwardRight; break;
-            case 2: chosen = movement.spriteRight; break;
-            case 3: chosen = movement.spriteBackRight; break;
-            case 4: chosen = movement.spriteBack; break;
-            case 5: chosen = movement.spriteBackLeft; break;
-            case 6: chosen = movement.spriteLeft; break;
-            case 7: chosen = movement.spriteForwardLeft; break;
-        }
-
-        if (chosen != null) spriteRenderer.sprite = chosen;
-        else if (movement.idleSprite != null) spriteRenderer.sprite = movement.idleSprite;
+        if (sprite != null) spriteRenderer.sprite = sprite;
     }
 
     void OnDrawGizmosSelected()

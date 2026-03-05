@@ -55,23 +55,38 @@ public class PlayerMovement : MonoBehaviour
 
     // internal
     private CharacterController controller;
+    private Vector3 cachedCamF, cachedCamR;  // FIX: кеш направлений камеры
+    private float   camCacheTimer;
     private Vector3 horizontalVelocity = Vector3.zero;
     private float verticalVelocity = 0f;
-    private bool isSprinting = false;
-    private bool isWalkingSlow = false;
-    private float jumpVelocity => Mathf.Sqrt(2f * gravity * Mathf.Max(0.001f, jumpHeight));
+    private bool  isSprinting    = false;
+    private bool  isWalkingSlow  = false;
+    private float cachedJumpVelocity;  // FIX: кешируем — Sqrt не каждый кадр
 
     void Awake()
     {
         controller = GetComponent<CharacterController>();
+        cachedJumpVelocity = Mathf.Sqrt(2f * gravity * Mathf.Max(0.001f, jumpHeight));
         if (cameraRelativeMovement && cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
+        UpdateCameraCache();
         if (spriteRenderer == null) spriteRenderer = GetComponentInChildren<SpriteRenderer>();
         if (visualRoot == null && spriteRenderer != null) visualRoot = spriteRenderer.transform;
     }
 
     void Update()
     {
+        // FIX: обновляем кеш камеры раз в 0.1s, не каждый кадр
+        camCacheTimer -= Time.deltaTime;
+        if (camCacheTimer <= 0f) UpdateCameraCache();
         HandleInputAndMove();
+    }
+
+    void UpdateCameraCache()
+    {
+        camCacheTimer = 0.1f;
+        if (cameraTransform == null) return;
+        cachedCamF = cameraTransform.forward; cachedCamF.y = 0f; cachedCamF.Normalize();
+        cachedCamR = cameraTransform.right;   cachedCamR.y = 0f; cachedCamR.Normalize();
     }
 
     void HandleInputAndMove()
@@ -95,9 +110,8 @@ public class PlayerMovement : MonoBehaviour
         Vector3 targetDirection;
         if (cameraRelativeMovement && cameraTransform != null)
         {
-            Vector3 camF = cameraTransform.forward; camF.y = 0f; camF.Normalize();
-            Vector3 camR = cameraTransform.right; camR.y = 0f; camR.Normalize();
-            targetDirection = camR * input.x + camF * input.z;
+            // FIX: используем кешированные векторы
+            targetDirection = cachedCamR * input.x + cachedCamF * input.z;
         }
         else
         {
@@ -128,7 +142,7 @@ public class PlayerMovement : MonoBehaviour
         if (controller.isGrounded)
         {
             if (verticalVelocity < 0f) verticalVelocity = -2f;
-            if (Input.GetButtonDown("Jump")) verticalVelocity = jumpVelocity;
+            if (Input.GetButtonDown("Jump")) verticalVelocity = cachedJumpVelocity;
         }
         else
         {
@@ -163,49 +177,19 @@ public class PlayerMovement : MonoBehaviour
     {
         if (spriteRenderer == null) return;
 
-        Vector3 dir = Vector3.zero;
-        if (targetDirection.sqrMagnitude > 0.001f) dir = targetDirection.normalized;
-        else if (horizontalVel.sqrMagnitude > 0.001f) dir = horizontalVel.normalized;
-        else
-        {
-            if (idleSprite != null) spriteRenderer.sprite = idleSprite;
-            return;
-        }
+        // FIX: логика вынесена в SpriteDirectionHelper — нет дубликации с PlayerCombat
+        Vector3 dir = targetDirection.sqrMagnitude > 0.001f
+            ? targetDirection.normalized
+            : horizontalVel.normalized;
 
-        if (spriteFacingRelativeToCamera && cameraTransform != null)
-        {
-            Vector3 camF = cameraTransform.forward; camF.y = 0f; camF.Normalize();
-            Vector3 camR = cameraTransform.right; camR.y = 0f; camR.Normalize();
-            float fwd = Vector3.Dot(dir, camF);
-            float right = Vector3.Dot(dir, camR);
-            dir = new Vector3(right, 0f, fwd);
-            if (dir.sqrMagnitude > 0.001f) dir.Normalize();
-        }
-        else
-        {
-            dir.y = 0f;
-            if (dir.sqrMagnitude > 0.001f) dir.Normalize();
-        }
+        var sprite = SpriteDirectionHelper.GetSpriteForDirection(
+            dir,
+            spriteFacingRelativeToCamera, cameraTransform,
+            spriteForward, spriteForwardRight, spriteRight, spriteBackRight,
+            spriteBack,    spriteBackLeft,    spriteLeft,  spriteForwardLeft,
+            idleSprite);
 
-        float angle = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg;
-        float angleNormalized = (angle + 360f) % 360f;
-        int sector = Mathf.RoundToInt(angleNormalized / 45f) % 8;
-
-        Sprite chosen = null;
-        switch (sector)
-        {
-            case 0: chosen = spriteForward; break;
-            case 1: chosen = spriteForwardRight; break;
-            case 2: chosen = spriteRight; break;
-            case 3: chosen = spriteBackRight; break;
-            case 4: chosen = spriteBack; break;
-            case 5: chosen = spriteBackLeft; break;
-            case 6: chosen = spriteLeft; break;
-            case 7: chosen = spriteForwardLeft; break;
-        }
-
-        if (chosen != null) spriteRenderer.sprite = chosen;
-        else if (idleSprite != null) spriteRenderer.sprite = idleSprite;
+        if (sprite != null) spriteRenderer.sprite = sprite;
     }
 
     void OnDrawGizmosSelected()

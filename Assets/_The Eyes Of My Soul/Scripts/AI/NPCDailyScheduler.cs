@@ -49,10 +49,11 @@ public class NPCDailyScheduler : MonoBehaviour
     [SerializeField] private bool showDebugLogs = false;
     [SerializeField] private bool drawGizmos = true;
 
-    // Runtime данные
+    // Runtime РґР°РЅРЅС‹Рµ
     private List<ActivityInstance> todaySchedule = new List<ActivityInstance>();
     private Coroutine scheduleCoroutine;
     private Coroutine activityCoroutine;
+    private Coroutine moveCoroutine; // FIX: РѕСЃС‚Р°РЅР°РІР»РёРІР°РµРј РїСЂРµРґС‹РґСѓС‰СѓСЋ РєРѕСЂСѓС‚РёРЅСѓ РґРІРёР¶РµРЅРёСЏ
     private ActivityInstance currentActivity;
     private ActivityInstance interruptedActivity;
     private float interruptionStartTime;
@@ -60,7 +61,7 @@ public class NPCDailyScheduler : MonoBehaviour
     private float currentActivityEndTime;
     private float interruptedActivityRemainingTime;
 
-    // Оптимизация
+    // РћРїС‚РёРјРёР·Р°С†РёСЏ
     private float nextScheduleCheckTime;
     private float nextPatrolCheckTime;
     private Transform currentTarget;
@@ -131,9 +132,7 @@ public class NPCDailyScheduler : MonoBehaviour
         {
             UpdatePatrol(Time.deltaTime);
         }
-
-        UpdateStuckDetection(Time.deltaTime);
-        UpdateGameTimeCache(Time.deltaTime);
+        // FIX: StuckDetection Рё GameTimeCache РїРµСЂРµРЅРµСЃРµРЅС‹ РІ РєРѕСЂСѓС‚РёРЅС‹
     }
 
     void FixedUpdate()
@@ -153,14 +152,14 @@ public class NPCDailyScheduler : MonoBehaviour
 
         if (agent == null)
         {
-            Debug.LogError($"[{name}] NavMeshAgent не найден!");
+            Debug.LogError($"[{name}] NavMeshAgent РЅРµ РЅР°Р№РґРµРЅ!");
             enabled = false;
             return;
         }
 
         if (profile == null)
         {
-            Debug.LogError($"[{name}] DailyRoutineProfile не назначен!");
+            Debug.LogError($"[{name}] DailyRoutineProfile РЅРµ РЅР°Р·РЅР°С‡РµРЅ!");
             enabled = false;
             return;
         }
@@ -176,7 +175,7 @@ public class NPCDailyScheduler : MonoBehaviour
 
         try
         {
-            // Генерация активностей с валидацией
+            // Р“РµРЅРµСЂР°С†РёСЏ Р°РєС‚РёРІРЅРѕСЃС‚РµР№ СЃ РІР°Р»РёРґР°С†РёРµР№
             if (UnityEngine.Random.value > 0.3f)
                 AddActivity(DailyRoutineProfile.ActivityType.Wake, wakeWindow, wakeDuration);
 
@@ -190,17 +189,17 @@ public class NPCDailyScheduler : MonoBehaviour
             AddActivity(DailyRoutineProfile.ActivityType.Social, socialWindow, socialDuration);
             AddActivity(DailyRoutineProfile.ActivityType.Sleep, sleepWindow, sleepDuration);
 
-            // Удаляем пересекающиеся активности
+            // РЈРґР°Р»СЏРµРј РїРµСЂРµСЃРµРєР°СЋС‰РёРµСЃСЏ Р°РєС‚РёРІРЅРѕСЃС‚Рё
             RemoveOverlappingActivities();
 
             todaySchedule.Sort((a, b) => a.startMinuteOfDay.CompareTo(b.startMinuteOfDay));
 
-            // Кэшируем точки патруля
+            // РљСЌС€РёСЂСѓРµРј С‚РѕС‡РєРё РїР°С‚СЂСѓР»СЏ
             CachePatrolPoints();
 
             if (showDebugLogs)
             {
-                Debug.Log($"[{name}] Расписание сгенерировано. Активностей: {todaySchedule.Count}");
+                Debug.Log($"[{name}] Р Р°СЃРїРёСЃР°РЅРёРµ СЃРіРµРЅРµСЂРёСЂРѕРІР°РЅРѕ. РђРєС‚РёРІРЅРѕСЃС‚РµР№: {todaySchedule.Count}");
                 foreach (var act in todaySchedule)
                 {
                     Debug.Log($"- {act}");
@@ -209,8 +208,8 @@ public class NPCDailyScheduler : MonoBehaviour
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"[{name}] Ошибка генерации расписания: {e.Message}");
-            // Создаем минимальное расписание на случай ошибки
+            Debug.LogError($"[{name}] РћС€РёР±РєР° РіРµРЅРµСЂР°С†РёРё СЂР°СЃРїРёСЃР°РЅРёСЏ: {e.Message}");
+            // РЎРѕР·РґР°РµРј РјРёРЅРёРјР°Р»СЊРЅРѕРµ СЂР°СЃРїРёСЃР°РЅРёРµ РЅР° СЃР»СѓС‡Р°Р№ РѕС€РёР±РєРё
             CreateFallbackSchedule();
         }
     }
@@ -220,7 +219,7 @@ public class NPCDailyScheduler : MonoBehaviour
         if (durationRange.x <= 0 || durationRange.y <= 0 || durationRange.x > durationRange.y)
         {
             if (showDebugLogs)
-                Debug.LogWarning($"[{name}] Некорректная длительность для {type}: {durationRange}");
+                Debug.LogWarning($"[{name}] РќРµРєРѕСЂСЂРµРєС‚РЅР°СЏ РґР»РёС‚РµР»СЊРЅРѕСЃС‚СЊ РґР»СЏ {type}: {durationRange}");
             return;
         }
 
@@ -234,7 +233,7 @@ public class NPCDailyScheduler : MonoBehaviour
         if (locations == null || locations.Count == 0)
         {
             if (showDebugLogs)
-                Debug.LogWarning($"[{name}] Нет локаций для активности {type}");
+                Debug.LogWarning($"[{name}] РќРµС‚ Р»РѕРєР°С†РёР№ РґР»СЏ Р°РєС‚РёРІРЅРѕСЃС‚Рё {type}");
             return;
         }
 
@@ -242,7 +241,7 @@ public class NPCDailyScheduler : MonoBehaviour
         if (location == null)
         {
             if (showDebugLogs)
-                Debug.LogWarning($"[{name}] Не удалось выбрать локацию для {type}");
+                Debug.LogWarning($"[{name}] РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹Р±СЂР°С‚СЊ Р»РѕРєР°С†РёСЋ РґР»СЏ {type}");
             return;
         }
 
@@ -261,10 +260,10 @@ public class NPCDailyScheduler : MonoBehaviour
     {
         if (todaySchedule.Count < 2) return;
 
-        // Сортируем по времени начала
+        // РЎРѕСЂС‚РёСЂСѓРµРј РїРѕ РІСЂРµРјРµРЅРё РЅР°С‡Р°Р»Р°
         todaySchedule.Sort((a, b) => a.startMinuteOfDay.CompareTo(b.startMinuteOfDay));
 
-        // Проверяем и удаляем пересекающиеся активности
+        // РџСЂРѕРІРµСЂСЏРµРј Рё СѓРґР°Р»СЏРµРј РїРµСЂРµСЃРµРєР°СЋС‰РёРµСЃСЏ Р°РєС‚РёРІРЅРѕСЃС‚Рё
         for (int i = todaySchedule.Count - 1; i > 0; i--)
         {
             var current = todaySchedule[i];
@@ -273,11 +272,11 @@ public class NPCDailyScheduler : MonoBehaviour
             float currentEnd = current.EndTime;
             float previousEnd = previous.EndTime;
 
-            // Корректируем время окончания, если активность переходит через полночь
+            // РљРѕСЂСЂРµРєС‚РёСЂСѓРµРј РІСЂРµРјСЏ РѕРєРѕРЅС‡Р°РЅРёСЏ, РµСЃР»Рё Р°РєС‚РёРІРЅРѕСЃС‚СЊ РїРµСЂРµС…РѕРґРёС‚ С‡РµСЂРµР· РїРѕР»РЅРѕС‡СЊ
             if (currentEnd < current.startMinuteOfDay) currentEnd += 1440;
             if (previousEnd < previous.startMinuteOfDay) previousEnd += 1440;
 
-            // Если активности пересекаются, удаляем ту, что начинается позже
+            // Р•СЃР»Рё Р°РєС‚РёРІРЅРѕСЃС‚Рё РїРµСЂРµСЃРµРєР°СЋС‚СЃСЏ, СѓРґР°Р»СЏРµРј С‚Сѓ, С‡С‚Рѕ РЅР°С‡РёРЅР°РµС‚СЃСЏ РїРѕР·Р¶Рµ
             if (current.startMinuteOfDay < previousEnd)
             {
                 if (current.durationMinutes < previous.durationMinutes)
@@ -287,7 +286,7 @@ public class NPCDailyScheduler : MonoBehaviour
                 else
                 {
                     todaySchedule.RemoveAt(i - 1);
-                    i--; // Корректируем индекс после удаления
+                    i--; // РљРѕСЂСЂРµРєС‚РёСЂСѓРµРј РёРЅРґРµРєСЃ РїРѕСЃР»Рµ СѓРґР°Р»РµРЅРёСЏ
                 }
             }
         }
@@ -306,7 +305,7 @@ public class NPCDailyScheduler : MonoBehaviour
 
                 if (activity.patrolPoints.Count == 0 && showDebugLogs)
                 {
-                    Debug.LogWarning($"[{name}] Для активности {activity.type} не найдены точки патруля в {activity.location.locationId}");
+                    Debug.LogWarning($"[{name}] Р”Р»СЏ Р°РєС‚РёРІРЅРѕСЃС‚Рё {activity.type} РЅРµ РЅР°Р№РґРµРЅС‹ С‚РѕС‡РєРё РїР°С‚СЂСѓР»СЏ РІ {activity.location.locationId}");
                 }
             }
         }
@@ -314,7 +313,7 @@ public class NPCDailyScheduler : MonoBehaviour
 
     private void CreateFallbackSchedule()
     {
-        // Простое расписание на случай ошибки
+        // РџСЂРѕСЃС‚РѕРµ СЂР°СЃРїРёСЃР°РЅРёРµ РЅР° СЃР»СѓС‡Р°Р№ РѕС€РёР±РєРё
         todaySchedule.Add(new ActivityInstance
         {
             type = DailyRoutineProfile.ActivityType.Sleep,
@@ -338,7 +337,7 @@ public class NPCDailyScheduler : MonoBehaviour
             if (allPoints == null || allPoints.Count == 0)
                 return new List<Transform>();
 
-            // Быстрый выбор случайных точек
+            // Р‘С‹СЃС‚СЂС‹Р№ РІС‹Р±РѕСЂ СЃР»СѓС‡Р°Р№РЅС‹С… С‚РѕС‡РµРє
             if (maxPoints >= allPoints.Count)
                 return new List<Transform>(allPoints);
 
@@ -360,7 +359,7 @@ public class NPCDailyScheduler : MonoBehaviour
         }
         catch (System.Exception e)
         {
-            Debug.LogWarning($"[{name}] Ошибка получения точек патруля для {locationId}: {e.Message}");
+            Debug.LogWarning($"[{name}] РћС€РёР±РєР° РїРѕР»СѓС‡РµРЅРёСЏ С‚РѕС‡РµРє РїР°С‚СЂСѓР»СЏ РґР»СЏ {locationId}: {e.Message}");
             return new List<Transform>();
         }
     }
@@ -375,37 +374,60 @@ public class NPCDailyScheduler : MonoBehaviour
             StopCoroutine(scheduleCoroutine);
 
         scheduleCoroutine = StartCoroutine(ScheduleUpdateLoop());
+
+        // FIX: РїРµСЂРёРѕРґРёС‡РµСЃРєРёРµ Р·Р°РґР°С‡Рё С‡РµСЂРµР· РєРѕСЂСѓС‚РёРЅС‹ вЂ” РЅРµ РІ Update РєР°Р¶РґС‹Р№ РєР°РґСЂ
+        StartCoroutine(StuckDetectionLoop());
+        StartCoroutine(GameTimeCacheLoop());
+    }
+
+    private IEnumerator StuckDetectionLoop()
+    {
+        while (enabled)
+        {
+            yield return new WaitForSeconds(POSITION_CHECK_INTERVAL);
+            if (agent == null || !agent.isActiveAndEnabled || !agent.hasPath) continue;
+
+            float distanceMoved = Vector3.Distance(transform.position, lastPosition);
+            lastPosition = transform.position;
+
+            if (distanceMoved < 0.1f && agent.velocity.sqrMagnitude > 0.1f && agent.remainingDistance > 1f)
+            {
+                if (currentTarget != null)
+                    MoveToPoint(currentTarget.position);
+            }
+        }
+    }
+
+    private IEnumerator GameTimeCacheLoop()
+    {
+        while (enabled)
+        {
+            yield return new WaitForSeconds(GAME_TIME_CACHE_INTERVAL);
+            cachedGameTime = GetCurrentMinuteOfDay();
+        }
     }
 
     private IEnumerator ScheduleUpdateLoop()
     {
-        // Задержка для распределения нагрузки
+        // Р—Р°РґРµСЂР¶РєР° РґР»СЏ СЂР°СЃРїСЂРµРґРµР»РµРЅРёСЏ РЅР°РіСЂСѓР·РєРё
         yield return new WaitForSeconds(UnityEngine.Random.Range(0f, 0.5f));
 
         nextScheduleCheckTime = Time.time;
 
         while (enabled)
         {
-            float currentRealTime = Time.time;
+            // FIX: WaitForSeconds вЂ” РЅРµ РєСЂСѓС‚РёРјСЃСЏ РєР°Р¶РґС‹Р№ РєР°РґСЂ
+            yield return new WaitForSeconds(scheduleCheckInterval);
 
-            if (currentRealTime >= nextScheduleCheckTime)
+            if (isInterrupted)
             {
-                if (isInterrupted)
-                {
-                    if (ShouldReturnFromInterruption())
-                    {
-                        ReturnToSchedule();
-                    }
-                }
-                else
-                {
-                    UpdateSchedule();
-                }
-
-                nextScheduleCheckTime = currentRealTime + scheduleCheckInterval;
+                if (ShouldReturnFromInterruption())
+                    ReturnToSchedule();
             }
-
-            yield return null;
+            else
+            {
+                UpdateSchedule();
+            }
         }
     }
 
@@ -413,14 +435,14 @@ public class NPCDailyScheduler : MonoBehaviour
     {
         float currentGameTime = GetCachedMinuteOfDay();
 
-        // Если нет расписания, выходим
+        // Р•СЃР»Рё РЅРµС‚ СЂР°СЃРїРёСЃР°РЅРёСЏ, РІС‹С…РѕРґРёРј
         if (todaySchedule.Count == 0)
         {
             if (currentActivity == null && !isWaitingForNextActivity)
             {
                 isWaitingForNextActivity = true;
                 if (showDebugLogs)
-                    Debug.LogWarning($"[{name}] Нет расписания");
+                    Debug.LogWarning($"[{name}] РќРµС‚ СЂР°СЃРїРёСЃР°РЅРёСЏ");
             }
             return;
         }
@@ -437,17 +459,17 @@ public class NPCDailyScheduler : MonoBehaviour
         }
         else if (nextActivity == null && currentActivity == null && !isWaitingForNextActivity)
         {
-            // Нет активностей - ищем следующую
+            // РќРµС‚ Р°РєС‚РёРІРЅРѕСЃС‚РµР№ - РёС‰РµРј СЃР»РµРґСѓСЋС‰СѓСЋ
             ActivityInstance next = FindNextActivity(currentGameTime);
             if (next != null)
             {
                 isWaitingForNextActivity = true;
                 if (showDebugLogs)
-                    Debug.Log($"[{name}] Ожидает {next.type} в {FormatMinute(next.startMinuteOfDay)}");
+                    Debug.Log($"[{name}] РћР¶РёРґР°РµС‚ {next.type} РІ {FormatMinute(next.startMinuteOfDay)}");
             }
             else
             {
-                // Если совсем нет активностей, перегенерируем
+                // Р•СЃР»Рё СЃРѕРІСЃРµРј РЅРµС‚ Р°РєС‚РёРІРЅРѕСЃС‚РµР№, РїРµСЂРµРіРµРЅРµСЂРёСЂСѓРµРј
                 GenerateScheduleForDay();
             }
         }
@@ -465,16 +487,16 @@ public class NPCDailyScheduler : MonoBehaviour
             float start = activity.startMinuteOfDay;
             float end = activity.EndTime;
 
-            // Обработка активности через полночь
+            // РћР±СЂР°Р±РѕС‚РєР° Р°РєС‚РёРІРЅРѕСЃС‚Рё С‡РµСЂРµР· РїРѕР»РЅРѕС‡СЊ
             if (end < start)
             {
-                // Активность переходит через полночь
+                // РђРєС‚РёРІРЅРѕСЃС‚СЊ РїРµСЂРµС…РѕРґРёС‚ С‡РµСЂРµР· РїРѕР»РЅРѕС‡СЊ
                 if (currentTime >= start || currentTime < end)
                     return activity;
             }
             else
             {
-                // Обычная активность
+                // РћР±С‹С‡РЅР°СЏ Р°РєС‚РёРІРЅРѕСЃС‚СЊ
                 if (currentTime >= start && currentTime < end)
                     return activity;
             }
@@ -497,7 +519,7 @@ public class NPCDailyScheduler : MonoBehaviour
 
             float start = activity.startMinuteOfDay;
 
-            // Рассчитываем разницу во времени
+            // Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј СЂР°Р·РЅРёС†Сѓ РІРѕ РІСЂРµРјРµРЅРё
             float timeDiff;
             if (start >= currentTime)
             {
@@ -505,7 +527,7 @@ public class NPCDailyScheduler : MonoBehaviour
             }
             else
             {
-                // Активность завтра
+                // РђРєС‚РёРІРЅРѕСЃС‚СЊ Р·Р°РІС‚СЂР°
                 timeDiff = (start + 1440) - currentTime;
             }
 
@@ -524,22 +546,22 @@ public class NPCDailyScheduler : MonoBehaviour
         if (activity == null || !activity.IsValid)
         {
             if (showDebugLogs)
-                Debug.LogWarning($"[{name}] Попытка начать невалидную активность");
+                Debug.LogWarning($"[{name}] РџРѕРїС‹С‚РєР° РЅР°С‡Р°С‚СЊ РЅРµРІР°Р»РёРґРЅСѓСЋ Р°РєС‚РёРІРЅРѕСЃС‚СЊ");
             return;
         }
 
         if (showDebugLogs)
-            Debug.Log($"[{name}] Начинает: {activity.type}");
+            Debug.Log($"[{name}] РќР°С‡РёРЅР°РµС‚: {activity.type}");
 
-        // Завершаем предыдущую активность
+        // Р—Р°РІРµСЂС€Р°РµРј РїСЂРµРґС‹РґСѓС‰СѓСЋ Р°РєС‚РёРІРЅРѕСЃС‚СЊ
         EndCurrentActivity();
 
-        // Начинаем новую
+        // РќР°С‡РёРЅР°РµРј РЅРѕРІСѓСЋ
         currentActivity = activity;
         currentActivityEndTime = GetCachedMinuteOfDay() + activity.durationMinutes;
         isWaitingForNextActivity = false;
 
-        // Запускаем корутину активности
+        // Р—Р°РїСѓСЃРєР°РµРј РєРѕСЂСѓС‚РёРЅСѓ Р°РєС‚РёРІРЅРѕСЃС‚Рё
         if (activityCoroutine != null)
             StopCoroutine(activityCoroutine);
 
@@ -548,47 +570,51 @@ public class NPCDailyScheduler : MonoBehaviour
 
     private IEnumerator ExecuteActivity(ActivityInstance activity)
     {
-        // Анимация
+        // РђРЅРёРјР°С†РёСЏ
         PlayActivityAnimation(activity);
 
-        // Если нет точек патруля или агент неактивен
+        // Р•СЃР»Рё РЅРµС‚ С‚РѕС‡РµРє РїР°С‚СЂСѓР»СЏ РёР»Рё Р°РіРµРЅС‚ РЅРµР°РєС‚РёРІРµРЅ
         if (activity.patrolPoints.Count == 0 || agent == null || !agent.isActiveAndEnabled)
         {
             yield return WaitForActivityEnd();
         }
         else
         {
-            // Движение к первой точке
+            // Р”РІРёР¶РµРЅРёРµ Рє РїРµСЂРІРѕР№ С‚РѕС‡РєРµ
             activity.currentPatrolIndex = 0;
             currentTarget = activity.patrolPoints[0];
 
             if (!MoveToPoint(currentTarget.position))
             {
-                // Не удалось начать движение
+                // РќРµ СѓРґР°Р»РѕСЃСЊ РЅР°С‡Р°С‚СЊ РґРІРёР¶РµРЅРёРµ
                 yield return WaitForActivityEnd();
                 yield break;
             }
 
-            // Ждем завершения активности
+            // Р–РґРµРј Р·Р°РІРµСЂС€РµРЅРёСЏ Р°РєС‚РёРІРЅРѕСЃС‚Рё
             float activityStartTime = GetCachedMinuteOfDay();
             float activityDuration = currentActivityEndTime - activityStartTime;
 
             if (activityDuration > 0)
             {
                 float waitStartTime = Time.time;
-                float waitDuration = activityDuration * 60f; // Конвертируем минуты в секунды
+                float waitDuration = activityDuration * 60f; // РљРѕРЅРІРµСЂС‚РёСЂСѓРµРј РјРёРЅСѓС‚С‹ РІ СЃРµРєСѓРЅРґС‹
 
-                while (Time.time - waitStartTime < waitDuration && !isInterrupted)
+                // FIX: С€Р°РіР°РµРј РїРѕ 0.5s РІРјРµСЃС‚Рѕ yield return null РєР°Р¶РґС‹Р№ РєР°РґСЂ
+                float execElapsed = 0f;
+                while (execElapsed < waitDuration && !isInterrupted)
                 {
-                    yield return null;
+                    float step = Mathf.Min(0.5f, waitDuration - execElapsed);
+                    yield return new WaitForSeconds(step);
+                    execElapsed += step;
                 }
             }
         }
 
-        // Завершаем активность если не прерваны
+        // Р—Р°РІРµСЂС€Р°РµРј Р°РєС‚РёРІРЅРѕСЃС‚СЊ РµСЃР»Рё РЅРµ РїСЂРµСЂРІР°РЅС‹
         if (!isInterrupted)
         {
-            // Если это сон - генерируем новое расписание
+            // Р•СЃР»Рё СЌС‚Рѕ СЃРѕРЅ - РіРµРЅРµСЂРёСЂСѓРµРј РЅРѕРІРѕРµ СЂР°СЃРїРёСЃР°РЅРёРµ
             if (activity.type == DailyRoutineProfile.ActivityType.Sleep)
             {
                 GenerateScheduleForDay();
@@ -600,36 +626,35 @@ public class NPCDailyScheduler : MonoBehaviour
 
     private IEnumerator WaitForActivityEnd()
     {
-        float activityStartTime = GetCachedMinuteOfDay();
-        float activityDuration = currentActivityEndTime - activityStartTime;
+        float activityDuration = currentActivityEndTime - GetCachedMinuteOfDay();
 
         if (activityDuration > 0)
         {
-            float waitStartTime = Time.time;
+            // FIX: С€Р°РіР°РµРј РєСѓСЃРєР°РјРё РїРѕ 5s РІРјРµСЃС‚Рѕ yield return null РєР°Р¶РґС‹Р№ РєР°РґСЂ
             float waitDuration = activityDuration * 60f;
-            float nextCheckTime = Time.time + Mathf.Min(5f, waitDuration / 4f);
+            float checkStep   = Mathf.Min(5f, waitDuration / 4f);
+            float elapsed     = 0f;
 
-            while (Time.time - waitStartTime < waitDuration && !isInterrupted)
+            while (elapsed < waitDuration && !isInterrupted)
             {
-                if (Time.time >= nextCheckTime)
+                float step = Mathf.Min(checkStep, waitDuration - elapsed);
+                yield return new WaitForSeconds(step);
+                elapsed += step;
+
+                // Р“РµРЅРµСЂРёСЂСѓРµРј СЂР°СЃРїРёСЃР°РЅРёРµ Р·Р°СЂР°РЅРµРµ вЂ” Р·Р° 30s РґРѕ РєРѕРЅС†Р° СЃРЅР°
+                if (!isInterrupted
+                    && currentActivity != null
+                    && currentActivity.type == DailyRoutineProfile.ActivityType.Sleep
+                    && elapsed >= waitDuration - 30f)
                 {
-                    if (currentActivity != null && currentActivity.type == DailyRoutineProfile.ActivityType.Sleep)
-                    {
-                        if (Time.time - waitStartTime >= waitDuration - 30f) // Последние 30 секунд
-                        {
-                            GenerateScheduleForDay();
-                        }
-                    }
-                    nextCheckTime += Mathf.Min(5f, waitDuration / 4f);
+                    GenerateScheduleForDay();
+                    break;
                 }
-                yield return null;
             }
         }
 
         if (!isInterrupted)
-        {
             EndCurrentActivity();
-        }
     }
 
     private void UpdatePatrol(float deltaTime)
@@ -643,12 +668,12 @@ public class NPCDailyScheduler : MonoBehaviour
         {
             nextPatrolCheckTime = 0f;
 
-            // Проверяем, достигли ли текущей точки
+            // РџСЂРѕРІРµСЂСЏРµРј, РґРѕСЃС‚РёРіР»Рё Р»Рё С‚РµРєСѓС‰РµР№ С‚РѕС‡РєРё
             if (currentTarget != null && agent != null && !agent.pathPending && agent.hasPath)
             {
                 if (agent.remainingDistance <= arrivalTolerance && agent.velocity.sqrMagnitude < 0.1f)
                 {
-                    // Переходим к следующей точке
+                    // РџРµСЂРµС…РѕРґРёРј Рє СЃР»РµРґСѓСЋС‰РµР№ С‚РѕС‡РєРµ
                     currentActivity.currentPatrolIndex = (currentActivity.currentPatrolIndex + 1) % currentActivity.patrolPoints.Count;
                     currentTarget = currentActivity.patrolPoints[currentActivity.currentPatrolIndex];
                     MoveToPoint(currentTarget.position);
@@ -662,14 +687,15 @@ public class NPCDailyScheduler : MonoBehaviour
         if (agent == null || !agent.isActiveAndEnabled)
             return false;
 
-        // Проверяем, не пытаемся ли двигаться к той же точке
+        // РџСЂРѕРІРµСЂСЏРµРј, РЅРµ РїС‹С‚Р°РµРјСЃСЏ Р»Рё РґРІРёРіР°С‚СЊСЃСЏ Рє С‚РѕР№ Р¶Рµ С‚РѕС‡РєРµ
         if (Vector3.Distance(agent.destination, destination) < 0.1f && agent.hasPath)
             return true;
 
         agent.isStopped = false;
 
-        // Используем корутину для асинхронного движения
-        StartCoroutine(MoveToPointCoroutine(destination));
+        // FIX: РѕСЃС‚Р°РЅР°РІР»РёРІР°РµРј СЃС‚Р°СЂСѓСЋ вЂ” РЅРµ РЅР°РєР°РїР»РёРІР°РµРј РєРѕСЂСѓС‚РёРЅС‹
+        if (moveCoroutine != null) StopCoroutine(moveCoroutine);
+        moveCoroutine = StartCoroutine(MoveToPointCoroutine(destination));
         return true;
     }
 
@@ -700,12 +726,12 @@ public class NPCDailyScheduler : MonoBehaviour
 
             if (!reached && showDebugLogs)
             {
-                Debug.LogWarning($"[{name}] Не удалось достичь точки за {pathTimeout} секунд");
+                Debug.LogWarning($"[{name}] РќРµ СѓРґР°Р»РѕСЃСЊ РґРѕСЃС‚РёС‡СЊ С‚РѕС‡РєРё Р·Р° {pathTimeout} СЃРµРєСѓРЅРґ");
             }
         }
         else if (showDebugLogs)
         {
-            Debug.LogWarning($"[{name}] Не удалось найти путь к {destination}");
+            Debug.LogWarning($"[{name}] РќРµ СѓРґР°Р»РѕСЃСЊ РЅР°Р№С‚Рё РїСѓС‚СЊ Рє {destination}");
         }
     }
 
@@ -714,7 +740,7 @@ public class NPCDailyScheduler : MonoBehaviour
         if (currentActivity == null) return;
 
         if (showDebugLogs)
-            Debug.Log($"[{name}] Завершил: {currentActivity.type}");
+            Debug.Log($"[{name}] Р—Р°РІРµСЂС€РёР»: {currentActivity.type}");
 
         currentActivity = null;
         currentTarget = null;
@@ -724,6 +750,9 @@ public class NPCDailyScheduler : MonoBehaviour
             StopCoroutine(activityCoroutine);
             activityCoroutine = null;
         }
+
+        // FIX: С‚РѕР¶Рµ С‡РёСЃС‚РёРј РєРѕСЂСѓС‚РёРЅСѓ РґРІРёР¶РµРЅРёСЏ
+        if (moveCoroutine != null) { StopCoroutine(moveCoroutine); moveCoroutine = null; }
 
         if (agent != null && agent.isActiveAndEnabled)
         {
@@ -744,27 +773,27 @@ public class NPCDailyScheduler : MonoBehaviour
         interruptionStartTime = Time.time;
 
         if (showDebugLogs)
-            Debug.Log($"[{name}] Отвлечен");
+            Debug.Log($"[{name}] РћС‚РІР»РµС‡РµРЅ");
 
-        // Сохраняем текущую активность для возможного возврата
+        // РЎРѕС…СЂР°РЅСЏРµРј С‚РµРєСѓС‰СѓСЋ Р°РєС‚РёРІРЅРѕСЃС‚СЊ РґР»СЏ РІРѕР·РјРѕР¶РЅРѕРіРѕ РІРѕР·РІСЂР°С‚Р°
         if (currentActivity != null && resumeAfterInterruption)
         {
             interruptedActivity = currentActivity;
 
-            // Рассчитываем оставшееся время
+            // Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј РѕСЃС‚Р°РІС€РµРµСЃСЏ РІСЂРµРјСЏ
             float remainingTime = currentActivityEndTime - GetCachedMinuteOfDay();
             if (remainingTime < 0) remainingTime += 1440;
             interruptedActivityRemainingTime = Mathf.Max(0, remainingTime);
         }
 
-        // Останавливаем активность
+        // РћСЃС‚Р°РЅР°РІР»РёРІР°РµРј Р°РєС‚РёРІРЅРѕСЃС‚СЊ
         if (activityCoroutine != null)
         {
             StopCoroutine(activityCoroutine);
             activityCoroutine = null;
         }
 
-        // Останавливаем движение
+        // РћСЃС‚Р°РЅР°РІР»РёРІР°РµРј РґРІРёР¶РµРЅРёРµ
         if (agent != null && agent.isActiveAndEnabled)
         {
             agent.ResetPath();
@@ -781,9 +810,9 @@ public class NPCDailyScheduler : MonoBehaviour
         isInterrupted = false;
 
         if (showDebugLogs)
-            Debug.Log($"[{name}] Возвращается к расписанию");
+            Debug.Log($"[{name}] Р’РѕР·РІСЂР°С‰Р°РµС‚СЃСЏ Рє СЂР°СЃРїРёСЃР°РЅРёСЋ");
 
-        // Сначала пытаемся возобновить прерванную активность
+        // РЎРЅР°С‡Р°Р»Р° РїС‹С‚Р°РµРјСЃСЏ РІРѕР·РѕР±РЅРѕРІРёС‚СЊ РїСЂРµСЂРІР°РЅРЅСѓСЋ Р°РєС‚РёРІРЅРѕСЃС‚СЊ
         if (resumeAfterInterruption && interruptedActivity != null &&
             interruptedActivityRemainingTime > minRemainingTimeForResume)
         {
@@ -798,13 +827,13 @@ public class NPCDailyScheduler : MonoBehaviour
 
         interruptedActivity = null;
 
-        // Ищем текущую активность
+        // РС‰РµРј С‚РµРєСѓС‰СѓСЋ Р°РєС‚РёРІРЅРѕСЃС‚СЊ
         float currentTime = GetCachedMinuteOfDay();
         ActivityInstance nextActivity = FindCurrentActivity(currentTime);
 
         if (nextActivity == null)
         {
-            // Ищем следующую активность
+            // РС‰РµРј СЃР»РµРґСѓСЋС‰СѓСЋ Р°РєС‚РёРІРЅРѕСЃС‚СЊ
             nextActivity = FindNextActivity(currentTime);
         }
 
@@ -814,14 +843,14 @@ public class NPCDailyScheduler : MonoBehaviour
         }
         else
         {
-            // Если активностей нет
+            // Р•СЃР»Рё Р°РєС‚РёРІРЅРѕСЃС‚РµР№ РЅРµС‚
             isWaitingForNextActivity = true;
             EndCurrentActivity();
 
             if (showDebugLogs)
-                Debug.Log($"[{name}] Нет активностей для возврата");
+                Debug.Log($"[{name}] РќРµС‚ Р°РєС‚РёРІРЅРѕСЃС‚РµР№ РґР»СЏ РІРѕР·РІСЂР°С‚Р°");
 
-            // Перегенерируем расписание
+            // РџРµСЂРµРіРµРЅРµСЂРёСЂСѓРµРј СЂР°СЃРїРёСЃР°РЅРёРµ
             GenerateScheduleForDay();
         }
     }
@@ -854,41 +883,7 @@ public class NPCDailyScheduler : MonoBehaviour
 
     #region Optimization Helpers
 
-    private void UpdateGameTimeCache(float deltaTime)
-    {
-        lastGameTimeCheck += deltaTime;
-        if (lastGameTimeCheck >= GAME_TIME_CACHE_INTERVAL)
-        {
-            lastGameTimeCheck = 0f;
-            cachedGameTime = GetCurrentMinuteOfDay();
-        }
-    }
-
-    private void UpdateStuckDetection(float deltaTime)
-    {
-        if (agent == null || !agent.isActiveAndEnabled || !agent.hasPath)
-            return;
-
-        positionCheckTimer += deltaTime;
-
-        if (positionCheckTimer >= POSITION_CHECK_INTERVAL)
-        {
-            positionCheckTimer = 0f;
-
-            float distanceMoved = Vector3.Distance(transform.position, lastPosition);
-            lastPosition = transform.position;
-
-            // Если NPC почти не движется, но должен
-            if (distanceMoved < 0.1f && agent.velocity.sqrMagnitude > 0.1f && agent.remainingDistance > 1f)
-            {
-                // Возможно, NPC застрял
-                if (currentTarget != null)
-                {
-                    MoveToPoint(currentTarget.position);
-                }
-            }
-        }
-    }
+    // UpdateGameTimeCache Рё UpdateStuckDetection Р·Р°РјРµРЅРµРЅС‹ РєРѕСЂСѓС‚РёРЅР°РјРё GameTimeCacheLoop/StuckDetectionLoop
 
     private void PlayActivityAnimation(ActivityInstance activity)
     {
@@ -909,7 +904,7 @@ public class NPCDailyScheduler : MonoBehaviour
         }
         catch (System.Exception e)
         {
-            Debug.LogWarning($"[{name}] Ошибка воспроизведения анимации: {e.Message}");
+            Debug.LogWarning($"[{name}] РћС€РёР±РєР° РІРѕСЃРїСЂРѕРёР·РІРµРґРµРЅРёСЏ Р°РЅРёРјР°С†РёРё: {e.Message}");
         }
     }
 
@@ -921,7 +916,7 @@ public class NPCDailyScheduler : MonoBehaviour
     {
         if (WorldTimeSystem.Instance == null)
         {
-            // Fallback для отладки
+            // Fallback РґР»СЏ РѕС‚Р»Р°РґРєРё
             return (Time.time / 60f) % 1440;
         }
 
@@ -931,7 +926,7 @@ public class NPCDailyScheduler : MonoBehaviour
         }
         catch (System.Exception e)
         {
-            Debug.LogWarning($"[{name}] Ошибка получения времени: {e.Message}");
+            Debug.LogWarning($"[{name}] РћС€РёР±РєР° РїРѕР»СѓС‡РµРЅРёСЏ РІСЂРµРјРµРЅРё: {e.Message}");
             return (Time.time / 60f) % 1440;
         }
     }
@@ -958,7 +953,7 @@ public class NPCDailyScheduler : MonoBehaviour
         if (locations == null || locations.Count == 0)
             return null;
 
-        // Рассчитываем общий вес
+        // Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј РѕР±С‰РёР№ РІРµСЃ
         float totalWeight = 0f;
         for (int i = 0; i < locations.Count; i++)
         {
@@ -969,7 +964,7 @@ public class NPCDailyScheduler : MonoBehaviour
         if (totalWeight <= 0f)
             return locations.Count > 0 ? locations[0] : null;
 
-        // Выбираем на основе весов
+        // Р’С‹Р±РёСЂР°РµРј РЅР° РѕСЃРЅРѕРІРµ РІРµСЃРѕРІ
         float random = UnityEngine.Random.Range(0f, totalWeight);
         float accumulated = 0f;
 
@@ -1031,15 +1026,15 @@ public class NPCDailyScheduler : MonoBehaviour
     public string GetCurrentActivityInfo()
     {
         if (isInterrupted)
-            return "Прервано";
+            return "РџСЂРµСЂРІР°РЅРѕ";
 
         if (currentActivity == null)
-            return isWaitingForNextActivity ? "Ожидание следующей активности" : "Без активности";
+            return isWaitingForNextActivity ? "РћР¶РёРґР°РЅРёРµ СЃР»РµРґСѓСЋС‰РµР№ Р°РєС‚РёРІРЅРѕСЃС‚Рё" : "Р‘РµР· Р°РєС‚РёРІРЅРѕСЃС‚Рё";
 
         float remaining = currentActivityEndTime - GetCachedMinuteOfDay();
         if (remaining < 0) remaining += 1440;
 
-        return $"{currentActivity.type} (осталось {Mathf.CeilToInt(remaining)} мин)";
+        return $"{currentActivity.type} (РѕСЃС‚Р°Р»РѕСЃСЊ {Mathf.CeilToInt(remaining)} РјРёРЅ)";
     }
 
     public bool IsBusy()

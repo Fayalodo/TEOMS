@@ -2,46 +2,66 @@ using UnityEngine;
 
 public class ItemUsageSystem : MonoBehaviour
 {
-    [Header("������")]
-    public Health playerHealth;      // �������� ���� Health ������
-    public Inventory inventory;      // �������� ���� Inventory ������
+    [Header("Ссылки (заполняются автоматически если на том же объекте)")]
+    public Health    playerHealth;
+    public Inventory inventory;
 
-    private void OnEnable()
+    void Awake()
     {
-        if (inventory != null)
-            inventory.OnItemUsed += HandleItemUsed;
+        // FIX: автокеш — не нужно тащить руками в инспектор
+        if (playerHealth == null) playerHealth = GetComponent<Health>();
+        if (inventory    == null) inventory    = GetComponent<Inventory>();
+
+        if (playerHealth == null) Debug.LogWarning($"[{name}] ItemUsageSystem: Health не найден!");
+        if (inventory    == null) Debug.LogWarning($"[{name}] ItemUsageSystem: Inventory не найден!");
     }
 
-    private void OnDisable()
+    void OnEnable()
     {
-        if (inventory != null)
-            inventory.OnItemUsed -= HandleItemUsed;
+        if (inventory != null) inventory.OnItemUsed += HandleItemUsed;
     }
 
-    private void HandleItemUsed(ItemDefinition item, int quantity, int slotIndex)
+    void OnDisable()
+    {
+        if (inventory != null) inventory.OnItemUsed -= HandleItemUsed;
+    }
+
+    void HandleItemUsed(ItemDefinition item, int quantity, int slotIndex)
     {
         if (item == null) return;
+
+        float value = Mathf.Abs(item.effectValue) * quantity; // FIX: защита от отрицательных
 
         switch (item.useEffect)
         {
             case ItemUseEffect.HealHP:
                 if (playerHealth != null)
-                {
-                    playerHealth.Heal(item.effectValue * quantity);
-                    Debug.Log($"{item.displayName} ����������� {item.effectValue * quantity} HP");
-                }
+                    playerHealth.Heal(value);
                 break;
 
             case ItemUseEffect.DamageHP:
                 if (playerHealth != null)
-                {
-                    playerHealth.TakeDamage(item.effectValue * quantity);
-                    Debug.Log($"{item.displayName} ����� {item.effectValue * quantity} �����");
-                }
+                    // FIX: передаём null как атакующего — яд/кислота не провоцируют NPC,
+                    // но CombatController корректно уйдёт в запасной OverlapSphere
+                    playerHealth.TakeDamage(value, null);
+                break;
+
+            case ItemUseEffect.RestoreMana:
+                // TODO: подключить ManaSystem когда появится
+                Debug.LogWarning($"[{name}] RestoreMana не реализован (нет ManaSystem)");
+                break;
+
+            case ItemUseEffect.Buff:
+                // TODO: подключить BuffSystem когда появится
+                Debug.LogWarning($"[{name}] Buff не реализован (нет BuffSystem)");
                 break;
 
             case ItemUseEffect.None:
-                Debug.Log($"{item.displayName} �� ����� �������");
+                // предмет используется без эффекта (например квестовый)
+                break;
+
+            default:
+                Debug.LogWarning($"[{name}] Неизвестный эффект: {item.useEffect}");
                 break;
         }
     }
