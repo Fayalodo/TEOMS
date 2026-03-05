@@ -29,6 +29,9 @@ public class LootUI : MonoBehaviour
     [Header("Префаб слота — тот же что в основном инвентаре")]
     public GameObject slotPrefab;
 
+    [Header("Scroll")]
+    public ScrollRect scrollRect; // назначь ScrollRect компонент ScrollView
+
     [Header("Инвентарь игрока")]
     public Inventory playerInventory;
 
@@ -49,10 +52,7 @@ public class LootUI : MonoBehaviour
         btnTakeAll?.onClick.AddListener(TakeAll);
         btnClose?.onClick.AddListener(Close);
 
-        // FIX: скрываем panel (дочерний объект), не сам LootUI
-        // Сам LootUI GameObject должен быть ВСЕГДА активен в иерархии
-        // иначе Awake не вызывается и Open() не работает
-        if (panel != null) panel.SetActive(false);
+        panel?.SetActive(false);
     }
 
     // ────────────────────────────────────────────────────────
@@ -69,6 +69,13 @@ public class LootUI : MonoBehaviour
 
         Refresh();
         panel?.SetActive(true);
+
+        // FIX: сбрасываем скролл в верхнюю позицию при каждом открытии
+        if (scrollRect != null)
+        {
+            scrollRect.verticalNormalizedPosition = 1f;
+            scrollRect.velocity = Vector2.zero;
+        }
     }
 
     public void Close()

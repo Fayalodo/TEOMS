@@ -20,7 +20,6 @@ public class InventoryDragDropHandler : MonoBehaviour
     private bool dragStarted = false;
     private Vector2 dragStartPosition;
 
-    // Для отслеживания перетаскивания из быстрой панели
     private int sourceQuickSlotIndex = -1;
     private InventoryUI sourceQuickPanelUI;
 
@@ -50,9 +49,7 @@ public class InventoryDragDropHandler : MonoBehaviour
         }
 
         if (isDragging && Input.GetKeyDown(KeyCode.Escape))
-        {
             CancelDrag();
-        }
     }
 
     public void StartDrag(InventorySlotUI slot, int actualInventoryIndex)
@@ -106,25 +103,18 @@ public class InventoryDragDropHandler : MonoBehaviour
 
         if (isDragging)
         {
-            PointerEventData pointerData = new PointerEventData(EventSystem.current)
-            {
-                position = Input.mousePosition
-            };
-
+            var pointerData = new PointerEventData(EventSystem.current) { position = Input.mousePosition };
             var results = new List<RaycastResult>();
             EventSystem.current.RaycastAll(pointerData, results);
 
             foreach (var result in results)
             {
                 targetSlot = result.gameObject.GetComponent<InventorySlotUI>();
-                if (targetSlot != null)
-                    break;
+                if (targetSlot != null) break;
             }
 
             if (targetSlot != null && targetSlot != sourceSlot)
-            {
                 PerformDragDrop();
-            }
         }
 
         CancelDrag();
@@ -132,8 +122,7 @@ public class InventoryDragDropHandler : MonoBehaviour
 
     private void CancelDrag()
     {
-        if (dragIcon != null)
-            dragIcon.gameObject.SetActive(false);
+        if (dragIcon != null) dragIcon.gameObject.SetActive(false);
 
         isDragging = false;
         dragStarted = false;
@@ -148,65 +137,56 @@ public class InventoryDragDropHandler : MonoBehaviour
     {
         if (sourceSlot == null || targetSlot == null) return;
 
+        // FIX: кешируем один раз
         InventoryUI sourceUI = sourceSlot.GetComponentInParent<InventoryUI>();
         InventoryUI targetUI = targetSlot.GetComponentInParent<InventoryUI>();
 
+        // FIX: защита от лут-слотов — у них нет InventoryUI родителя
         if (sourceUI == null || targetUI == null) return;
 
         Inventory sourceInventory = sourceUI.inventory;
         Inventory targetInventory = targetUI.inventory;
 
-        // Случай 1: Перетаскивание из основного инвентаря в быструю панель
+        if (sourceInventory == null || targetInventory == null) return;
+
+        // Случай 1: основной инвентарь → быстрая панель
         if (!sourceUI.isQuickPanel && targetUI.isQuickPanel && enableQuickPanelDrop)
         {
-            // Проверяем, что предмет существует в инвентаре
-            if (sourceInventoryIndex >= 0 && sourceInventoryIndex < sourceInventory.Items.Count)
-            {
-                var itemData = sourceInventory.Items[sourceInventoryIndex];
-                if (itemData.IsEmpty || itemData.item == null) return;
+            if (sourceInventoryIndex < 0 || sourceInventoryIndex >= sourceInventory.Items.Count) return;
+            var itemData = sourceInventory.Items[sourceInventoryIndex];
+            if (itemData.IsEmpty || itemData.item == null) return;
 
-                // 🔥 ИСПРАВЛЕНО: Передаём ИНДЕКС, а не ItemDefinition
-                targetUI.AssignToQuickSlot(targetSlot.SlotIndex, sourceInventoryIndex);
-
-                Debug.Log($"Предмет {itemData.item.displayName} добавлен в быструю панель (слот {targetSlot.SlotIndex}) из инвентаря (слот {sourceInventoryIndex})");
-            }
+            targetUI.AssignToQuickSlot(targetSlot.SlotIndex, sourceInventoryIndex);
         }
 
-        // Случай 2: Перетаскивание из быстрой панели обратно в инвентарь
+        // Случай 2: быстрая панель → основной инвентарь
         else if (sourceUI.isQuickPanel && !targetUI.isQuickPanel && enableQuickPanelDrop)
         {
-            // Очищаем слот быстрой панели
             sourceUI.ClearQuickSlot(sourceSlot.SlotIndex);
-
-            Debug.Log($"Предмет убран из быстрой панели (слот {sourceSlot.SlotIndex})");
         }
 
-        // Случай 3: Перетаскивание между слотами быстрой панели (внутри одной панели)
+        // Случай 3: внутри одной быстрой панели
         else if (sourceUI.isQuickPanel && targetUI.isQuickPanel && sourceUI == targetUI && enableQuickPanelDrop)
         {
-            // Получаем индексы в инвентаре для обоих слотов быстрой панели
-            int sourceInventoryIdx = sourceSlot.InventorySourceIndex;
-            int targetInventoryIdx = targetSlot.InventorySourceIndex;
+            int srcIdx = sourceSlot.InventorySourceIndex;
+            int dstIdx = targetSlot.InventorySourceIndex;
 
-            if (sourceInventoryIdx >= 0)
+            if (srcIdx >= 0)
             {
-                if (targetInventoryIdx >= 0)
+                if (dstIdx >= 0)
                 {
-                    // Меняем местами: оба слота указывают на разные предметы в инвентаре
-                    // Просто обмениваем их привязки
-                    sourceUI.AssignToQuickSlot(sourceSlot.SlotIndex, targetInventoryIdx);
-                    sourceUI.AssignToQuickSlot(targetSlot.SlotIndex, sourceInventoryIdx);
+                    sourceUI.AssignToQuickSlot(sourceSlot.SlotIndex, dstIdx);
+                    sourceUI.AssignToQuickSlot(targetSlot.SlotIndex, srcIdx);
                 }
                 else
                 {
-                    // Перемещаем в пустой слот быстрой панели
-                    sourceUI.AssignToQuickSlot(targetSlot.SlotIndex, sourceInventoryIdx);
+                    sourceUI.AssignToQuickSlot(targetSlot.SlotIndex, srcIdx);
                     sourceUI.ClearQuickSlot(sourceSlot.SlotIndex);
                 }
             }
         }
 
-        // Случай 4: Обычное перемещение внутри основного инвентаря
+        // Случай 4: внутри одного основного инвентаря
         else if (!sourceUI.isQuickPanel && !targetUI.isQuickPanel && sourceInventory == targetInventory)
         {
             if (sourceInventoryIndex >= 0 && sourceInventoryIndex < sourceInventory.Items.Count &&
@@ -216,50 +196,42 @@ public class InventoryDragDropHandler : MonoBehaviour
             }
         }
 
-        // Случай 5: Перетаскивание из основного инвентаря в другой основной инвентарь (разные инвентари)
+        // Случай 5: между разными основными инвентарями
         else if (!sourceUI.isQuickPanel && !targetUI.isQuickPanel && sourceInventory != targetInventory)
         {
             TransferItemBetweenInventories(sourceInventoryIndex, sourceInventory, targetInventory, targetSlot.SlotIndex);
         }
 
-        // Случай 6: Перетаскивание из быстрой панели в другую быструю панель (разные UI)
+        // Случай 6: между разными быстрыми панелями
         else if (sourceUI.isQuickPanel && targetUI.isQuickPanel && sourceUI != targetUI && enableQuickPanelDrop)
         {
-            int sourceInventoryIdx = sourceSlot.InventorySourceIndex;
+            int srcIdx = sourceSlot.InventorySourceIndex;
+            if (srcIdx < 0 || srcIdx >= sourceInventory.Items.Count) return;
 
-            if (sourceInventoryIdx >= 0 && sourceInventoryIdx < sourceInventory.Items.Count)
+            var sourceItem = sourceInventory.Items[srcIdx];
+            if (sourceItem.IsEmpty || sourceItem.item == null) return;
+
+            // FIX: ищем по id только один раз, выходим сразу при нахождении
+            int targetInvIdx = -1;
+            var targetItems = targetInventory.Items;
+            for (int i = 0; i < targetItems.Count; i++)
             {
-                var sourceItem = sourceInventory.Items[sourceInventoryIdx];
+                if (!targetItems[i].IsEmpty && targetItems[i].item != null &&
+                    targetItems[i].item.id == sourceItem.item.id)
+                {
+                    targetInvIdx = i;
+                    break;
+                }
+            }
 
-                // Проверяем, есть ли такой предмет в целевом инвентаре
-                // Ищем индекс этого же предмета в целевом инвентаре
-                int targetInventoryIdx = -1;
-                for (int i = 0; i < targetInventory.Items.Count; i++)
-                {
-                    if (!targetInventory.Items[i].IsEmpty &&
-                        targetInventory.Items[i].item != null &&
-                        targetInventory.Items[i].item.id == sourceItem.item.id)
-                    {
-                        targetInventoryIdx = i;
-                        break;
-                    }
-                }
-
-                if (targetInventoryIdx >= 0)
-                {
-                    // Предмет найден в целевом инвентаре - привязываем слот быстрой панели
-                    targetUI.AssignToQuickSlot(targetSlot.SlotIndex, targetInventoryIdx);
-                    sourceUI.ClearQuickSlot(sourceSlot.SlotIndex);
-                }
-                else
-                {
-                    Debug.Log("Предмет отсутствует в целевом инвентаре");
-                }
+            if (targetInvIdx >= 0)
+            {
+                targetUI.AssignToQuickSlot(targetSlot.SlotIndex, targetInvIdx);
+                sourceUI.ClearQuickSlot(sourceSlot.SlotIndex);
             }
         }
     }
 
-    // Вспомогательный метод для передачи предметов между инвентарями
     private void TransferItemBetweenInventories(int sourceIndex, Inventory sourceInv, Inventory targetInv, int targetIndex)
     {
         if (sourceIndex < 0 || sourceIndex >= sourceInv.Items.Count) return;
@@ -272,70 +244,37 @@ public class InventoryDragDropHandler : MonoBehaviour
 
         if (targetItem.IsEmpty)
         {
-            // Простое перемещение в пустой слот
-            // Пытаемся добавить в целевой инвентарь
-            bool added = targetInv.TryAddItem(sourceItem.item, sourceItem.quantity, ItemSource.Other);
-
-            if (added)
-            {
-                // Если успешно добавили, удаляем из исходного
+            if (targetInv.TryAddItem(sourceItem.item, sourceItem.quantity, ItemSource.Other))
                 sourceInv.RemoveItemAt(sourceIndex, sourceItem.quantity, ItemSource.Other);
-            }
         }
         else if (sourceItem.item == targetItem.item && sourceItem.item.stackable)
         {
-            // Объединение стеков
-            int totalQuantity = sourceItem.quantity + targetItem.quantity;
-            int maxStack = sourceItem.item.maxStack;
+            int canAdd = sourceItem.item.maxStack - targetItem.quantity;
+            if (canAdd <= 0) return;
 
-            if (totalQuantity <= maxStack)
-            {
-                // Все помещается в целевой слот
-                bool added = targetInv.TryAddItem(sourceItem.item, sourceItem.quantity, ItemSource.Other);
-                if (added)
-                {
-                    sourceInv.RemoveItemAt(sourceIndex, sourceItem.quantity, ItemSource.Other);
-                }
-            }
-            else
-            {
-                // Частичное перемещение
-                int canAdd = maxStack - targetItem.quantity;
-                if (canAdd > 0)
-                {
-                    bool added = targetInv.TryAddItem(sourceItem.item, canAdd, ItemSource.Other);
-                    if (added)
-                    {
-                        sourceInv.RemoveItemAt(sourceIndex, canAdd, ItemSource.Other);
-                    }
-                }
-            }
+            int toMove = Mathf.Min(sourceItem.quantity, canAdd);
+            if (targetInv.TryAddItem(sourceItem.item, toMove, ItemSource.Other))
+                sourceInv.RemoveItemAt(sourceIndex, toMove, ItemSource.Other);
         }
         else
         {
-            // Меняем местами разные предметы
-            // Сначала удаляем предмет из целевого инвентаря
-            var tempTargetItem = targetItem;
-            targetInv.RemoveItemAt(targetIndex, targetItem.quantity, ItemSource.Other);
+            // FIX: свап через MoveItem если оба инвентаря одинаковые — иначе через temp
+            // сохраняем данные до удаления
+            var tempItem = targetItem;
+            int tempQty  = targetItem.quantity;
 
-            // Пытаемся добавить исходный предмет в целевой
-            bool added = targetInv.TryAddItem(sourceItem.item, sourceItem.quantity, ItemSource.Other);
+            targetInv.RemoveItemAt(targetIndex, tempQty, ItemSource.Other, showNotification: false);
 
-            if (added)
+            if (targetInv.TryAddItem(sourceItem.item, sourceItem.quantity, ItemSource.Other))
             {
-                // Если успешно добавили, удаляем из исходного
-                sourceInv.RemoveItemAt(sourceIndex, sourceItem.quantity, ItemSource.Other);
-
-                // Добавляем целевой предмет в исходный
-                if (!tempTargetItem.IsEmpty)
-                {
-                    sourceInv.TryAddItem(tempTargetItem.item, tempTargetItem.quantity, ItemSource.Other);
-                }
+                sourceInv.RemoveItemAt(sourceIndex, sourceItem.quantity, ItemSource.Other, showNotification: false);
+                if (!tempItem.IsEmpty)
+                    sourceInv.TryAddItem(tempItem.item, tempQty, ItemSource.Other);
             }
             else
             {
-                // Если не удалось добавить, возвращаем целевой предмет обратно
-                targetInv.TryAddItem(tempTargetItem.item, tempTargetItem.quantity, ItemSource.Other);
+                // откатываем — возвращаем целевой предмет
+                targetInv.TryAddItem(tempItem.item, tempQty, ItemSource.Other);
             }
         }
     }
