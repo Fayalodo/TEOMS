@@ -344,6 +344,13 @@ public class Inventory : MonoBehaviour
 
     public float GetTotalWeight() => currentWeight; // FIX: возвращаем кеш
 
+    public bool IsEmpty()
+    {
+        foreach (var s in items)
+            if (!s.IsEmpty) return false;
+        return true;
+    }
+
     private float CalculateTotalWeight()
     {
         float w = 0f;
