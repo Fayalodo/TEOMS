@@ -22,16 +22,8 @@ public class WorldPickupLabel : MonoBehaviour
     [Tooltip("Плавность появления/исчезания")]
     public float fadeSpeed = 8f;
 
-    [Tooltip("Плавность перемещения (чтобы избежать рывков)")]
-    public float moveSmoothness = 10f;
-
     [Tooltip("Задержка перед появлением (чтобы избежать мелькания)")]
     public float appearanceDelay = 0.05f;
-
-    [Tooltip("Минимальный масштаб когда далеко (опционально)")]
-    public float minScale = 0.6f;
-    [Tooltip("Максимальный масштаб когда близко (опционально)")]
-    public float maxScale = 1.0f;
 
     private ItemPickup target;
     private Camera worldCamera;          // камера, используемая для World->Screen (обычно main camera)
@@ -179,35 +171,16 @@ public class WorldPickupLabel : MonoBehaviour
         if (appearanceTimer < appearanceDelay)
         {
             appearanceTimer += Time.unscaledDeltaTime;
-
-            // Во время задержки метка остается скрытой
-            rectTransform.anchoredPosition = targetPosition; // но уже на правильной позиции
+            // Во время задержки держим на правильной позиции, но невидимой
+            rectTransform.anchoredPosition = targetPosition;
             canvasGroup.alpha = 0f;
             return;
         }
 
-        // Плавное перемещение к целевой позиции
-        if (isInitialized)
-        {
-            rectTransform.anchoredPosition = Vector2.Lerp(
-                rectTransform.anchoredPosition,
-                targetPosition,
-                Time.unscaledDeltaTime * moveSmoothness
-            );
-        }
-        else
-        {
-            // Если еще не инициализирована - сразу на целевую позицию
-            rectTransform.anchoredPosition = targetPosition;
-        }
+        // Позиция — сразу на место, без Lerp (предмет статичный, плавность только создаёт лаг)
+        rectTransform.anchoredPosition = targetPosition;
 
-        // масштаб по расстоянию (опционально)
-        float dist = Vector3.Distance(worldCamera.transform.position, target.transform.position);
-        float t = Mathf.InverseLerp(6f, 1f, dist); // настраиваемые пороги
-        float scale = Mathf.Lerp(minScale, maxScale, t);
-        rectTransform.localScale = Vector3.one * scale;
-
-        // видимость и плавность (только после задержки)
+        // видимость и плавность
         targetAlpha = visible ? 1f : 0f;
         canvasGroup.alpha = Mathf.MoveTowards(canvasGroup.alpha, targetAlpha, Time.unscaledDeltaTime * fadeSpeed);
 
