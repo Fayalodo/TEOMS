@@ -2,62 +2,65 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Менеджер всех ItemPickup в сцене. Позволяет быстро получить ближайший/приоритетный предмет для позиции игрока.
-/// Priority: чем ближе — тем выше приоритет (минимальная дистанция).
+/// Реестр всех ItemPickup в сцене. Даёт быстрый доступ к ближайшему предмету.
 /// </summary>
 public static class PickupManager
 {
     private static readonly List<ItemPickup> pickups = new List<ItemPickup>();
 
+    // Переиспользуемый список для GetNearestN — не создаём новый каждый раз
+    private static readonly List<ItemPickup> nearestBuffer = new List<ItemPickup>();
+
     public static void RegisterPickup(ItemPickup p)
     {
-        if (p == null) return;
-        if (!pickups.Contains(p)) pickups.Add(p);
+        if (p != null && !pickups.Contains(p)) pickups.Add(p);
     }
 
     public static void UnregisterPickup(ItemPickup p)
     {
-        if (p == null) return;
-        pickups.Remove(p);
+        if (p != null) pickups.Remove(p);
     }
 
-    /// <summary>
-    /// Получить лучшую цель для позиции playerPos внутри maxDistance (если нет — вернёт null).
-    /// Алгоритм: выбрать ближайший предмет к playerPos.
-    /// </summary>
-    public static ItemPickup GetBestPickup(Vector3 playerPos, float maxDistance)
+    /// <summary>Ближайший предмет в радиусе maxDistance. null если нет.</summary>
+    public static ItemPickup GetBestPickup(Vector3 origin, float maxDistance)
     {
         ItemPickup best = null;
-        float bestDist = float.MaxValue;
-        for (int i = 0; i < pickups.Count; i++)
+        float bestDistSqr = maxDistance * maxDistance;
+
+        for (int i = pickups.Count - 1; i >= 0; i--)
         {
             var p = pickups[i];
-            if (p == null) continue;
-            float d = p.DistanceTo(playerPos);
-            if (d <= maxDistance && d < bestDist)
-            {
-                bestDist = d;
-                best = p;
-            }
+            if (p == null) { pickups.RemoveAt(i); continue; } // чистим null-записи попутно
+
+            float dSqr = (p.transform.position - origin).sqrMagnitude;
+            if (dSqr < bestDistSqr) { bestDistSqr = dSqr; best = p; }
         }
         return best;
     }
 
-    /// <summary>
-    /// Optionally: получить N ближайших предметов (например, для отображения списка).
-    /// </summary>
-    public static List<ItemPickup> GetNearestN(Vector3 playerPos, float maxDistance, int n = 5)
+    /// <summary>До N ближайших предметов в радиусе. Результат записывается в переданный список.</summary>
+    public static void GetNearestN(Vector3 origin, float maxDistance, int n, List<ItemPickup> result)
     {
-        var list = new List<(float dist, ItemPickup p)>();
-        foreach (var p in pickups)
+        result.Clear();
+        float maxDistSqr = maxDistance * maxDistance;
+
+        for (int i = pickups.Count - 1; i >= 0; i--)
         {
-            if (p == null) continue;
-            float d = p.DistanceTo(playerPos);
-            if (d <= maxDistance) list.Add((d, p));
+            var p = pickups[i];
+            if (p == null) { pickups.RemoveAt(i); continue; }
+
+            float dSqr = (p.transform.position - origin).sqrMagnitude;
+            if (dSqr <= maxDistSqr) result.Add(p);
         }
-        list.Sort((a, b) => a.dist.CompareTo(b.dist));
-        var result = new List<ItemPickup>();
-        for (int i = 0; i < list.Count && i < n; i++) result.Add(list[i].p);
-        return result;
+
+        // Сортируем по sqrMagnitude (не нужен sqrt — порядок тот же)
+        result.Sort((a, b) =>
+        {
+            float da = (a.transform.position - origin).sqrMagnitude;
+            float db = (b.transform.position - origin).sqrMagnitude;
+            return da.CompareTo(db);
+        });
+
+        if (result.Count > n) result.RemoveRange(n, result.Count - n);
     }
 }

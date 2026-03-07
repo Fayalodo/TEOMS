@@ -4,35 +4,34 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
+/// <summary>
+/// Управляет дневным расписанием NPC:
+/// — каждый день выбирает случайный DayArchetype из DailyRoutineProfile
+/// — двигает NPC между sub-точками внутри локации с паузами
+/// — поддерживает прерывание и возврат к расписанию
+/// — перегенерирует расписание при смене игрового дня
+/// </summary>
 [RequireComponent(typeof(NavMeshAgent))]
 public class NPCDailyScheduler : MonoBehaviour
 {
+    // ─────────────────────────────────────────────────────────────────────────
+    #region Inspector
+
     [Header("Profile")]
+    [Tooltip("ScriptableObject с локациями, временными окнами и шаблонами дней.")]
     public DailyRoutineProfile profile;
 
-    [Header("Time windows")]
-    [SerializeField] private TimeWindow wakeWindow = new TimeWindow(6, 9);
-    [SerializeField] private TimeWindow workWindow = new TimeWindow(9, 17);
-    [SerializeField] private TimeWindow leisureWindow = new TimeWindow(17, 20);
-    [SerializeField] private TimeWindow socialWindow = new TimeWindow(20, 22);
-    [SerializeField] private TimeWindow sleepWindow = new TimeWindow(22, 6);
-
-    [Header("Durations (minutes)")]
-    [SerializeField] private Vector2Int wakeDuration = new Vector2Int(10, 30);
-    [SerializeField] private Vector2Int workDuration = new Vector2Int(60, 180);
-    [SerializeField] private Vector2Int leisureDuration = new Vector2Int(20, 60);
-    [SerializeField] private Vector2Int socialDuration = new Vector2Int(20, 60);
-    [SerializeField] private Vector2Int sleepDuration = new Vector2Int(360, 480);
-
     [Header("Movement")]
-    [SerializeField] private NavMeshAgent agent;
-    [SerializeField] private Animator animator;
     [SerializeField] private float arrivalTolerance = 0.7f;
-    [SerializeField] private float pathTimeout = 5f;
+    [SerializeField] private float pathTimeout = 8f;
+    [SerializeField] private Animator animator;
 
-    [Header("Patrol")]
-    [SerializeField] private bool patrolInsideLocation = true;
-    [SerializeField] private float patrolInterval = 20f;
+    [Header("Local Wander (внутри локации)")]
+    [Tooltip("NPC будет бродить между sub-точками локации во время активности.")]
+    [SerializeField] private bool localWanderEnabled = true;
+    [Tooltip("Если sub-точек нет в реестре — бродить в радиусе вокруг основной точки прибытия.")]
+    [SerializeField] private float fallbackWanderRadius = 3f;
+    [SerializeField] private int maxPatrolPoints = 4;
 
     [Header("Interruption")]
     [SerializeField] private bool resumeAfterInterruption = true;
@@ -41,50 +40,15 @@ public class NPCDailyScheduler : MonoBehaviour
 
     [Header("Optimization")]
     [SerializeField] private float scheduleCheckInterval = 1f;
-    [SerializeField] private float patrolCheckInterval = 0.1f;
-    [SerializeField] private bool useFixedUpdateForPatrol = true;
-    [SerializeField] private int maxPatrolPoints = 3;
 
     [Header("Debug")]
     [SerializeField] private bool showDebugLogs = false;
     [SerializeField] private bool drawGizmos = true;
 
-    // Runtime данные
-    private List<ActivityInstance> todaySchedule = new List<ActivityInstance>();
-    private Coroutine scheduleCoroutine;
-    private Coroutine activityCoroutine;
-    private Coroutine moveCoroutine; // FIX: останавливаем предыдущую корутину движения
-    private ActivityInstance currentActivity;
-    private ActivityInstance interruptedActivity;
-    private float interruptionStartTime;
-    private bool isInterrupted = false;
-    private float currentActivityEndTime;
-    private float interruptedActivityRemainingTime;
+    #endregion
 
-    // Оптимизация
-    private float nextScheduleCheckTime;
-    private float nextPatrolCheckTime;
-    private Transform currentTarget;
-    private bool isWaitingForNextActivity = false;
-    private Vector3 lastPosition;
-    private float positionCheckTimer;
-    private const float POSITION_CHECK_INTERVAL = 2f;
-    private float lastGameTimeCheck;
-    private float cachedGameTime;
-    private const float GAME_TIME_CACHE_INTERVAL = 0.5f;
-
-    [Serializable]
-    private struct TimeWindow
-    {
-        public int startHour;
-        public int endHour;
-
-        public TimeWindow(int start, int end)
-        {
-            startHour = start;
-            endHour = end;
-        }
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    #region Runtime Data
 
     [Serializable]
     public class ActivityInstance
@@ -93,665 +57,421 @@ public class NPCDailyScheduler : MonoBehaviour
         public int startMinuteOfDay;
         public int durationMinutes;
         public DailyRoutineProfile.LocationOption location;
-        public List<Transform> patrolPoints;
+        public List<Transform> patrolPoints = new List<Transform>();
         public int currentPatrolIndex;
 
-        public float EndTime => startMinuteOfDay + durationMinutes;
+        public float EndMinute => (startMinuteOfDay + durationMinutes) % 1440;
         public bool IsValid => location != null;
 
-        public override string ToString()
-        {
-            return $"{type} at {startMinuteOfDay / 60:00}:{startMinuteOfDay % 60:00} ({durationMinutes}min)";
-        }
+        public override string ToString() =>
+            $"{type} {startMinuteOfDay / 60:00}:{startMinuteOfDay % 60:00}  ({durationMinutes} мин)";
     }
+
+    private NavMeshAgent agent;
+
+    private List<ActivityInstance> todaySchedule = new List<ActivityInstance>();
+    private ActivityInstance currentActivity;
+    private ActivityInstance interruptedActivity;
+
+    private Coroutine scheduleLoopCoroutine;
+    private Coroutine activityCoroutine;
+    private Coroutine moveCoroutine;
+    private Coroutine timeCacheCoroutine;
+
+    private bool isInterrupted;
+    private float interruptionStartTime;
+    private float interruptedActivityRemainingTime; // в игровых минутах
+    private float currentActivityEndMinute;         // игровые минуты [0-1440)
+    private bool isWaitingForNextActivity;
+
+    // Кэш игрового времени
+    private float cachedGameMinute;
+    private int cachedGameDay = -1;
+
+    private const float GAME_TIME_CACHE_INTERVAL = 0.5f;
+    private const float STUCK_CHECK_INTERVAL = 2f;
+    private Vector3 lastPosition;
+
+    #endregion
+
+    // ─────────────────────────────────────────────────────────────────────────
+    #region Unity Lifecycle
 
     void Start()
     {
-        InitializeComponents();
-        GenerateScheduleForDay();
-        StartSchedule();
-
-        lastPosition = transform.position;
-        positionCheckTimer = POSITION_CHECK_INTERVAL;
-        lastGameTimeCheck = Time.time;
-    }
-
-    void OnDisable()
-    {
-        StopAllCoroutines();
-    }
-
-    void OnDestroy()
-    {
-        StopAllCoroutines();
-    }
-
-    void Update()
-    {
-        if (!useFixedUpdateForPatrol && !isInterrupted && currentActivity != null)
-        {
-            UpdatePatrol(Time.deltaTime);
-        }
-        // FIX: StuckDetection и GameTimeCache перенесены в корутины
-    }
-
-    void FixedUpdate()
-    {
-        if (useFixedUpdateForPatrol && !isInterrupted && currentActivity != null)
-        {
-            UpdatePatrol(Time.fixedDeltaTime);
-        }
-    }
-
-    #region Initialization
-
-    private void InitializeComponents()
-    {
-        if (agent == null) agent = GetComponent<NavMeshAgent>();
+        agent = GetComponent<NavMeshAgent>();
         if (animator == null) animator = GetComponentInChildren<Animator>();
 
         if (agent == null)
         {
-            Debug.LogError($"[{name}] NavMeshAgent не найден!");
-            enabled = false;
-            return;
+            Debug.LogError($"[{name}] NavMeshAgent не найден! Компонент отключён.");
+            enabled = false; return;
         }
-
         if (profile == null)
         {
-            Debug.LogError($"[{name}] DailyRoutineProfile не назначен!");
-            enabled = false;
-            return;
+            Debug.LogError($"[{name}] DailyRoutineProfile не назначен! Компонент отключён.");
+            enabled = false; return;
         }
+
+        lastPosition = transform.position;
+
+        // Стартуем фоновые корутины
+        timeCacheCoroutine = StartCoroutine(TimeCacheLoop());
+        StartCoroutine(StuckDetectionLoop());
+
+        // Дожидаемся первого обновления кэша, затем запускаем расписание
+        StartCoroutine(DelayedStart());
+    }
+
+    void OnDisable() => StopAllCoroutines();
+    void OnDestroy() => StopAllCoroutines();
+
+    private IEnumerator DelayedStart()
+    {
+        // Небольшая задержка чтобы TimeCacheLoop успел заполнить cachedGameMinute
+        yield return new WaitForSeconds(UnityEngine.Random.Range(0.1f, 0.6f));
+        GenerateScheduleForDay();
+        scheduleLoopCoroutine = StartCoroutine(ScheduleLoop());
     }
 
     #endregion
 
+    // ─────────────────────────────────────────────────────────────────────────
     #region Schedule Generation
 
+    /// <summary>
+    /// Генерирует расписание на день, выбирая случайный DayArchetype из профиля.
+    /// Вызывается автоматически при старте и при смене игрового дня.
+    /// </summary>
     public void GenerateScheduleForDay()
     {
         todaySchedule.Clear();
 
-        try
+        var archetype = profile.PickRandomArchetype();
+
+        if (showDebugLogs)
+            Debug.Log($"[{name}] День: архетип «{archetype.name}», активностей в шаблоне: {archetype.sequence.Count}");
+
+        // Счётчик повторений
+        var repeatCount = new Dictionary<DailyRoutineProfile.ActivityType, int>();
+
+        foreach (var actType in archetype.sequence)
         {
-            // Генерация активностей с валидацией
-            if (UnityEngine.Random.value > 0.3f)
-                AddActivity(DailyRoutineProfile.ActivityType.Wake, wakeWindow, wakeDuration);
-
-            int workSessions = UnityEngine.Random.Range(1, 3);
-            for (int i = 0; i < workSessions; i++)
+            // Проверяем лимит повторений
+            if (archetype.maxRepeatsPerActivity > 0)
             {
-                AddActivity(DailyRoutineProfile.ActivityType.Work, workWindow, workDuration);
+                repeatCount.TryGetValue(actType, out int cnt);
+                if (cnt >= archetype.maxRepeatsPerActivity) continue;
+                repeatCount[actType] = cnt + 1;
             }
 
-            AddActivity(DailyRoutineProfile.ActivityType.Leisure, leisureWindow, leisureDuration);
-            AddActivity(DailyRoutineProfile.ActivityType.Social, socialWindow, socialDuration);
-            AddActivity(DailyRoutineProfile.ActivityType.Sleep, sleepWindow, sleepDuration);
-
-            // Удаляем пересекающиеся активности
-            RemoveOverlappingActivities();
-
-            todaySchedule.Sort((a, b) => a.startMinuteOfDay.CompareTo(b.startMinuteOfDay));
-
-            // Кэшируем точки патруля
-            CachePatrolPoints();
-
-            if (showDebugLogs)
+            var cfg = profile.GetConfig(actType);
+            if (cfg == null)
             {
-                Debug.Log($"[{name}] Расписание сгенерировано. Активностей: {todaySchedule.Count}");
-                foreach (var act in todaySchedule)
-                {
-                    Debug.Log($"- {act}");
-                }
+                if (showDebugLogs) Debug.LogWarning($"[{name}] Нет конфига для {actType}");
+                continue;
             }
+
+            TryAddActivity(actType, cfg);
         }
-        catch (System.Exception e)
+
+        // Убираем пересечения и сортируем
+        RemoveOverlaps();
+        todaySchedule.Sort((a, b) => a.startMinuteOfDay.CompareTo(b.startMinuteOfDay));
+
+        // Patrol-точки получаем в BeginActivity — не здесь,
+        // чтобы SceneLocation успели зарегистрироваться (в т.ч. при additive-загрузке).
+
+        if (showDebugLogs)
         {
-            Debug.LogError($"[{name}] Ошибка генерации расписания: {e.Message}");
-            // Создаем минимальное расписание на случай ошибки
-            CreateFallbackSchedule();
+            Debug.Log($"[{name}] Расписание ({todaySchedule.Count} активностей):");
+            foreach (var a in todaySchedule)
+                Debug.Log($"  {a}");
         }
     }
 
-    private void AddActivity(DailyRoutineProfile.ActivityType type, TimeWindow window, Vector2Int durationRange)
+    private void TryAddActivity(DailyRoutineProfile.ActivityType type, DailyRoutineProfile.ActivityConfig cfg)
     {
-        if (durationRange.x <= 0 || durationRange.y <= 0 || durationRange.x > durationRange.y)
-        {
-            if (showDebugLogs)
-                Debug.LogWarning($"[{name}] Некорректная длительность для {type}: {durationRange}");
-            return;
-        }
+        if (cfg.durationMinutes.x <= 0 || cfg.durationMinutes.x > cfg.durationMinutes.y) return;
 
-        int startMinute = RandomMinuteInWindow(window.startHour, window.endHour);
-        int duration = Mathf.Clamp(
-            UnityEngine.Random.Range(durationRange.x, durationRange.y + 1),
-            1, 1440
-        );
-
-        var locations = profile?.GetListForActivity(type);
+        var locations = cfg.locations;
         if (locations == null || locations.Count == 0)
         {
-            if (showDebugLogs)
-                Debug.LogWarning($"[{name}] Нет локаций для активности {type}");
+            if (showDebugLogs) Debug.LogWarning($"[{name}] Нет локаций для {type}");
             return;
         }
 
-        var location = PickWeightedLocation(locations);
-        if (location == null)
-        {
-            if (showDebugLogs)
-                Debug.LogWarning($"[{name}] Не удалось выбрать локацию для {type}");
-            return;
-        }
+        var loc = PickWeightedLocation(locations);
+        if (loc == null) return;
+
+        int startMin = RandomMinuteInWindow(cfg.windowStartHour, cfg.windowEndHour);
+        int duration = UnityEngine.Random.Range(cfg.durationMinutes.x, cfg.durationMinutes.y + 1);
 
         todaySchedule.Add(new ActivityInstance
         {
             type = type,
-            startMinuteOfDay = startMinute,
+            startMinuteOfDay = startMin,
             durationMinutes = duration,
-            location = location,
-            patrolPoints = new List<Transform>(),
-            currentPatrolIndex = 0
+            location = loc,
         });
     }
 
-    private void RemoveOverlappingActivities()
+    private void RemoveOverlaps()
     {
         if (todaySchedule.Count < 2) return;
 
-        // Сортируем по времени начала
         todaySchedule.Sort((a, b) => a.startMinuteOfDay.CompareTo(b.startMinuteOfDay));
 
-        // Проверяем и удаляем пересекающиеся активности
         for (int i = todaySchedule.Count - 1; i > 0; i--)
         {
-            var current = todaySchedule[i];
-            var previous = todaySchedule[i - 1];
+            var prev = todaySchedule[i - 1];
+            var curr = todaySchedule[i];
 
-            float currentEnd = current.EndTime;
-            float previousEnd = previous.EndTime;
+            // Конец предыдущей (с учётом полуночи)
+            int prevEnd = prev.startMinuteOfDay + prev.durationMinutes;
 
-            // Корректируем время окончания, если активность переходит через полночь
-            if (currentEnd < current.startMinuteOfDay) currentEnd += 1440;
-            if (previousEnd < previous.startMinuteOfDay) previousEnd += 1440;
-
-            // Если активности пересекаются, удаляем ту, что начинается позже
-            if (current.startMinuteOfDay < previousEnd)
+            if (curr.startMinuteOfDay < prevEnd % 1440 && prevEnd > 1440)
             {
-                if (current.durationMinutes < previous.durationMinutes)
-                {
+                // Переходит через полночь — оставляем
+                continue;
+            }
+
+            if (curr.startMinuteOfDay < prevEnd)
+            {
+                // Убираем более короткую
+                if (curr.durationMinutes <= prev.durationMinutes)
                     todaySchedule.RemoveAt(i);
-                }
                 else
                 {
                     todaySchedule.RemoveAt(i - 1);
-                    i--; // Корректируем индекс после удаления
+                    i--;
                 }
             }
-        }
-    }
-
-    private void CachePatrolPoints()
-    {
-        foreach (var activity in todaySchedule)
-        {
-            if (activity.location != null && !string.IsNullOrEmpty(activity.location.locationId))
-            {
-                activity.patrolPoints = GetPatrolPoints(
-                    activity.location.locationId,
-                    Mathf.Min(maxPatrolPoints, activity.location.maxSubPointsPerVisit)
-                );
-
-                if (activity.patrolPoints.Count == 0 && showDebugLogs)
-                {
-                    Debug.LogWarning($"[{name}] Для активности {activity.type} не найдены точки патруля в {activity.location.locationId}");
-                }
-            }
-        }
-    }
-
-    private void CreateFallbackSchedule()
-    {
-        // Простое расписание на случай ошибки
-        todaySchedule.Add(new ActivityInstance
-        {
-            type = DailyRoutineProfile.ActivityType.Sleep,
-            startMinuteOfDay = 0,
-            durationMinutes = 480,
-            location = PickWeightedLocation(profile?.GetListForActivity(DailyRoutineProfile.ActivityType.Sleep)),
-            patrolPoints = new List<Transform>(),
-            currentPatrolIndex = 0
-        });
-    }
-
-    private List<Transform> GetPatrolPoints(string locationId, int maxPoints)
-    {
-        if (string.IsNullOrEmpty(locationId) || maxPoints <= 0)
-            return new List<Transform>();
-
-        try
-        {
-            var allPoints = LocationRegistry.GetAll(locationId);
-
-            if (allPoints == null || allPoints.Count == 0)
-                return new List<Transform>();
-
-            // Быстрый выбор случайных точек
-            if (maxPoints >= allPoints.Count)
-                return new List<Transform>(allPoints);
-
-            var selectedPoints = new List<Transform>(maxPoints);
-            var availableIndices = new List<int>(allPoints.Count);
-
-            for (int i = 0; i < allPoints.Count; i++)
-                availableIndices.Add(i);
-
-            for (int i = 0; i < maxPoints && availableIndices.Count > 0; i++)
-            {
-                int randomIndex = UnityEngine.Random.Range(0, availableIndices.Count);
-                int pointIndex = availableIndices[randomIndex];
-                selectedPoints.Add(allPoints[pointIndex]);
-                availableIndices.RemoveAt(randomIndex);
-            }
-
-            return selectedPoints;
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogWarning($"[{name}] Ошибка получения точек патруля для {locationId}: {e.Message}");
-            return new List<Transform>();
         }
     }
 
     #endregion
 
-    #region Schedule Execution
+    // ─────────────────────────────────────────────────────────────────────────
+    #region Schedule Loop
 
-    private void StartSchedule()
+    private IEnumerator ScheduleLoop()
     {
-        if (scheduleCoroutine != null)
-            StopCoroutine(scheduleCoroutine);
-
-        scheduleCoroutine = StartCoroutine(ScheduleUpdateLoop());
-
-        // FIX: периодические задачи через корутины — не в Update каждый кадр
-        StartCoroutine(StuckDetectionLoop());
-        StartCoroutine(GameTimeCacheLoop());
-    }
-
-    private IEnumerator StuckDetectionLoop()
-    {
-        while (enabled)
-        {
-            yield return new WaitForSeconds(POSITION_CHECK_INTERVAL);
-            if (agent == null || !agent.isActiveAndEnabled || !agent.hasPath) continue;
-
-            float distanceMoved = Vector3.Distance(transform.position, lastPosition);
-            lastPosition = transform.position;
-
-            if (distanceMoved < 0.1f && agent.velocity.sqrMagnitude > 0.1f && agent.remainingDistance > 1f)
-            {
-                if (currentTarget != null)
-                    MoveToPoint(currentTarget.position);
-            }
-        }
-    }
-
-    private IEnumerator GameTimeCacheLoop()
-    {
-        while (enabled)
-        {
-            yield return new WaitForSeconds(GAME_TIME_CACHE_INTERVAL);
-            cachedGameTime = GetCurrentMinuteOfDay();
-        }
-    }
-
-    private IEnumerator ScheduleUpdateLoop()
-    {
-        // Задержка для распределения нагрузки
-        yield return new WaitForSeconds(UnityEngine.Random.Range(0f, 0.5f));
-
-        nextScheduleCheckTime = Time.time;
+        var wait = new WaitForSeconds(scheduleCheckInterval);
 
         while (enabled)
         {
-            // FIX: WaitForSeconds — не крутимся каждый кадр
-            yield return new WaitForSeconds(scheduleCheckInterval);
+            yield return wait;
 
             if (isInterrupted)
             {
-                if (ShouldReturnFromInterruption())
+                if (Time.time - interruptionStartTime > maxInterruptionTime)
                     ReturnToSchedule();
+                continue;
             }
-            else
-            {
-                UpdateSchedule();
-            }
+
+            UpdateSchedule();
         }
     }
 
     private void UpdateSchedule()
     {
-        float currentGameTime = GetCachedMinuteOfDay();
+        float now = cachedGameMinute;
 
-        // Если нет расписания, выходим
-        if (todaySchedule.Count == 0)
-        {
-            if (currentActivity == null && !isWaitingForNextActivity)
-            {
-                isWaitingForNextActivity = true;
-                if (showDebugLogs)
-                    Debug.LogWarning($"[{name}] Нет расписания");
-            }
-            return;
-        }
+        var shouldBe = FindCurrentActivity(now);
 
-        ActivityInstance nextActivity = FindCurrentActivity(currentGameTime);
-
-        if (nextActivity != null && currentActivity != nextActivity)
+        if (shouldBe != null && shouldBe != currentActivity)
         {
-            StartNewActivity(nextActivity);
+            BeginActivity(shouldBe);
         }
-        else if (nextActivity == null && currentActivity != null)
+        else if (shouldBe == null && currentActivity != null)
         {
-            EndCurrentActivity();
+            FinishCurrentActivity();
         }
-        else if (nextActivity == null && currentActivity == null && !isWaitingForNextActivity)
+        else if (shouldBe == null && currentActivity == null && !isWaitingForNextActivity)
         {
-            // Нет активностей - ищем следующую
-            ActivityInstance next = FindNextActivity(currentGameTime);
+            var next = FindNextActivity(now);
             if (next != null)
             {
                 isWaitingForNextActivity = true;
                 if (showDebugLogs)
-                    Debug.Log($"[{name}] Ожидает {next.type} в {FormatMinute(next.startMinuteOfDay)}");
+                    Debug.Log($"[{name}] Ожидает «{next.type}» в {FormatMin(next.startMinuteOfDay)}");
             }
             else
             {
-                // Если совсем нет активностей, перегенерируем
-                GenerateScheduleForDay();
+                // Все активности на сегодня закончились — ждём нового дня
+                isWaitingForNextActivity = true;
             }
         }
     }
 
-    private ActivityInstance FindCurrentActivity(float currentTime)
+    private ActivityInstance FindCurrentActivity(float now)
     {
-        if (todaySchedule.Count == 0) return null;
-
-        for (int i = 0; i < todaySchedule.Count; i++)
+        foreach (var act in todaySchedule)
         {
-            var activity = todaySchedule[i];
-            if (activity == null || !activity.IsValid) continue;
+            if (!act.IsValid) continue;
 
-            float start = activity.startMinuteOfDay;
-            float end = activity.EndTime;
+            int start = act.startMinuteOfDay;
+            int end = (start + act.durationMinutes) % 1440;
 
-            // Обработка активности через полночь
-            if (end < start)
-            {
-                // Активность переходит через полночь
-                if (currentTime >= start || currentTime < end)
-                    return activity;
-            }
+            bool active;
+            if (end < start) // переходит через полночь
+                active = now >= start || now < end;
             else
-            {
-                // Обычная активность
-                if (currentTime >= start && currentTime < end)
-                    return activity;
-            }
-        }
+                active = now >= start && now < end;
 
+            if (active) return act;
+        }
         return null;
     }
 
-    private ActivityInstance FindNextActivity(float currentTime)
+    private ActivityInstance FindNextActivity(float now)
     {
-        if (todaySchedule.Count == 0) return null;
+        ActivityInstance best = null;
+        float minDiff = float.MaxValue;
 
-        ActivityInstance closestActivity = null;
-        float minTimeDiff = float.MaxValue;
-
-        for (int i = 0; i < todaySchedule.Count; i++)
+        foreach (var act in todaySchedule)
         {
-            var activity = todaySchedule[i];
-            if (activity == null || !activity.IsValid) continue;
+            if (!act.IsValid) continue;
+            float diff = act.startMinuteOfDay >= now
+                ? act.startMinuteOfDay - now
+                : act.startMinuteOfDay + 1440 - now;
 
-            float start = activity.startMinuteOfDay;
-
-            // Рассчитываем разницу во времени
-            float timeDiff;
-            if (start >= currentTime)
-            {
-                timeDiff = start - currentTime;
-            }
-            else
-            {
-                // Активность завтра
-                timeDiff = (start + 1440) - currentTime;
-            }
-
-            if (timeDiff > 0 && timeDiff < minTimeDiff)
-            {
-                minTimeDiff = timeDiff;
-                closestActivity = activity;
-            }
+            if (diff > 0 && diff < minDiff) { minDiff = diff; best = act; }
         }
-
-        return closestActivity;
+        return best;
     }
 
-    private void StartNewActivity(ActivityInstance activity)
+    #endregion
+
+    // ─────────────────────────────────────────────────────────────────────────
+    #region Activity Execution
+
+    private void BeginActivity(ActivityInstance act)
     {
-        if (activity == null || !activity.IsValid)
-        {
-            if (showDebugLogs)
-                Debug.LogWarning($"[{name}] Попытка начать невалидную активность");
-            return;
-        }
+        FinishCurrentActivity();
 
-        if (showDebugLogs)
-            Debug.Log($"[{name}] Начинает: {activity.type}");
+        // Получаем patrol-точки в момент старта — SceneLocation точно уже зарегистрированы
+        act.patrolPoints = FetchPatrolPoints(act.location);
+        act.currentPatrolIndex = 0;
 
-        // Завершаем предыдущую активность
-        EndCurrentActivity();
-
-        // Начинаем новую
-        currentActivity = activity;
-        currentActivityEndTime = GetCachedMinuteOfDay() + activity.durationMinutes;
+        currentActivity = act;
+        currentActivityEndMinute = (act.startMinuteOfDay + act.durationMinutes) % 1440;
         isWaitingForNextActivity = false;
 
-        // Запускаем корутину активности
-        if (activityCoroutine != null)
-            StopCoroutine(activityCoroutine);
+        if (showDebugLogs)
+        {
+            Debug.Log($"[{name}] Начинает: {act} | patrol-точек: {act.patrolPoints.Count}" +
+                      $" (locationId='{act.location?.locationId}')");
 
-        activityCoroutine = StartCoroutine(ExecuteActivity(activity));
+            if (act.patrolPoints.Count == 0)
+                Debug.LogWarning($"[{name}] ВНИМАНИЕ: нет patrol-точек для '{act.location?.locationId}'. " +
+                                 "Проверьте что SceneLocation с таким id есть в сцене и активен.");
+        }
+
+        if (activityCoroutine != null) StopCoroutine(activityCoroutine);
+        activityCoroutine = StartCoroutine(RunActivity(act));
     }
 
-    private IEnumerator ExecuteActivity(ActivityInstance activity)
+    private IEnumerator RunActivity(ActivityInstance act)
     {
-        // Анимация
-        PlayActivityAnimation(activity);
+        PlayAnimation(act);
 
-        // Если нет точек патруля или агент неактивен
-        if (activity.patrolPoints.Count == 0 || agent == null || !agent.isActiveAndEnabled)
+        // Сначала идём к первой точке (или к случайной в радиусе, если точек нет)
+        Transform firstTarget = act.patrolPoints.Count > 0
+            ? act.patrolPoints[0]
+            : null;
+
+        if (firstTarget != null)
         {
-            yield return WaitForActivityEnd();
+            yield return MoveToPoint(firstTarget.position);
         }
-        else
+        else if (localWanderEnabled && !string.IsNullOrEmpty(act.location?.locationId))
         {
-            // Движение к первой точке
-            activity.currentPatrolIndex = 0;
-            currentTarget = activity.patrolPoints[0];
-
-            if (!MoveToPoint(currentTarget.position))
-            {
-                // Не удалось начать движение
-                yield return WaitForActivityEnd();
-                yield break;
-            }
-
-            // Ждем завершения активности
-            float activityStartTime = GetCachedMinuteOfDay();
-            float activityDuration = currentActivityEndTime - activityStartTime;
-
-            if (activityDuration > 0)
-            {
-                float waitStartTime = Time.time;
-                float waitDuration = activityDuration * 60f; // Конвертируем минуты в секунды
-
-                // FIX: шагаем по 0.5s вместо yield return null каждый кадр
-                float execElapsed = 0f;
-                while (execElapsed < waitDuration && !isInterrupted)
-                {
-                    float step = Mathf.Min(0.5f, waitDuration - execElapsed);
-                    yield return new WaitForSeconds(step);
-                    execElapsed += step;
-                }
-            }
+            // Нет зарегистрированных точек — идём к центру локации через NavMesh
+            // (центр — спавн-позиция NPC, если в реестре пусто; приемлемый fallback)
         }
 
-        // Завершаем активность если не прерваны
-        if (!isInterrupted)
+        if (!localWanderEnabled || act.patrolPoints.Count == 0)
         {
-            // Если это сон - генерируем новое расписание
-            if (activity.type == DailyRoutineProfile.ActivityType.Sleep)
-            {
-                GenerateScheduleForDay();
-            }
-
-            EndCurrentActivity();
+            // Просто ждём конца активности стоя
+            yield return WaitActivityEnd(act);
+            if (!isInterrupted) FinishCurrentActivity();
+            yield break;
         }
-    }
 
-    private IEnumerator WaitForActivityEnd()
-    {
-        float activityDuration = currentActivityEndTime - GetCachedMinuteOfDay();
-
-        if (activityDuration > 0)
+        // — Основной цикл: бродим между sub-точками до конца активности —
+        // currentPatrolIndex уже сброшен в BeginActivity
+        while (!isInterrupted)
         {
-            // FIX: шагаем кусками по 5s вместо yield return null каждый кадр
-            float waitDuration = activityDuration * 60f;
-            float checkStep   = Mathf.Min(5f, waitDuration / 4f);
-            float elapsed     = 0f;
+            // Проверяем, не кончилось ли время активности
+            if (IsActivityExpired(act)) break;
 
-            while (elapsed < waitDuration && !isInterrupted)
-            {
-                float step = Mathf.Min(checkStep, waitDuration - elapsed);
-                yield return new WaitForSeconds(step);
-                elapsed += step;
+            var target = act.patrolPoints[act.currentPatrolIndex];
+            if (target != null)
+                yield return MoveToPoint(target.position);
 
-                // Генерируем расписание заранее — за 30s до конца сна
-                if (!isInterrupted
-                    && currentActivity != null
-                    && currentActivity.type == DailyRoutineProfile.ActivityType.Sleep
-                    && elapsed >= waitDuration - 30f)
-                {
-                    GenerateScheduleForDay();
-                    break;
-                }
-            }
+            if (isInterrupted) yield break;
+
+            // Пауза на месте (NPC «занят делом»)
+            float pause = UnityEngine.Random.Range(
+                act.location.subPointPauseRange.x,
+                act.location.subPointPauseRange.y);
+
+            yield return WaitCancellable(pause);
+            if (isInterrupted) yield break;
+
+            // Следующая точка
+            act.currentPatrolIndex = (act.currentPatrolIndex + 1) % act.patrolPoints.Count;
         }
 
         if (!isInterrupted)
-            EndCurrentActivity();
+            FinishCurrentActivity();
     }
 
-    private void UpdatePatrol(float deltaTime)
+    /// <summary>Ждём секунд, но можем прерваться раньше по флагу isInterrupted.</summary>
+    private IEnumerator WaitCancellable(float seconds)
     {
-        if (currentActivity == null || currentActivity.patrolPoints.Count < 2 || !patrolInsideLocation)
-            return;
-
-        nextPatrolCheckTime += deltaTime;
-
-        if (nextPatrolCheckTime >= patrolCheckInterval)
+        float t = 0f;
+        while (t < seconds && !isInterrupted)
         {
-            nextPatrolCheckTime = 0f;
-
-            // Проверяем, достигли ли текущей точки
-            if (currentTarget != null && agent != null && !agent.pathPending && agent.hasPath)
-            {
-                if (agent.remainingDistance <= arrivalTolerance && agent.velocity.sqrMagnitude < 0.1f)
-                {
-                    // Переходим к следующей точке
-                    currentActivity.currentPatrolIndex = (currentActivity.currentPatrolIndex + 1) % currentActivity.patrolPoints.Count;
-                    currentTarget = currentActivity.patrolPoints[currentActivity.currentPatrolIndex];
-                    MoveToPoint(currentTarget.position);
-                }
-            }
+            t += 0.25f;
+            yield return new WaitForSeconds(0.25f);
         }
     }
 
-    private bool MoveToPoint(Vector3 destination)
+    /// <summary>Ждём конца текущей активности (в реальных секундах).</summary>
+    private IEnumerator WaitActivityEnd(ActivityInstance act)
     {
-        if (agent == null || !agent.isActiveAndEnabled)
-            return false;
+        float remainingGameMin = act.durationMinutes - (cachedGameMinute - act.startMinuteOfDay);
+        if (remainingGameMin < 0) remainingGameMin += 1440;
 
-        // Проверяем, не пытаемся ли двигаться к той же точке
-        if (Vector3.Distance(agent.destination, destination) < 0.1f && agent.hasPath)
-            return true;
+        // Конвертируем игровые минуты в реальные секунды через WorldTimeSystem
+        float realSeconds = GameMinutesToRealSeconds(remainingGameMin);
 
-        agent.isStopped = false;
-
-        // FIX: останавливаем старую — не накапливаем корутины
-        if (moveCoroutine != null) StopCoroutine(moveCoroutine);
-        moveCoroutine = StartCoroutine(MoveToPointCoroutine(destination));
-        return true;
+        yield return WaitCancellable(realSeconds);
     }
 
-    private IEnumerator MoveToPointCoroutine(Vector3 destination)
+    private bool IsActivityExpired(ActivityInstance act)
     {
-        if (agent == null || !agent.isActiveAndEnabled) yield break;
+        float now = cachedGameMinute;
+        float end = act.EndMinute;
+        float start = act.startMinuteOfDay;
 
-        NavMeshPath path = new NavMeshPath();
-        if (agent.CalculatePath(destination, path) && path.status == NavMeshPathStatus.PathComplete)
-        {
-            agent.SetPath(path);
-
-            float timeout = Time.time + pathTimeout;
-            bool reached = false;
-
-            while (Time.time < timeout && !isInterrupted && !reached)
-            {
-                if (!agent.pathPending && agent.hasPath)
-                {
-                    if (agent.remainingDistance <= arrivalTolerance && agent.velocity.sqrMagnitude < 0.1f)
-                    {
-                        reached = true;
-                        break;
-                    }
-                }
-                yield return null;
-            }
-
-            if (!reached && showDebugLogs)
-            {
-                Debug.LogWarning($"[{name}] Не удалось достичь точки за {pathTimeout} секунд");
-            }
-        }
-        else if (showDebugLogs)
-        {
-            Debug.LogWarning($"[{name}] Не удалось найти путь к {destination}");
-        }
+        if (end < start) // через полночь
+            return !(now >= start || now < end);
+        return now >= end || now < start;
     }
 
-    private void EndCurrentActivity()
+    private void FinishCurrentActivity()
     {
         if (currentActivity == null) return;
 
-        if (showDebugLogs)
-            Debug.Log($"[{name}] Завершил: {currentActivity.type}");
+        if (showDebugLogs) Debug.Log($"[{name}] Завершил: {currentActivity.type}");
 
         currentActivity = null;
-        currentTarget = null;
 
-        if (activityCoroutine != null)
-        {
-            StopCoroutine(activityCoroutine);
-            activityCoroutine = null;
-        }
-
-        // FIX: тоже чистим корутину движения
+        if (activityCoroutine != null) { StopCoroutine(activityCoroutine); activityCoroutine = null; }
         if (moveCoroutine != null) { StopCoroutine(moveCoroutine); moveCoroutine = null; }
 
         if (agent != null && agent.isActiveAndEnabled)
@@ -763,8 +483,48 @@ public class NPCDailyScheduler : MonoBehaviour
 
     #endregion
 
-    #region Interruption System
+    // ─────────────────────────────────────────────────────────────────────────
+    #region Movement
 
+    private IEnumerator MoveToPoint(Vector3 dest)
+    {
+        if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh)
+            yield break;
+
+        NavMeshPath path = new NavMeshPath();
+        bool pathFound = agent.CalculatePath(dest, path) &&
+                         path.status == NavMeshPathStatus.PathComplete;
+
+        if (!pathFound)
+        {
+            if (showDebugLogs) Debug.LogWarning($"[{name}] Нет пути к {dest}");
+            yield break;
+        }
+
+        agent.isStopped = false;
+        agent.SetPath(path);
+
+        float deadline = Time.time + pathTimeout;
+
+        while (Time.time < deadline && !isInterrupted)
+        {
+            if (!agent.pathPending && agent.hasPath &&
+                agent.remainingDistance <= arrivalTolerance)
+                yield break;
+
+            yield return new WaitForSeconds(0.15f);
+        }
+
+        if (showDebugLogs && !isInterrupted)
+            Debug.LogWarning($"[{name}] Timeout при движении к {dest}");
+    }
+
+    #endregion
+
+    // ─────────────────────────────────────────────────────────────────────────
+    #region Interruption
+
+    /// <summary>Прервать текущую активность (например, при диалоге с игроком).</summary>
     public void Interrupt()
     {
         if (isInterrupted) return;
@@ -772,308 +532,334 @@ public class NPCDailyScheduler : MonoBehaviour
         isInterrupted = true;
         interruptionStartTime = Time.time;
 
-        if (showDebugLogs)
-            Debug.Log($"[{name}] Отвлечен");
-
-        // Сохраняем текущую активность для возможного возврата
         if (currentActivity != null && resumeAfterInterruption)
         {
             interruptedActivity = currentActivity;
-
-            // Рассчитываем оставшееся время
-            float remainingTime = currentActivityEndTime - GetCachedMinuteOfDay();
-            if (remainingTime < 0) remainingTime += 1440;
-            interruptedActivityRemainingTime = Mathf.Max(0, remainingTime);
+            float remaining = currentActivityEndMinute - cachedGameMinute;
+            if (remaining < 0) remaining += 1440;
+            interruptedActivityRemainingTime = Mathf.Max(0, remaining);
         }
 
-        // Останавливаем активность
-        if (activityCoroutine != null)
-        {
-            StopCoroutine(activityCoroutine);
-            activityCoroutine = null;
-        }
+        if (activityCoroutine != null) { StopCoroutine(activityCoroutine); activityCoroutine = null; }
+        if (moveCoroutine != null) { StopCoroutine(moveCoroutine); moveCoroutine = null; }
 
-        // Останавливаем движение
         if (agent != null && agent.isActiveAndEnabled)
         {
             agent.ResetPath();
             agent.isStopped = true;
         }
 
-        currentTarget = null;
+        if (showDebugLogs) Debug.Log($"[{name}] Прерван");
     }
 
+    /// <summary>Вернуться к расписанию после прерывания.</summary>
     public void ReturnToSchedule()
     {
         if (!isInterrupted) return;
 
         isInterrupted = false;
 
-        if (showDebugLogs)
-            Debug.Log($"[{name}] Возвращается к расписанию");
-
-        // Сначала пытаемся возобновить прерванную активность
-        if (resumeAfterInterruption && interruptedActivity != null &&
+        // Пытаемся продолжить прерванную активность
+        if (resumeAfterInterruption &&
+            interruptedActivity != null &&
             interruptedActivityRemainingTime > minRemainingTimeForResume)
         {
-            var resumeActivity = CreateResumeActivity();
-            if (resumeActivity != null && resumeActivity.IsValid)
+            var resume = new ActivityInstance
             {
-                StartNewActivity(resumeActivity);
+                type = interruptedActivity.type,
+                startMinuteOfDay = (int)cachedGameMinute,
+                durationMinutes = Mathf.FloorToInt(interruptedActivityRemainingTime),
+                location = interruptedActivity.location,
+                patrolPoints = FetchPatrolPoints(interruptedActivity.location),
+            };
+
+            if (resume.IsValid)
+            {
                 interruptedActivity = null;
+                BeginActivity(resume);
                 return;
             }
         }
 
         interruptedActivity = null;
 
-        // Ищем текущую активность
-        float currentTime = GetCachedMinuteOfDay();
-        ActivityInstance nextActivity = FindCurrentActivity(currentTime);
-
-        if (nextActivity == null)
-        {
-            // Ищем следующую активность
-            nextActivity = FindNextActivity(currentTime);
-        }
-
-        if (nextActivity != null)
-        {
-            StartNewActivity(nextActivity);
-        }
+        // Иначе находим активность по расписанию
+        var current = FindCurrentActivity(cachedGameMinute);
+        if (current != null)
+            BeginActivity(current);
         else
         {
-            // Если активностей нет
             isWaitingForNextActivity = true;
-            EndCurrentActivity();
-
-            if (showDebugLogs)
-                Debug.Log($"[{name}] Нет активностей для возврата");
-
-            // Перегенерируем расписание
-            GenerateScheduleForDay();
+            if (showDebugLogs) Debug.Log($"[{name}] Нет активности для возврата, ожидает");
         }
-    }
-
-    private ActivityInstance CreateResumeActivity()
-    {
-        if (interruptedActivity == null || interruptedActivity.location == null)
-            return null;
-
-        return new ActivityInstance
-        {
-            type = interruptedActivity.type,
-            startMinuteOfDay = (int)GetCachedMinuteOfDay(),
-            durationMinutes = Mathf.FloorToInt(interruptedActivityRemainingTime),
-            location = interruptedActivity.location,
-            patrolPoints = GetPatrolPoints(
-                interruptedActivity.location.locationId,
-                Mathf.Min(2, interruptedActivity.location.maxSubPointsPerVisit)
-            ),
-            currentPatrolIndex = 0
-        };
-    }
-
-    private bool ShouldReturnFromInterruption()
-    {
-        return Time.time - interruptionStartTime > maxInterruptionTime;
     }
 
     #endregion
 
-    #region Optimization Helpers
+    // ─────────────────────────────────────────────────────────────────────────
+    #region Background Coroutines
 
-    // UpdateGameTimeCache и UpdateStuckDetection заменены корутинами GameTimeCacheLoop/StuckDetectionLoop
-
-    private void PlayActivityAnimation(ActivityInstance activity)
+    private IEnumerator TimeCacheLoop()
     {
-        if (animator == null || activity.location == null ||
-            activity.location.animations == null ||
-            activity.location.animations.Count == 0)
-            return;
+        var wait = new WaitForSeconds(GAME_TIME_CACHE_INTERVAL);
 
-        try
+        while (enabled)
         {
-            string animation = activity.location.animations[
-                UnityEngine.Random.Range(0, activity.location.animations.Count)];
+            yield return wait;
 
-            if (!string.IsNullOrEmpty(animation))
+            float newTime = GetCurrentGameMinute();
+            int newDay = GetCurrentGameDay();
+
+            cachedGameMinute = newTime;
+
+            // Смена игрового дня → перегенерировать расписание
+            if (newDay != cachedGameDay && cachedGameDay != -1)
             {
-                animator.CrossFadeInFixedTime(animation, 0.2f);
+                if (showDebugLogs) Debug.Log($"[{name}] Новый день ({newDay}), перегенерация расписания");
+                GenerateScheduleForDay();
+                FinishCurrentActivity(); // сбрасываем текущую — начнём заново по новому расписанию
+            }
+
+            cachedGameDay = newDay;
+        }
+    }
+
+    private IEnumerator StuckDetectionLoop()
+    {
+        var wait = new WaitForSeconds(STUCK_CHECK_INTERVAL);
+
+        while (enabled)
+        {
+            yield return wait;
+
+            if (agent == null || !agent.isActiveAndEnabled || !agent.hasPath || isInterrupted)
+            {
+                lastPosition = transform.position;
+                continue;
+            }
+
+            float moved = Vector3.Distance(transform.position, lastPosition);
+            lastPosition = transform.position;
+
+            if (moved < 0.05f && agent.velocity.sqrMagnitude > 0.05f && agent.remainingDistance > 1f)
+            {
+                // NPC застрял — перезапускаем путь
+                if (showDebugLogs) Debug.LogWarning($"[{name}] Застрял, перезапуск пути");
+                Vector3 dest = agent.destination;
+                agent.ResetPath();
+                agent.SetDestination(dest);
             }
         }
-        catch (System.Exception e)
-        {
-            Debug.LogWarning($"[{name}] Ошибка воспроизведения анимации: {e.Message}");
-        }
     }
 
     #endregion
 
+    // ─────────────────────────────────────────────────────────────────────────
     #region Helpers
 
-    private float GetCurrentMinuteOfDay()
+    private List<Transform> FetchPatrolPoints(DailyRoutineProfile.LocationOption loc)
     {
-        if (WorldTimeSystem.Instance == null)
+        if (loc == null)
         {
-            // Fallback для отладки
-            return (Time.time / 60f) % 1440;
+            if (showDebugLogs) Debug.LogWarning($"[{name}] FetchPatrolPoints: loc == null");
+            return new List<Transform>();
         }
 
-        try
+        if (string.IsNullOrEmpty(loc.locationId))
         {
-            return WorldTimeSystem.Instance.GetTotalGameMinutes() % 1440;
+            if (showDebugLogs) Debug.LogWarning($"[{name}] FetchPatrolPoints: locationId пустой в '{loc.locationName}'");
+            return new List<Transform>();
         }
-        catch (System.Exception e)
+
+        if (loc.maxSubPointsPerVisit <= 0)
         {
-            Debug.LogWarning($"[{name}] Ошибка получения времени: {e.Message}");
-            return (Time.time / 60f) % 1440;
+            if (showDebugLogs) Debug.LogWarning($"[{name}] FetchPatrolPoints: maxSubPointsPerVisit=0 для '{loc.locationId}'. Поставьте >= 1.");
+            return new List<Transform>();
         }
+
+        var all = LocationRegistry.GetAll(loc.locationId);
+        if (all == null || all.Count == 0)
+        {
+            if (showDebugLogs) Debug.LogWarning($"[{name}] FetchPatrolPoints: в реестре нет точек с id='{loc.locationId}'. " +
+                "Убедитесь что SceneLocation с этим id есть в сцене и GameObject активен.");
+            return new List<Transform>();
+        }
+
+        int take = Mathf.Min(maxPatrolPoints, loc.maxSubPointsPerVisit, all.Count);
+        if (take >= all.Count) return new List<Transform>(all);
+
+        // Случайная выборка без повторений
+        var indices = new List<int>(all.Count);
+        for (int i = 0; i < all.Count; i++) indices.Add(i);
+
+        var result = new List<Transform>(take);
+        for (int i = 0; i < take; i++)
+        {
+            int r = UnityEngine.Random.Range(0, indices.Count);
+            result.Add(all[indices[r]]);
+            indices.RemoveAt(r);
+        }
+        return result;
     }
 
-    private float GetCachedMinuteOfDay()
+    private DailyRoutineProfile.LocationOption PickWeightedLocation(
+        List<DailyRoutineProfile.LocationOption> locations)
     {
-        return cachedGameTime;
+        if (locations == null || locations.Count == 0) return null;
+
+        float total = 0f;
+        foreach (var l in locations) total += Mathf.Max(0f, l.weight);
+        if (total <= 0f) return locations[0];
+
+        float rnd = UnityEngine.Random.Range(0f, total);
+        float acc = 0f;
+        foreach (var l in locations)
+        {
+            acc += Mathf.Max(0f, l.weight);
+            if (rnd <= acc) return l;
+        }
+        return locations[locations.Count - 1];
     }
 
     private int RandomMinuteInWindow(int startHour, int endHour)
     {
         int start = startHour * 60;
         int end = endHour * 60;
-
         if (end <= start) end += 1440;
-
-        int chosen = UnityEngine.Random.Range(start, end);
-        return chosen % 1440;
+        return UnityEngine.Random.Range(start, end) % 1440;
     }
 
-    private DailyRoutineProfile.LocationOption PickWeightedLocation(
-        List<DailyRoutineProfile.LocationOption> locations)
+    private void PlayAnimation(ActivityInstance act)
     {
-        if (locations == null || locations.Count == 0)
-            return null;
+        if (animator == null || act.location?.animations == null ||
+            act.location.animations.Count == 0) return;
 
-        // Рассчитываем общий вес
-        float totalWeight = 0f;
-        for (int i = 0; i < locations.Count; i++)
-        {
-            if (locations[i] != null)
-                totalWeight += Mathf.Max(0f, locations[i].weight);
-        }
+        string anim = act.location.animations[
+            UnityEngine.Random.Range(0, act.location.animations.Count)];
 
-        if (totalWeight <= 0f)
-            return locations.Count > 0 ? locations[0] : null;
-
-        // Выбираем на основе весов
-        float random = UnityEngine.Random.Range(0f, totalWeight);
-        float accumulated = 0f;
-
-        for (int i = 0; i < locations.Count; i++)
-        {
-            if (locations[i] == null) continue;
-
-            accumulated += Mathf.Max(0f, locations[i].weight);
-            if (random <= accumulated)
-                return locations[i];
-        }
-
-        return locations[locations.Count - 1];
+        if (!string.IsNullOrEmpty(anim))
+            animator.CrossFadeInFixedTime(anim, 0.2f);
     }
 
-    private string FormatMinute(float minuteOfDay)
+    /// <summary>Конвертирует игровые минуты в реальные секунды через WorldTimeSystem.</summary>
+    private float GameMinutesToRealSeconds(float gameMinutes)
     {
-        int m = Mathf.FloorToInt(minuteOfDay);
-        int h = (m / 60) % 24;
-        int min = m % 60;
-        return $"{h:00}:{min:00}";
+        if (WorldTimeSystem.Instance != null)
+        {
+            try { return WorldTimeSystem.Instance.GameMinutesToRealSeconds(gameMinutes); }
+            catch { }
+        }
+        // Fallback: 1 игровая минута = 1 реальная секунда
+        return gameMinutes;
+    }
+
+    private float GetCurrentGameMinute()
+    {
+        if (WorldTimeSystem.Instance != null)
+        {
+            try { return WorldTimeSystem.Instance.GetTotalGameMinutes() % 1440; }
+            catch { }
+        }
+        return (Time.time / 60f) % 1440;
+    }
+
+    private int GetCurrentGameDay()
+    {
+        if (WorldTimeSystem.Instance != null)
+        {
+            try { return WorldTimeSystem.Instance.GetCurrentDay(); }
+            catch { }
+        }
+        return Mathf.FloorToInt(Time.time / (60f * 24f));
+    }
+
+    private string FormatMin(float m)
+    {
+        int total = Mathf.FloorToInt(m);
+        return $"{(total / 60) % 24:00}:{total % 60:00}";
     }
 
     #endregion
 
+    // ─────────────────────────────────────────────────────────────────────────
     #region Public API
 
-    public void ForceActivity(DailyRoutineProfile.ActivityType activityType, int durationMinutes = 60)
+    /// <summary>Принудительно запустить конкретную активность (например, из квеста).</summary>
+    public void ForceActivity(DailyRoutineProfile.ActivityType type, int durationMinutes = 60)
     {
         Interrupt();
+        isInterrupted = false; // форсированная активность — не прерывание
 
-        var forcedActivity = new ActivityInstance
+        var loc = PickWeightedLocation(profile?.GetLocations(type));
+        if (loc == null)
         {
-            type = activityType,
-            startMinuteOfDay = (int)GetCachedMinuteOfDay(),
-            durationMinutes = durationMinutes,
-            location = PickWeightedLocation(profile?.GetListForActivity(activityType)),
-            patrolPoints = new List<Transform>(),
-            currentPatrolIndex = 0
-        };
-
-        if (forcedActivity.location != null)
-        {
-            forcedActivity.patrolPoints = GetPatrolPoints(
-                forcedActivity.location.locationId,
-                Mathf.Min(2, forcedActivity.location.maxSubPointsPerVisit)
-            );
+            if (showDebugLogs) Debug.LogWarning($"[{name}] ForceActivity: нет локаций для {type}");
+            return;
         }
 
-        StartNewActivity(forcedActivity);
+        var act = new ActivityInstance
+        {
+            type = type,
+            startMinuteOfDay = (int)cachedGameMinute,
+            durationMinutes = durationMinutes,
+            location = loc,
+            patrolPoints = FetchPatrolPoints(loc),
+        };
+
+        BeginActivity(act);
     }
 
+    /// <summary>Перегенерировать расписание и сразу перейти к нужной активности.</summary>
     public void ForceReschedule()
     {
         GenerateScheduleForDay();
-        ReturnToSchedule();
+        FinishCurrentActivity();
+        UpdateSchedule();
     }
+
+    /// <summary>Прервать NPC (например, начался диалог).</summary>
+    public void InterruptForDialogue() => Interrupt();
+
+    /// <summary>Завершить диалог и вернуться к расписанию.</summary>
+    public void ResumeFromDialogue() => ReturnToSchedule();
 
     public string GetCurrentActivityInfo()
     {
-        if (isInterrupted)
-            return "Прервано";
+        if (isInterrupted) return "Прервано";
+        if (currentActivity == null) return isWaitingForNextActivity ? "Ожидание" : "Нет активности";
 
-        if (currentActivity == null)
-            return isWaitingForNextActivity ? "Ожидание следующей активности" : "Без активности";
-
-        float remaining = currentActivityEndTime - GetCachedMinuteOfDay();
+        float remaining = currentActivityEndMinute - cachedGameMinute;
         if (remaining < 0) remaining += 1440;
-
-        return $"{currentActivity.type} (осталось {Mathf.CeilToInt(remaining)} мин)";
+        return $"{currentActivity.type} в {currentActivity.location?.locationName ?? "?"} (осталось {Mathf.CeilToInt(remaining)} мин)";
     }
 
-    public bool IsBusy()
-    {
-        return currentActivity != null || isInterrupted;
-    }
+    public bool IsBusy() => currentActivity != null || isInterrupted;
 
     #endregion
 
-    #region Debug & Gizmos
+    // ─────────────────────────────────────────────────────────────────────────
+    #region Gizmos
 
     void OnDrawGizmosSelected()
     {
-        if (!drawGizmos || !Application.isPlaying)
-            return;
+        if (!drawGizmos || !Application.isPlaying || currentActivity == null) return;
 
-        if (currentActivity != null && currentActivity.patrolPoints != null)
+        Gizmos.color = isInterrupted ? Color.red : Color.green;
+
+        foreach (var pt in currentActivity.patrolPoints)
         {
-            Gizmos.color = isInterrupted ? Color.red : Color.green;
+            if (pt == null) continue;
+            Gizmos.DrawWireSphere(pt.position, 0.3f);
+        }
 
-            for (int i = 0; i < currentActivity.patrolPoints.Count; i++)
+        if (currentActivity.currentPatrolIndex < currentActivity.patrolPoints.Count)
+        {
+            var tgt = currentActivity.patrolPoints[currentActivity.currentPatrolIndex];
+            if (tgt != null)
             {
-                if (currentActivity.patrolPoints[i] != null)
-                {
-                    Gizmos.DrawWireSphere(currentActivity.patrolPoints[i].position, 0.3f);
-
-                    if (i == currentActivity.currentPatrolIndex)
-                    {
-                        Gizmos.color = Color.yellow;
-                        Gizmos.DrawSphere(currentActivity.patrolPoints[i].position, 0.2f);
-                        Gizmos.color = isInterrupted ? Color.red : Color.green;
-                    }
-                }
-            }
-
-            if (currentTarget != null)
-            {
-                Gizmos.color = Color.blue;
-                Gizmos.DrawLine(transform.position + Vector3.up, currentTarget.position + Vector3.up);
+                Gizmos.color = Color.yellow;
+                Gizmos.DrawLine(transform.position + Vector3.up, tgt.position + Vector3.up);
+                Gizmos.DrawSphere(tgt.position, 0.2f);
             }
         }
     }

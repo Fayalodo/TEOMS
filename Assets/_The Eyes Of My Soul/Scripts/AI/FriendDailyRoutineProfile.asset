@@ -12,23 +12,66 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85f841e599bb19a4aa8aa9ffad52c45b, type: 3}
   m_Name: FriendDailyRoutineProfile
   m_EditorClassIdentifier: 
-  wakeLocations:
-  - locationId: start
-    locationName: 
-    animations: []
-    weight: 0
-    maxSubPointsPerVisit: 0
-  workLocations:
-  - locationId: work
-    locationName: 
-    animations: []
-    weight: 0
-    maxSubPointsPerVisit: 1
-  - locationId: bed
-    locationName: 
-    animations: []
-    weight: 0
-    maxSubPointsPerVisit: 1
-  leisureLocations: []
-  socialLocations: []
-  sleepLocations: []
+  activityConfigs:
+  - type: 0
+    windowStartHour: 9
+    windowEndHour: 10
+    durationMinutes: {x: 30, y: 60}
+    locations:
+    - locationId: bed
+      locationName: bed
+      animations: []
+      weight: 0
+      maxSubPointsPerVisit: 1
+      subPointPauseRange: {x: 0, y: 0}
+  - type: 1
+    windowStartHour: 10
+    windowEndHour: 13
+    durationMinutes: {x: 180, y: 300}
+    locations:
+    - locationId: work
+      locationName: work
+      animations: []
+      weight: 0
+      maxSubPointsPerVisit: 2
+      subPointPauseRange: {x: 30, y: 60}
+  - type: 1
+    windowStartHour: 10
+    windowEndHour: 15
+    durationMinutes: {x: 20, y: 60}
+    locations:
+    - locationId: work2
+      locationName: 
+      animations: []
+      weight: 0
+      maxSubPointsPerVisit: 3
+      subPointPauseRange: {x: 30, y: 60}
+  - type: 3
+    windowStartHour: 15
+    windowEndHour: 21
+    durationMinutes: {x: 120, y: 300}
+    locations:
+    - locationId: social
+      locationName: social
+      animations: []
+      weight: 0
+      maxSubPointsPerVisit: 2
+      subPointPauseRange: {x: 30, y: 60}
+  - type: 4
+    windowStartHour: 22
+    windowEndHour: 6
+    durationMinutes: {x: 360, y: 480}
+    locations: []
+  dayArchetypes:
+  - name: WorkDay
+    weight: 3
+    sequence: 0000000001000000010000000200000004000000
+    maxRepeatsPerActivity: 0
+  - name: LazyDay
+    weight: 1
+    sequence: 00000000020000000200000004000000
+    maxRepeatsPerActivity: 0
+  - name: SocialDay
+    weight: 1
+    sequence: 0000000001000000030000000200000004000000
+    maxRepeatsPerActivity: 0

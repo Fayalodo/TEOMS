@@ -16,7 +16,8 @@ MonoBehaviour:
   displayName: "\u0411\u044B\u0441\u0442\u0440\u044B\u0439 \u043C\u0435\u0447"
   description: 
   icon: {fileID: 21300000, guid: ecbeb20808597074294826d4df16cbb3, type: 3}
-  worldPrefab: {fileID: 0}
+  worldPrefab: {fileID: 3689515951906905501, guid: 52526bede0428594ca4e1a269d896f68,
+    type: 3}
   category: 1
   stackable: 1
   maxStack: 99

@@ -10,6 +10,8 @@ public class InventoryUI : MonoBehaviour
     public Inventory inventory;
     public GameObject slotPrefab;
     public Transform contentParent;
+    [Tooltip("Transform игрока — нужен для спавна дропа при правом клике на слоте.")]
+    public Transform playerTransform;
 
     [Header("UI Options")]
     public bool showEmptySlots = true;
@@ -46,6 +48,10 @@ public class InventoryUI : MonoBehaviour
         if (inventory == null) Debug.LogError("Inventory not assigned to InventoryUI.");
         if (slotPrefab == null) Debug.LogError("Slot prefab not assigned.");
         if (contentParent == null) Debug.LogError("Content parent not assigned.");
+
+        // Если не назначен вручную — берём Transform с того же объекта что и Inventory
+        if (playerTransform == null && inventory != null)
+            playerTransform = inventory.transform;
 
         inventory.OnInventoryChanged.AddListener(RefreshAllSlots);
         inventory.OnItemAdded += OnItemChanged;
@@ -276,14 +282,14 @@ public class InventoryUI : MonoBehaviour
             }
         }
 
-        ui.Setup(slotIndex, data, inventory, true, inventoryIndex);
+        ui.Setup(slotIndex, data, inventory, true, inventoryIndex, playerTransform);
         ui.gameObject.SetActive(true);
     }
 
     private void SetupInventorySlot(InventorySlotUI ui, int slotIndex)
     {
         var data = inventory.Items[slotIndex];
-        ui.Setup(slotIndex, data, inventory, false, slotIndex);
+        ui.Setup(slotIndex, data, inventory, false, slotIndex, playerTransform);
         ui.gameObject.SetActive(showEmptySlots || !data.IsEmpty);
     }
 

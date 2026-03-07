@@ -1,8 +1,7 @@
-using UnityEngine;
+п»їusing UnityEngine;
 
 /// <summary>
-/// Компонент для предмета в мире. Регистрируется в PickupManager и предоставляет API для попытки подбора.
-/// Поддерживает подсветку и автоподбор при близком нахождении игрока.
+/// РџСЂРµРґРјРµС‚ РІ РјРёСЂРµ. Р РµРіРёСЃС‚СЂРёСЂСѓРµС‚СЃСЏ РІ PickupManager, РїРѕРґРґРµСЂР¶РёРІР°РµС‚ РїРѕРґСЃРІРµС‚РєСѓ Рё РїРѕРґР±РѕСЂ.
 /// </summary>
 [RequireComponent(typeof(Collider))]
 public class ItemPickup : MonoBehaviour
@@ -11,115 +10,58 @@ public class ItemPickup : MonoBehaviour
     public ItemDefinition item;
     public int amount = 1;
 
-    [Header("Pickup settings")]
-    [Tooltip("Если true — при достижении autoPickupDistance предмет будет автоматически подобран (если хватает места).")]
+    [Header("Pickup Settings")]
+    [Tooltip("Р•СЃР»Рё true вЂ” РїСЂРµРґРјРµС‚ РїРѕРґР±РёСЂР°РµС‚СЃСЏ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё РїСЂРё РїСЂРёР±Р»РёР¶РµРЅРёРё.")]
     public bool autoPickup = false;
-    [Tooltip("Дистанция для автоподбора (м).")]
+    [Tooltip("Р”РёСЃС‚Р°РЅС†РёСЏ Р°РІС‚РѕРїРѕРґР±РѕСЂР° (Рј).")]
     public float autoPickupDistance = 0.8f;
 
     [Header("Visual")]
-    [Tooltip("Цвет подсветки, когда предмет является текущей целью.")]
+    [Tooltip("Р¦РІРµС‚ РїРѕРґСЃРІРµС‚РєРё РїСЂРё РЅР°РІРµРґРµРЅРёРё.")]
     public Color highlightColor = Color.yellow;
-    [Tooltip("Если объект имеет Renderer — будет использоваться изменение материала (емиссия) для подсветки).")]
+    [Tooltip("Renderers РєРѕС‚РѕСЂС‹Рµ Р±СѓРґСѓС‚ РїРѕРґСЃРІРµС‡РёРІР°С‚СЊСЃСЏ.")]
     public Renderer[] renderersToHighlight;
 
-    // внутреннее
-    Color[] originalColors;
+    // MaterialPropertyBlock РЅРµ СЃРѕР·РґР°С‘С‚ РєРѕРїРёРё РјР°С‚РµСЂРёР°Р»Р° вЂ” РЅРµС‚ СѓС‚РµС‡РєРё РїР°РјСЏС‚Рё
+    private MaterialPropertyBlock propBlock;
+    private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
 
     void Awake()
     {
-        // сохранить оригинальные цвета (если есть)
-        if (renderersToHighlight != null && renderersToHighlight.Length > 0)
-        {
-            originalColors = new Color[renderersToHighlight.Length];
-            for (int i = 0; i < renderersToHighlight.Length; i++)
-            {
-                var r = renderersToHighlight[i];
-                if (r != null && r.material.HasProperty("_Color"))
-                    originalColors[i] = r.material.GetColor("_Color");
-                else
-                    originalColors[i] = Color.white;
-            }
-        }
-
-        // убедимся, что коллайдер триггер (по желанию)
+        propBlock = new MaterialPropertyBlock();
         var col = GetComponent<Collider>();
-        if (!col.isTrigger)
-            col.isTrigger = true;
+        if (!col.isTrigger) col.isTrigger = true;
     }
 
-    void OnEnable()
-    {
-        PickupManager.RegisterPickup(this);
-    }
-
-    void OnDisable()
-    {
-        PickupManager.UnregisterPickup(this);
-    }
+    void OnEnable() => PickupManager.RegisterPickup(this);
+    void OnDisable() => PickupManager.UnregisterPickup(this);
 
     /// <summary>
-    /// Попытаться подобрать предмет в указанном инвентаре.
-    /// Вернёт true, если добавлено (и предмет удалён / считать подобранным).
-    /// Обработка (удаление/дезактивация) должна быть выполнена вызывающим (PlayerPickupController обычно удаляет).
+    /// Р”РѕР±Р°РІР»СЏРµС‚ РїСЂРµРґРјРµС‚ РІ РёРЅРІРµРЅС‚Р°СЂСЊ. Р”РµР°РєС‚РёРІР°С†РёСЋ/СѓРЅРёС‡С‚РѕР¶РµРЅРёРµ РѕР±СЉРµРєС‚Р° РґРµР»Р°РµС‚ РІС‹Р·С‹РІР°СЋС‰РёР№.
     /// </summary>
     public bool TryPickup(Inventory inv, int amountToPick = -1)
     {
         if (inv == null || item == null) return false;
         int toPick = amountToPick <= 0 ? amount : Mathf.Min(amountToPick, amount);
-        bool ok = inv.TryAddItem(item, toPick);
-        if (ok)
-        {
-            // можно воспроизвести звук/эффект тут
-            return true;
-        }
-        return false;
+        return inv.TryAddItem(item, toPick);
     }
 
-    /// <summary>
-    /// Установить визуальную подсветку для этого предмета (например, когда это текущая цель).
-    /// </summary>
+    /// <summary>Р’РєР»СЋС‡Р°РµС‚/РІС‹РєР»СЋС‡Р°РµС‚ РїРѕРґСЃРІРµС‚РєСѓ С‡РµСЂРµР· MaterialPropertyBlock (Р±РµР· СѓС‚РµС‡РєРё РїР°РјСЏС‚Рё).</summary>
     public void SetHighlight(bool on)
     {
         if (renderersToHighlight == null || renderersToHighlight.Length == 0) return;
-        for (int i = 0; i < renderersToHighlight.Length; i++)
-        {
-            var r = renderersToHighlight[i];
-            if (r == null) continue;
-            if (on)
-            {
-                // если материал поддерживает эмиссию — включим её
-                if (r.material.HasProperty("_EmissionColor"))
-                {
-                    r.material.EnableKeyword("_EMISSION");
-                    r.material.SetColor("_EmissionColor", highlightColor);
-                }
-                else if (r.material.HasProperty("_Color"))
-                {
-                    r.material.SetColor("_Color", highlightColor);
-                }
-            }
-            else
-            {
-                // вернуть оригинал
-                if (r.material.HasProperty("_EmissionColor"))
-                {
-                    r.material.SetColor("_EmissionColor", originalColors[i] * 0f);
-                    r.material.DisableKeyword("_EMISSION");
-                }
-                else if (r.material.HasProperty("_Color"))
-                {
-                    r.material.SetColor("_Color", originalColors[i]);
-                }
-            }
-        }
-    }
 
-    /// <summary>
-    /// Вспомогательный: расстояние от позиции до этого игрового объекта (до позиции transform.position).
-    /// </summary>
-    public float DistanceTo(Vector3 pos)
-    {
-        return Vector3.Distance(transform.position, pos);
+        foreach (var r in renderersToHighlight)
+        {
+            if (r == null) continue;
+
+            r.GetPropertyBlock(propBlock);
+            propBlock.SetColor(EmissionColorId, on ? highlightColor : Color.black);
+            r.SetPropertyBlock(propBlock);
+
+            // _EMISSION keyword РЅР° sharedMaterial вЂ” РЅРµ С‚СЂРѕРіР°РµС‚ РёРЅСЃС‚Р°РЅСЃС‹
+            if (on) r.sharedMaterial.EnableKeyword("_EMISSION");
+            else r.sharedMaterial.DisableKeyword("_EMISSION");
+        }
     }
 }

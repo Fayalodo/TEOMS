@@ -74,6 +74,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
     private int slotIndex;
     private InventoryItem data;
     private Inventory inventory;
+    private Transform playerTransform; // для спавна дропа рядом с игроком
     private AudioSource audioSource;
 
     private Coroutine highlightCoroutine;
@@ -138,7 +139,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
             animator.SetTrigger(trigger);
     }
 
-    public void Setup(int index, InventoryItem itemData, Inventory inv, bool isQuickPanel = false, int inventorySourceIdx = -1)
+    public void Setup(int index, InventoryItem itemData, Inventory inv, bool isQuickPanel = false, int inventorySourceIdx = -1, Transform player = null)
     {
         if (inventory != null)
         {
@@ -152,6 +153,7 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
         inventory = inv;
         isQuickPanelSlot = isQuickPanel;
         inventorySourceIndex = inventorySourceIdx;
+        playerTransform = player;
 
         // ВАЖНО: для быстрой панели данные берутся из основного инвентаря по inventorySourceIndex
         if (isQuickPanelSlot && inventory != null && inventorySourceIndex >= 0 && inventorySourceIndex < inventory.Items.Count)
@@ -482,16 +484,22 @@ public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnte
     {
         if (eventData.button == PointerEventData.InputButton.Right)
         {
-            if (inventory != null && data != null && !data.IsEmpty)
+            if (inventory == null || data == null || data.IsEmpty) return;
+
+            int targetSlot = (isQuickPanelSlot && inventorySourceIndex >= 0)
+                ? inventorySourceIndex
+                : slotIndex;
+
+            // Если есть Transform игрока — выбрасываем предмет в мир
+            if (playerTransform != null)
             {
-                if (isQuickPanelSlot && inventorySourceIndex >= 0)
-                {
-                    inventory.RemoveItemAt(inventorySourceIndex, 1, ItemSource.Other);
-                }
-                else if (!isQuickPanelSlot)
-                {
-                    inventory.RemoveItemAt(slotIndex, 1, ItemSource.Other);
-                }
+                ItemDropHelper.Drop(inventory, targetSlot,
+                    playerTransform.position, playerTransform.forward);
+            }
+            else
+            {
+                // Fallback: просто убрать из инвентаря без спавна
+                inventory.RemoveItemAt(targetSlot, 1, ItemSource.Other);
             }
         }
     }

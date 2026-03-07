@@ -251,8 +251,20 @@ public class WorldTimeSystem : MonoBehaviour
     // В конец WorldTimeSystem.cs перед #if UNITY_EDITOR
     public float GetTotalGameMinutes()
     {
-        // FIX: day начинается с 1, поэтому вычитаем 1 — иначе первый день даёт лишние 1440 минут
+        // day начинается с 1, поэтому вычитаем 1 — иначе первый день даёт лишние 1440 минут
         return (day - 1) * 24 * 60 + hour * 60 + minute + (timer / realSecondsPerGameMinute);
+    }
+
+    /// <summary>Возвращает номер текущего игрового дня (начиная с 0).</summary>
+    public int GetCurrentDay() => day - 1;
+
+    /// <summary>
+    /// Конвертирует игровые минуты в реальные секунды с учётом текущего timeScale.
+    /// Используется в NPCDailyScheduler для корректного ожидания.
+    /// </summary>
+    public float GameMinutesToRealSeconds(float gameMinutes)
+    {
+        return gameMinutes * realSecondsPerGameMinute / timeScale;
     }
 
 #if UNITY_EDITOR

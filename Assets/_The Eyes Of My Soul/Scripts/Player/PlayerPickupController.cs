@@ -2,50 +2,45 @@
 using UnityEngine.Events;
 
 /// <summary>
-/// Обновлённый PlayerPickupController:
-/// - создаёт WorldPickupLabel над текущей целью (если задан префаб + uiCanvas)
-/// - вызывает CornerNotificationUI при появлении новой цели (и при успешном подборе)
-/// - оставляет прежнюю функциональность (hold-to-pickup, автоподбор)
+/// Управляет подбором предметов игроком: поиск ближайшего, подсветка, UI, ручной/авто/hold подбор.
 /// </summary>
 public class PlayerPickupController : MonoBehaviour
 {
     [Header("References")]
-    public Inventory inventory; // можно назначить в инспекторе (если не назначен — попробует найти в children)
+    public Inventory inventory;
     public PickupPromptUI promptUI;
 
-    [Header("World label / corner notification")]
-    [Tooltip("Префаб метки над предметом (должен содержать WorldPickupLabel)")]
+    [Header("World Label / Corner Notification")]
+    [Tooltip("Префаб метки над предметом (должен содержать WorldPickupLabel).")]
     public GameObject worldLabelPrefab;
-    [Tooltip("Canvas, в который будет помещена worldLabelPrefab (обычно Screen Space - Overlay или Screen Space - Camera).")]
+    [Tooltip("Canvas для worldLabelPrefab.")]
     public Canvas uiCanvas;
-    [Tooltip("Corner notification UI (опционально). Можно использовать CornerNotificationUI.Instance, если он есть на сцене.")]
+    [Tooltip("Corner notification UI (опционально).")]
     public CornerNotificationUI cornerNotificationUI;
 
     [Header("Interaction")]
     public KeyCode interactKey = KeyCode.E;
-    public float interactRange = 2.0f; // макс. дистанция взаимодействия
-    [Tooltip("Дистанция, внутри которой предмет автоматически подбирается (если ItemPickup.autoPickup=true)")]
+    public float interactRange = 2.0f;
+    [Tooltip("Дистанция автоподбора (если ItemPickup.autoPickup = true).")]
     public float autoPickupRange = 0.8f;
 
-    [Header("Hold to Pickup (опционально)")]
-    [Tooltip("Если true — нужно удерживать кнопку interactKey durationBeforePickup секунд")]
+    [Header("Hold to Pickup")]
+    [Tooltip("Нужно ли удерживать кнопку для подбора.")]
     public bool holdToPickup = false;
-    public float durationBeforePickup = 0.6f;
+    public float holdDuration = 0.6f;
 
-    [Header("Events (опционально)")]
+    [Header("Performance")]
+    [Tooltip("Как часто (сек) искать новую цель. 0 = каждый кадр.")]
+    public float searchInterval = 0.1f;
+
+    [Header("Events")]
     public UnityEvent<ItemPickup> OnPickupSuccess;
     public UnityEvent<ItemPickup> OnPickupFailed;
 
-    // внутренние состояния
     private ItemPickup currentTarget;
-    private float holdTimer = 0f;
-
-    // Instance of world label
+    private float holdTimer;
+    private float searchTimer;
     private WorldPickupLabel currentWorldLabel;
-
-    // to avoid spamming corner notification on every frame when target unchanged
-    private float lastCornerNotifyTime = -10f;
-    private float cornerNotifyCooldown = 1.0f;
 
     void Start()
     {
@@ -58,80 +53,96 @@ public class PlayerPickupController : MonoBehaviour
 
     void Update()
     {
-        // найти лучшую цель
-        var best = PickupManager.GetBestPickup(transform.position, interactRange);
-
-        // если цель изменилась — обновить подсветку, UI и world label
-        if (best != currentTarget)
+        // Поиск цели с интервалом — не каждый кадр
+        searchTimer -= Time.deltaTime;
+        if (searchTimer <= 0f)
         {
-            if (currentTarget != null) currentTarget.SetHighlight(false);
-            currentTarget = best;
-            if (currentTarget != null)
-            {
-                currentTarget.SetHighlight(true);
-                // Create world label if prefab and canvas provided
-                CreateOrUpdateWorldLabel();
-            }
-            else
-            {
-                DestroyCurrentWorldLabel();
-            }
-        }
-        else
-        {
-            // если цель осталась, обновим текст метки (например, если amount поменялся)
-            if (currentWorldLabel != null && currentTarget != null)
-            {
-                currentWorldLabel.AttachTo(currentTarget, Camera.main); // обновляет текст и камеру
-            }
+            searchTimer = searchInterval;
+            UpdateTarget(PickupManager.GetBestPickup(transform.position, interactRange));
         }
 
-        // обновить UI-информацию
-        if (currentTarget != null)
+        if (currentTarget == null)
         {
-            float dist = currentTarget.DistanceTo(transform.position);
-            promptUI?.Show(currentTarget.item.displayName, currentTarget.amount, dist, interactKey);
-
-            // автоподбор если включён в pickup и в пределах autoPickupDistance
-            if (currentTarget.autoPickup && dist <= Mathf.Min(autoPickupRange, currentTarget.autoPickupDistance))
-            {
-                TryPickupCurrent();
-            }
-            else
-            {
-                // обработка ручного подбора
-                if (holdToPickup)
-                {
-                    if (Input.GetKey(interactKey))
-                    {
-                        holdTimer += Time.deltaTime;
-                        promptUI?.SetProgress(Mathf.Clamp01(holdTimer / durationBeforePickup));
-                        if (holdTimer >= durationBeforePickup)
-                        {
-                            TryPickupCurrent();
-                            holdTimer = 0f;
-                        }
-                    }
-                    else
-                    {
-                        holdTimer = 0f;
-                        promptUI?.SetProgress(0f);
-                    }
-                }
-                else
-                {
-                    if (Input.GetKeyDown(interactKey))
-                    {
-                        TryPickupCurrent();
-                    }
-                }
-            }
-        }
-        else
-        {
-            // нет цели
             promptUI?.Hide();
             holdTimer = 0f;
+            return;
+        }
+
+        float dist = Vector3.Distance(transform.position, currentTarget.transform.position);
+        promptUI?.Show(currentTarget.item.displayName, currentTarget.amount, dist, interactKey);
+
+        // Автоподбор
+        if (currentTarget.autoPickup && dist <= Mathf.Min(autoPickupRange, currentTarget.autoPickupDistance))
+        {
+            TryPickupCurrent();
+            return;
+        }
+
+        // Ручной подбор
+        if (holdToPickup)
+        {
+            if (Input.GetKey(interactKey))
+            {
+                holdTimer += Time.deltaTime;
+                promptUI?.SetProgress(Mathf.Clamp01(holdTimer / holdDuration));
+                if (holdTimer >= holdDuration) { TryPickupCurrent(); holdTimer = 0f; }
+            }
+            else
+            {
+                holdTimer = 0f;
+                promptUI?.SetProgress(0f);
+            }
+        }
+        else if (Input.GetKeyDown(interactKey))
+        {
+            TryPickupCurrent();
+        }
+    }
+
+    private void UpdateTarget(ItemPickup newTarget)
+    {
+        if (newTarget == currentTarget) return;
+
+        // Убираем подсветку со старой цели
+        if (currentTarget != null) currentTarget.SetHighlight(false);
+
+        currentTarget = newTarget;
+
+        if (currentTarget != null)
+        {
+            currentTarget.SetHighlight(true);
+            CreateOrUpdateWorldLabel();
+        }
+        else
+        {
+            DestroyWorldLabel();
+        }
+    }
+
+    private void TryPickupCurrent()
+    {
+        if (currentTarget == null) return;
+
+        bool ok = currentTarget.TryPickup(inventory);
+
+        if (ok)
+        {
+            OnPickupSuccess?.Invoke(currentTarget);
+
+            string msg = currentTarget.amount > 1
+                ? $"Подобрано: {currentTarget.item.displayName} x{currentTarget.amount}"
+                : $"Подобрано: {currentTarget.item.displayName}";
+            cornerNotificationUI?.Show(msg, 1.8f);
+
+            Destroy(currentTarget.gameObject);
+            currentTarget = null;
+            promptUI?.Hide();
+            DestroyWorldLabel();
+        }
+        else
+        {
+            OnPickupFailed?.Invoke(currentTarget);
+            cornerNotificationUI?.Show("Невозможно подобрать: инвентарь полон", 2f);
         }
     }
 
@@ -141,7 +152,6 @@ public class PlayerPickupController : MonoBehaviour
 
         if (currentWorldLabel != null)
         {
-            // если уже существует, просто прикрепим его
             currentWorldLabel.AttachTo(currentTarget, Camera.main);
             return;
         }
@@ -150,62 +160,23 @@ public class PlayerPickupController : MonoBehaviour
         currentWorldLabel = go.GetComponent<WorldPickupLabel>();
         if (currentWorldLabel == null)
         {
-            Debug.LogError("worldLabelPrefab не содержит WorldPickupLabel компонента.");
+            Debug.LogError("[PlayerPickupController] worldLabelPrefab не содержит WorldPickupLabel.");
             Destroy(go);
             return;
         }
         currentWorldLabel.AttachTo(currentTarget, Camera.main);
     }
 
-    private void DestroyCurrentWorldLabel()
+    private void DestroyWorldLabel()
     {
-        if (currentWorldLabel != null)
-        {
-            // помечаем target = null чтобы WorldPickupLabel плавно исчез
-            currentWorldLabel.AttachTo(null, null);
-            currentWorldLabel = null;
-        }
+        if (currentWorldLabel == null) return;
+        currentWorldLabel.AttachTo(null, null);
+        currentWorldLabel = null;
     }
 
-    private void TryPickupCurrent()
+    void OnDisable()
     {
-        if (currentTarget == null) return;
-        bool ok = currentTarget.TryPickup(inventory);
-        if (ok)
-        {
-            OnPickupSuccess?.Invoke(currentTarget);
-
-            // Показываем уведомление с количеством
-            if (cornerNotificationUI != null)
-            {
-                string msg = $"Подобрано: {currentTarget.item.displayName}";
-                if (currentTarget.amount > 1)
-                    msg += $" x{currentTarget.amount}";
-                cornerNotificationUI.Show(msg, 1.8f);
-            }
-
-            // Уничтожаем объект в мире
-            if (currentTarget != null && currentTarget.gameObject != null)
-                Destroy(currentTarget.gameObject);
-
-            currentTarget = null;
-            promptUI?.Hide();
-            DestroyCurrentWorldLabel();
-        }
-        else
-        {
-            OnPickupFailed?.Invoke(currentTarget);
-            // можно показать сообщение: инвентарь полон
-            if (cornerNotificationUI != null)
-                cornerNotificationUI.Show("Невозможно подобрать: инвентарь полон или превышен вес", 2f);
-            Debug.Log("Не удалось подобрать предмет (инвентарь полон или превышен вес).");
-        }
-    }
-
-    private void OnDisable()
-    {
-        if (currentTarget != null)
-            currentTarget.SetHighlight(false);
-        DestroyCurrentWorldLabel();
+        if (currentTarget != null) currentTarget.SetHighlight(false);
+        DestroyWorldLabel();
     }
 }
