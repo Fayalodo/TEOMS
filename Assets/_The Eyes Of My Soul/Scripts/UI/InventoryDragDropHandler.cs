@@ -107,13 +107,29 @@ public class InventoryDragDropHandler : MonoBehaviour
             var results = new List<RaycastResult>();
             EventSystem.current.RaycastAll(pointerData, results);
 
+            LootDragSlot lootTarget = null;
+
             foreach (var result in results)
             {
-                targetSlot = result.gameObject.GetComponent<InventorySlotUI>();
-                if (targetSlot != null) break;
+                if (targetSlot == null)
+                    targetSlot = result.gameObject.GetComponent<InventorySlotUI>();
+                if (lootTarget == null)
+                    lootTarget = result.gameObject.GetComponent<LootDragSlot>();
+                if (targetSlot != null && lootTarget != null) break;
             }
 
-            if (targetSlot != null && targetSlot != sourceSlot)
+            // Drag из обычного инвентаря → в лут-слот
+            if (lootTarget != null && sourceSlot != null)
+            {
+                InventoryUI sourceUI = sourceSlot.GetComponentInParent<InventoryUI>();
+                if (sourceUI != null && !sourceUI.isQuickPanel)
+                {
+                    var lootUI = Object.FindAnyObjectByType<LootUI>();
+                    if (lootUI != null)
+                        lootUI.DropFromInventory(sourceUI.inventory, sourceInventoryIndex, lootTarget);
+                }
+            }
+            else if (targetSlot != null && targetSlot != sourceSlot)
                 PerformDragDrop();
         }
 
@@ -140,6 +156,16 @@ public class InventoryDragDropHandler : MonoBehaviour
         // FIX: кешируем один раз
         InventoryUI sourceUI = sourceSlot.GetComponentInParent<InventoryUI>();
         InventoryUI targetUI = targetSlot.GetComponentInParent<InventoryUI>();
+
+        // Случай: drag из лут-слота (LootDragSlot) в обычный слот инвентаря
+        LootDragSlot lootDrag = sourceSlot.GetComponent<LootDragSlot>();
+        if (lootDrag != null && targetUI != null)
+        {
+            var lootUI = Object.FindAnyObjectByType<LootUI>();
+            if (lootUI != null)
+                lootUI.Drop(lootDrag, targetSlot.SlotIndex, targetUI.inventory);
+            return;
+        }
 
         // FIX: защита от лут-слотов — у них нет InventoryUI родителя
         if (sourceUI == null || targetUI == null) return;
@@ -261,7 +287,7 @@ public class InventoryDragDropHandler : MonoBehaviour
             // FIX: свап через MoveItem если оба инвентаря одинаковые — иначе через temp
             // сохраняем данные до удаления
             var tempItem = targetItem;
-            int tempQty  = targetItem.quantity;
+            int tempQty = targetItem.quantity;
 
             targetInv.RemoveItemAt(targetIndex, tempQty, ItemSource.Other, showNotification: false);
 

@@ -2,8 +2,8 @@ using UnityEngine;
 
 public class InventoryToggle : MonoBehaviour
 {
-    public GameObject inventoryPanel; // твой InventoryPanel
-    public KeyCode toggleKey = KeyCode.I; // кнопка открытия
+    public GameObject inventoryPanel;
+    public KeyCode toggleKey = KeyCode.I;
 
     private bool isOpen = false;
 
@@ -19,6 +19,11 @@ public class InventoryToggle : MonoBehaviour
         {
             isOpen = !isOpen;
             inventoryPanel.SetActive(isOpen);
+        }
+        else if (isOpen && Input.GetKeyDown(KeyCode.Escape))
+        {
+            isOpen = false;
+            inventoryPanel.SetActive(false);
         }
     }
 }
