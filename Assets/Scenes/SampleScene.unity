@@ -1420,6 +1420,11 @@ MonoBehaviour:
     type: 3}
   typewriterSpeed: 40
   reputationText: {fileID: 0}
+  hintsEnabled: 1
+  showEffectPreviews: 1
+  effectPositiveColor: {r: 0.3, g: 0.9, b: 0.4, a: 1}
+  effectNegativeColor: {r: 0.95, g: 0.35, b: 0.35, a: 1}
+  hintRequirementColor: {r: 0.7, g: 0.7, b: 0.2, a: 1}
 --- !u!1 &223017673
 GameObject:
   m_ObjectHideFlags: 0
@@ -1871,7 +1876,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 1107, y: -2}
+  m_AnchoredPosition: {x: 1107, y: -1.999939}
   m_SizeDelta: {x: 1101, y: -979.55066}
   m_Pivot: {x: 1, y: 1}
 --- !u!114 &267155780
@@ -7014,7 +7019,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::DialogueAgent
   dialogueGraph: {fileID: 11400000, guid: 26e54f5a3eb54be46a78278f592ea7bc, type: 2}
   defaultPortrait: {fileID: -1764640790, guid: e794fd78bbd84874899ad0e8be1c11d9, type: 3}
-  startingReputation: 0
+  startingReputation: 10
   interactionRange: 3
   onDialogueStarted:
     m_PersistentCalls:
@@ -7057,6 +7062,50 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KnockbackReceiver
   forceMultiplier: 5
   drag: 25
+--- !u!1 &1041763243
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1041763245}
+  - component: {fileID: 1041763244}
+  m_Layer: 0
+  m_Name: QuestManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1041763244
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1041763243}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d959212b553e9f146809c8fb89ef5c18, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::QuestManager
+--- !u!4 &1041763245
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1041763243}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 19.38, y: 0.76, z: -1.615}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1109743694
 GameObject:
   m_ObjectHideFlags: 0
@@ -7195,6 +7244,7 @@ GameObject:
   - component: {fileID: 1120369932}
   - component: {fileID: 1120369934}
   - component: {fileID: 1120369935}
+  - component: {fileID: 1120369936}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -7695,6 +7745,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KnockbackReceiver
   forceMultiplier: 1
   drag: 10
+--- !u!114 &1120369936
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1120369914}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b52962f5881b46148906721a2998d388, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerRef
 --- !u!1 &1137204098
 GameObject:
   m_ObjectHideFlags: 0
@@ -14754,3 +14816,4 @@ SceneRoots:
   - {fileID: 1759564042}
   - {fileID: 419077971}
   - {fileID: 198018825}
+  - {fileID: 1041763245}

@@ -49,7 +49,7 @@ public class DialogueGraphEditor : EditorWindow
 
         // Правая панель
         var rightPanel = new VisualElement();
-        rightPanel.style.width = 280;
+        rightPanel.style.width = 500;
         rightPanel.style.backgroundColor = new StyleColor(new Color(0.18f, 0.18f, 0.18f));
         rightPanel.style.borderLeftWidth = 1;
         rightPanel.style.borderLeftColor = new StyleColor(new Color(0.1f, 0.1f, 0.1f));

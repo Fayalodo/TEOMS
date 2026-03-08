@@ -17,18 +17,49 @@ MonoBehaviour:
     speaker: "\u0421\u0442\u0440\u0430\u0436"
     text: "\u041F\u0440\u0438\u0432\u0435\u0442\u0438\u043A\u0438 :3"
     choices:
-    - text: "\u0419\u041E\u041E\u041E\u041E"
+    - text: "\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439, \u043D\u0443\u0436\u043D\u0430
+        \u043F\u043E\u043C\u043E\u0449\u044C?"
       nextNodeGuid: e3db328e-7632-444c-827a-951ddceabcd9
-      conditions: []
+      conditions:
+      - type: 9
+        key: 
+        intValue: 0
+        item: {fileID: 0}
+        quest: {fileID: 11400000, guid: 2af644e876d62ee4196d6b3aa82389bd, type: 2}
       effects: []
       showIfFailed: 0
-    - text: "\u041E\u0439 \u0431\u043B\u044F\u044F\u044F"
-      nextNodeGuid: 42f14f39-5131-4f06-aaa6-27286e149475
-      conditions: []
-      effects: []
+    - text: "\u0412\u043E\u0442 \u0442\u0432\u043E\u0439 \u0433\u0440\u0438\u0431"
+      nextNodeGuid: dd9f7b04-d6df-47fa-b7ef-faad08f3622a
+      conditions:
+      - type: 6
+        key: 
+        intValue: 0
+        item: {fileID: 0}
+        quest: {fileID: 11400000, guid: 2af644e876d62ee4196d6b3aa82389bd, type: 2}
+      - type: 4
+        key: 
+        intValue: 0
+        item: {fileID: 11400000, guid: bba96710a8bc32f4e98cfb1af2a9d086, type: 2}
+        quest: {fileID: 11400000, guid: 2af644e876d62ee4196d6b3aa82389bd, type: 2}
+      effects:
+      - type: 6
+        key: 
+        intValue: 0
+        item: {fileID: 11400000, guid: bba96710a8bc32f4e98cfb1af2a9d086, type: 2}
+        quest: {fileID: 0}
+      - type: 9
+        key: 
+        intValue: 0
+        item: {fileID: 11400000, guid: bba96710a8bc32f4e98cfb1af2a9d086, type: 2}
+        quest: {fileID: 11400000, guid: 2af644e876d62ee4196d6b3aa82389bd, type: 2}
+      - type: 4
+        key: 
+        intValue: 5
+        item: {fileID: 11400000, guid: bba96710a8bc32f4e98cfb1af2a9d086, type: 2}
+        quest: {fileID: 11400000, guid: 2af644e876d62ee4196d6b3aa82389bd, type: 2}
       showIfFailed: 0
-    - text: "\u043D\u0443 \u043D\u0443.."
-      nextNodeGuid: e3db328e-7632-444c-827a-951ddceabcd9
+    - text: "\u0417\u0430\u043A\u043E\u043D\u0447\u0438\u0442\u044C \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440"
+      nextNodeGuid: 
       conditions: []
       effects: []
       showIfFailed: 0
@@ -38,34 +69,18 @@ MonoBehaviour:
     editorPosition: {x: 6, y: 27}
   - guid: e3db328e-7632-444c-827a-951ddceabcd9
     speaker: "\u0421\u0442\u0440\u0430\u0436"
-    text: "\"\u0425\u043E\u0440\u043E\u0448, \u0445\u043E\u0440\u043E\u0448\""
+    text: "\u041F\u0440\u0438\u043D\u0435\u0441\u0438 \u043C\u043D\u0435 \u0433\u0440\u0438\u0431"
     choices:
-    - text: "\"\u0430\u0433\u0430\""
-      nextNodeGuid: fc7a1e0e-23e1-444b-bbf4-d2ecee9eeb23
+    - text: "\u0425\u043E\u0440\u043E\u0448\u043E!"
+      nextNodeGuid: 
       conditions: []
-      effects: []
+      effects:
+      - type: 8
+        key: 
+        intValue: 0
+        item: {fileID: 0}
+        quest: {fileID: 11400000, guid: 2af644e876d62ee4196d6b3aa82389bd, type: 2}
       showIfFailed: 0
-    entryEffects: []
-    isEntryNode: 0
-    portrait: {fileID: 0}
-    editorPosition: {x: 290, y: 17}
-  - guid: 42f14f39-5131-4f06-aaa6-27286e149475
-    speaker: "\u0421\u0442\u0440\u0430\u0436"
-    text: "\"\u0430\u0433\u0430\""
-    choices:
-    - text: "\"\u0443\u0433\u0443\""
-      nextNodeGuid: fc7a1e0e-23e1-444b-bbf4-d2ecee9eeb23
-      conditions: []
-      effects: []
-      showIfFailed: 0
-    entryEffects: []
-    isEntryNode: 0
-    portrait: {fileID: 0}
-    editorPosition: {x: 213, y: 177}
-  - guid: fc7a1e0e-23e1-444b-bbf4-d2ecee9eeb23
-    speaker: "\u0421\u0442\u0440\u0430\u0436"
-    text: "\u043A\u043E\u043D\u0435\u0446!!!"
-    choices:
     - text: "\u0417\u0430\u043A\u043E\u043D\u0447\u0438\u0442\u044C \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440"
       nextNodeGuid: 
       conditions: []
@@ -74,4 +89,35 @@ MonoBehaviour:
     entryEffects: []
     isEntryNode: 0
     portrait: {fileID: 0}
-    editorPosition: {x: 492, y: 95}
+    editorPosition: {x: 290, y: 17}
+  - guid: dd9f7b04-d6df-47fa-b7ef-faad08f3622a
+    speaker: "\u0421\u0442\u0440\u0430\u0436"
+    text: "\u0412\u043E\u0442 \u0441\u043F\u0430\u0441\u0438\u0431\u043E!"
+    choices:
+    - text: 
+      nextNodeGuid: 5324ce4e-e865-40ab-bd57-28b2ab6375ba
+      conditions: []
+      effects: []
+      showIfFailed: 0
+    entryEffects: []
+    isEntryNode: 0
+    portrait: {fileID: 0}
+    editorPosition: {x: 280.8, y: 185.6}
+  - guid: 5324ce4e-e865-40ab-bd57-28b2ab6375ba
+    speaker: "\u0421\u0442\u0440\u0430\u0436"
+    text: "\u042D\u0442\u043E \u0442\u0435\u0431\u0435!"
+    choices:
+    - text: "\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044C \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440"
+      nextNodeGuid: 
+      conditions: []
+      effects: []
+      showIfFailed: 0
+    entryEffects:
+    - type: 5
+      key: 
+      intValue: 0
+      item: {fileID: 11400000, guid: 36147772ef6eff44cb50e7377cdefd72, type: 2}
+      quest: {fileID: 0}
+    isEntryNode: 0
+    portrait: {fileID: 0}
+    editorPosition: {x: 457.6, y: 244}

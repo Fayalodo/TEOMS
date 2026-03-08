@@ -4,6 +4,7 @@ using UnityEngine;
 /// <summary>
 /// Глобальная память диалогов. Хранит флаги и int-значения между сценами.
 /// Синглтон, создаётся автоматически при первом обращении.
+/// + GetAllFlags / GetAllInts для SaveSystem.
 /// </summary>
 public class DialogueMemory : MonoBehaviour
 {
@@ -25,7 +26,7 @@ public class DialogueMemory : MonoBehaviour
     private Dictionary<string, bool> _flags = new Dictionary<string, bool>();
     private Dictionary<string, int> _ints = new Dictionary<string, int>();
 
-    // ── Флаги ──────────────────────────────────────────────────────────────
+    // ── Флаги ────────────────────────────────────────────────────────────────
 
     public void SetFlag(string key, bool value)
     {
@@ -34,11 +35,9 @@ public class DialogueMemory : MonoBehaviour
     }
 
     public bool GetFlag(string key)
-    {
-        return _flags.TryGetValue(key, out bool val) && val;
-    }
+        => _flags.TryGetValue(key, out bool val) && val;
 
-    // ── Int-значения ────────────────────────────────────────────────────────
+    // ── Int-значения ─────────────────────────────────────────────────────────
 
     public void SetInt(string key, int value)
     {
@@ -47,13 +46,28 @@ public class DialogueMemory : MonoBehaviour
     }
 
     public int GetInt(string key)
+        => _ints.TryGetValue(key, out int val) ? val : 0;
+
+    // ── Для SaveSystem ───────────────────────────────────────────────────────
+
+    public List<StringBoolPair> GetAllFlags()
     {
-        return _ints.TryGetValue(key, out int val) ? val : 0;
+        var list = new List<StringBoolPair>();
+        foreach (var kv in _flags)
+            list.Add(new StringBoolPair { key = kv.Key, value = kv.Value });
+        return list;
     }
 
-    // ── Утилиты ─────────────────────────────────────────────────────────────
+    public List<StringIntPair> GetAllInts()
+    {
+        var list = new List<StringIntPair>();
+        foreach (var kv in _ints)
+            list.Add(new StringIntPair { key = kv.Key, value = kv.Value });
+        return list;
+    }
 
-    /// <summary>Полностью сбросить всю память (начало новой игры).</summary>
+    // ── Утилиты ──────────────────────────────────────────────────────────────
+
     public void Reset()
     {
         _flags.Clear();
@@ -62,11 +76,7 @@ public class DialogueMemory : MonoBehaviour
 
     private void Awake()
     {
-        if (_instance != null && _instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
+        if (_instance != null && _instance != this) { Destroy(gameObject); return; }
         _instance = this;
         DontDestroyOnLoad(gameObject);
     }

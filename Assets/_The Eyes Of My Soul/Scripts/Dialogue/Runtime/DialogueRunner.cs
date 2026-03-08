@@ -4,6 +4,8 @@ using UnityEngine;
 /// <summary>
 /// Управляет выполнением диалога. Синглтон в сцене.
 /// Общается с DialogueUI через события.
+/// + Публичное свойство CurrentNode — используется DialogueUI для режима подсказок.
+/// + Вызывает QuestManager.CheckAll() после каждого выбора.
 /// </summary>
 public class DialogueRunner : MonoBehaviour
 {
@@ -13,7 +15,7 @@ public class DialogueRunner : MonoBehaviour
         get
         {
             if (_instance == null)
-                _instance = FindObjectOfType<DialogueRunner>();
+                _instance = Object.FindFirstObjectByType<DialogueRunner>();
             return _instance;
         }
     }
@@ -21,8 +23,12 @@ public class DialogueRunner : MonoBehaviour
     public bool IsRunning { get; private set; }
     public DialogueAgent CurrentAgent => _currentAgent;
 
+    /// <summary>Текущий узел диалога. Используется DialogueUI для режима подсказок.</summary>
+    public DialogueNode CurrentNode => _currentNode;
+
     // События для DialogueUI
     public event System.Action<DialogueNode, List<(DialogueChoice choice, bool available)>> OnNodeEntered;
+    public event System.Action<List<DialogueEffect>> OnEntryEffectsApplied;
     public event System.Action OnDialogueEnded;
 
     private DialogueGraph _currentGraph;
@@ -43,7 +49,6 @@ public class DialogueRunner : MonoBehaviour
         _currentAgent = agent;
         IsRunning = true;
 
-        // Заблокировать движение игрока
         var player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
         {
@@ -75,6 +80,9 @@ public class DialogueRunner : MonoBehaviour
 
         choice.ApplyEffects(_currentAgent);
 
+        // Проверить квесты после применения эффектов
+        QuestManager.Instance?.CheckAll();
+
         if (string.IsNullOrEmpty(choice.nextNodeGuid))
         {
             EndDialogue();
@@ -96,7 +104,6 @@ public class DialogueRunner : MonoBehaviour
     {
         IsRunning = false;
 
-        // Разблокировать движение игрока
         var player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
         {
@@ -104,7 +111,6 @@ public class DialogueRunner : MonoBehaviour
             if (pm != null) pm.enabled = true;
         }
 
-        // Уведомить агента — он сам возобновит движение
         _currentAgent?.OnDialogueFinished();
 
         _currentGraph = null;
@@ -119,14 +125,19 @@ public class DialogueRunner : MonoBehaviour
     {
         _currentNode = node;
 
-        // Применить entry-эффекты
         foreach (var effect in node.entryEffects)
             effect.Apply(_currentAgent);
+
+        // Уведомить UI об entry-эффектах (для Corner Notifications)
+        if (node.entryEffects.Count > 0)
+            OnEntryEffectsApplied?.Invoke(node.entryEffects);
+
+        // Проверить квесты после entry-эффектов
+        QuestManager.Instance?.CheckAll();
 
         var visible = GetVisibleChoices();
         OnNodeEntered?.Invoke(node, visible);
 
-        // Если вариантов нет — автоматически завершить диалог
         if (visible.Count == 0)
             EndDialogue();
     }

@@ -11,15 +11,21 @@ public class DialogueCondition
         IntValue,       // DialogueMemory int >= value
         Reputation,     // reputation NPC >= value
         HasItem,        // предмет в инвентаре игрока
-        NoItem          // предмета нет в инвентаре
+        NoItem,         // предмета нет в инвентаре
+        QuestActive,    // квест принят и не завершён
+        QuestCompleted, // квест завершён
+        QuestFailed,    // квест провален
+        QuestNotStarted // квест ещё не принят
     }
 
     public ConditionType type;
-    public string key;              // имя флага / ключ памяти
-    public int intValue;            // для IntValue / Reputation
-    public ItemDefinition item;     // для HasItem / NoItem
+    public string key;
+    public int intValue;
+    public ItemDefinition item;
 
-    /// <summary>Проверить условие. npcAgent нужен для проверки репутации.</summary>
+    [Tooltip("Квест для условий QuestActive / QuestCompleted / QuestFailed / QuestNotStarted")]
+    public QuestDefinition quest;
+
     public bool Evaluate(DialogueAgent npcAgent)
     {
         var memory = DialogueMemory.Instance;
@@ -39,21 +45,35 @@ public class DialogueCondition
                 return npcAgent != null && npcAgent.GetReputation() >= intValue;
 
             case ConditionType.HasItem:
-                return item != null && PlayerInventoryRef() != null &&
-                       PlayerInventoryRef().GetTotalQuantity(item) > 0;
+                return item != null && PlayerRef.Instance != null &&
+                       PlayerRef.Instance.Inventory != null &&
+                       PlayerRef.Instance.Inventory.GetTotalQuantity(item) > 0;
 
             case ConditionType.NoItem:
-                return item == null || PlayerInventoryRef() == null ||
-                       PlayerInventoryRef().GetTotalQuantity(item) <= 0;
+                return item == null || PlayerRef.Instance == null ||
+                       PlayerRef.Instance.Inventory == null ||
+                       PlayerRef.Instance.Inventory.GetTotalQuantity(item) <= 0;
+
+            case ConditionType.QuestActive:
+                return quest != null && QuestManager.Instance != null &&
+                       QuestManager.Instance.IsActive(quest);
+
+            case ConditionType.QuestCompleted:
+                return quest != null && QuestManager.Instance != null &&
+                       QuestManager.Instance.IsCompleted(quest);
+
+            case ConditionType.QuestFailed:
+                return quest != null && QuestManager.Instance != null &&
+                       QuestManager.Instance.IsFailed(quest);
+
+            case ConditionType.QuestNotStarted:
+                return quest != null && QuestManager.Instance != null &&
+                       !QuestManager.Instance.IsActive(quest) &&
+                       !QuestManager.Instance.IsCompleted(quest) &&
+                       !QuestManager.Instance.IsFailed(quest);
 
             default:
                 return true;
         }
-    }
-
-    private Inventory PlayerInventoryRef()
-    {
-        var player = GameObject.FindGameObjectWithTag("Player");
-        return player != null ? player.GetComponent<Inventory>() : null;
     }
 }
