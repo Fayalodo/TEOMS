@@ -37,6 +37,24 @@ public class PlayerCombat : MonoBehaviour
     [ColorUsage(true, true)]
     public Color defaultIndicatorCooldownColor = new Color(0.5f, 0.5f, 0.5f, 0.2f); // Цвет на кулдауне
 
+    [Header("Блок (ПКМ)")]
+    [SerializeField] private float blockDamageReduction = 0.5f; // 50% снижение урона
+    [SerializeField] private float blockStaminaCost = 10f;       // стамина за блок в секунду (задел на будущее)
+    public bool IsBlocking { get; private set; }
+
+    [Header("Индикатор блока")]
+    [SerializeField] private GameObject blockIndicatorPrefab;
+    [ColorUsage(true, true)]
+    [SerializeField] private Color blockIndicatorColor = new Color(0f, 0.5f, 1f, 0.35f);
+    [SerializeField] private float blockIndicatorScale = 1.2f;
+
+    private GameObject _blockIndicator;
+    private SpriteRenderer _blockIndicatorRenderer;
+
+    [Header("Knockback (при атаке)")]
+    [SerializeField] private float knockbackForce = 4f;
+    [SerializeField] private float knockbackDuration = 0.15f;
+
     [Header("Debug")]
     public bool showDebugGizmos = true;
 
@@ -87,6 +105,8 @@ public class PlayerCombat : MonoBehaviour
         currentShowAlways = defaultShowIndicatorAlways;
 
         myHealth = GetComponent<Health>();
+        if (myHealth != null)
+            myHealth.OnDamageTaken += OnDamageTaken_Block;
 
         // Получаем инвентарь
         playerInventory = GetComponent<Inventory>();
@@ -100,8 +120,11 @@ public class PlayerCombat : MonoBehaviour
             UpdateWeaponStats(); // применяем, если уже есть активное оружие
         }
 
-        // Создаем индикатор
+        // Создаем индикатор атаки
         CreateAttackIndicator();
+
+        // Создаем индикатор блока
+        CreateBlockIndicator();
     }
 
     void CreateAttackIndicator()
@@ -153,10 +176,22 @@ public class PlayerCombat : MonoBehaviour
             playerInventory.OnItemRemoved -= OnItemRemoved;
         }
 
+        if (myHealth != null)
+            myHealth.OnDamageTaken -= OnDamageTaken_Block;
+
         if (currentIndicator != null)
-        {
             Destroy(currentIndicator);
-        }
+
+        if (_blockIndicator != null)
+            Destroy(_blockIndicator);
+    }
+
+    // Блок снижает входящий урон — лечим обратно часть снятого HP
+    private void OnDamageTaken_Block(float damage, Health attacker)
+    {
+        if (!IsBlocking || damage <= 0f) return;
+        float reduction = damage * blockDamageReduction;
+        if (reduction > 0f) myHealth.Heal(reduction);
     }
 
     private void OnActiveWeaponChanged(int newSlot)
@@ -242,6 +277,14 @@ public class PlayerCombat : MonoBehaviour
 
     void Update()
     {
+        // Не атаковать если мёртв или идёт диалог
+        if (myHealth == null || !myHealth.IsAlive) return;
+        if (DialogueRunner.Instance != null && DialogueRunner.Instance.IsRunning) return;
+
+        // Блок — ПКМ зажата
+        IsBlocking = Input.GetMouseButton(1);
+        UpdateBlockIndicator();
+
         Vector3 mouseWorld;
         if (!GetMouseWorldPosition(out mouseWorld)) return;
 
@@ -342,7 +385,13 @@ public class PlayerCombat : MonoBehaviour
             var h = hitBuffer[i].GetComponent<Health>();
             if (h != null && h.IsAlive && h.gameObject != gameObject)
             {
-                h.TakeDamage(attackDamage, myHealth); // FIX: передаём себя — NPC узнает кто их ударил
+                h.TakeDamage(attackDamage, myHealth);
+
+                // Knockback в сторону от игрока
+                Vector3 kbDir = (hitBuffer[i].transform.position - transform.position);
+                kbDir.y = 0f;
+                h.ApplyKnockback(kbDir, knockbackForce);
+
                 if (showDebugGizmos) Debug.Log($"Player attacked {h.gameObject.name} for {attackDamage}");
             }
         }
@@ -423,6 +472,41 @@ public class PlayerCombat : MonoBehaviour
             movement.idleSprite);
 
         if (sprite != null) spriteRenderer.sprite = sprite;
+    }
+
+    void CreateBlockIndicator()
+    {
+        if (blockIndicatorPrefab == null) return;
+
+        _blockIndicator = Instantiate(blockIndicatorPrefab, transform.position, Quaternion.identity);
+        _blockIndicator.transform.SetParent(transform);
+        _blockIndicator.transform.localPosition = Vector3.zero;
+        _blockIndicatorRenderer = _blockIndicator.GetComponent<SpriteRenderer>();
+
+        if (_blockIndicatorRenderer != null)
+        {
+            _blockIndicatorRenderer.color = blockIndicatorColor;
+            float s = blockIndicatorScale * 2f;
+            _blockIndicator.transform.localScale = new Vector3(s, s, 1f);
+        }
+
+        _blockIndicator.SetActive(false);
+    }
+
+    void UpdateBlockIndicator()
+    {
+        if (_blockIndicator == null) return;
+
+        if (IsBlocking)
+        {
+            _blockIndicator.SetActive(true);
+            // Поворачиваем плашку горизонтально под персонажем
+            _blockIndicator.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+        }
+        else
+        {
+            _blockIndicator.SetActive(false);
+        }
     }
 
     void OnDrawGizmosSelected()

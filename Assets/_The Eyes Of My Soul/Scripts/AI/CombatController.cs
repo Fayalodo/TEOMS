@@ -39,7 +39,10 @@ public class CombatController : MonoBehaviour
     [Header("Rotation")]
     public float rotationSpeed = 360f;
 
-    [Header("Options")]
+    [Header("Knockback")]
+    public float knockbackForce = 3f;
+
+    
     public bool disableOnDeath = true;
     public bool showAttackIndicator = true;
 
@@ -229,8 +232,13 @@ public class CombatController : MonoBehaviour
 
         if (currentTargetHealth != null && currentTargetHealth.IsAlive)
         {
-            // FIX: передаём себя как атакующего — цель узнает кто её ударил
             currentTargetHealth.TakeDamage(attackDamage, myHealth);
+
+            // Knockback в сторону от атакующего
+            Vector3 kbDir = currentTarget.position - transform.position;
+            kbDir.y = 0f;
+            currentTargetHealth.ApplyKnockback(kbDir, knockbackForce);
+
             if (cachedAnimator != null) cachedAnimator.SetTrigger("Attack");
         }
     }

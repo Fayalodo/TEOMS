@@ -176,6 +176,14 @@ public class ItemTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         if (hideCoroutine != null)
             StopCoroutine(hideCoroutine);
 
+        // Если объект неактивен — корутину запустить нельзя, скрываем сразу
+        if (!gameObject.activeInHierarchy)
+        {
+            currentSlotIndex = -1;
+            tooltipPanel.SetActive(false);
+            return;
+        }
+
         hideCoroutine = StartCoroutine(HideAfterDelay());
     }
 

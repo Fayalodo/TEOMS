@@ -21,6 +21,14 @@ public class Health : MonoBehaviour
 
     // FIX: событие теперь передаёт источник урона — не нужен OverlapSphere в CombatController
     public event Action<float, Health> OnDamageTaken;   // (урон, атакующий или null)
+    // Knockback: направление и сила (вычисляется атакующим)
+    public event Action<Vector3, float> OnKnockback;    // (направление, сила)
+
+    public void ApplyKnockback(Vector3 direction, float force)
+    {
+        if (!IsAlive) return;
+        OnKnockback?.Invoke(direction.normalized, force);
+    }
 
     private bool isDead = false;
 

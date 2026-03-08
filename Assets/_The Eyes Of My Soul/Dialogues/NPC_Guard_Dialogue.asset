@@ -1,0 +1,77 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 646dbc2cd3efccb47bf6378784c3e8fd, type: 3}
+  m_Name: NPC_Guard_Dialogue
+  m_EditorClassIdentifier: Assembly-CSharp::DialogueGraph
+  nodes:
+  - guid: abb26bef-196b-407f-8ce4-611156576a3c
+    speaker: "\u0421\u0442\u0440\u0430\u0436"
+    text: "\u041F\u0440\u0438\u0432\u0435\u0442\u0438\u043A\u0438 :3"
+    choices:
+    - text: "\u0419\u041E\u041E\u041E\u041E"
+      nextNodeGuid: e3db328e-7632-444c-827a-951ddceabcd9
+      conditions: []
+      effects: []
+      showIfFailed: 0
+    - text: "\u041E\u0439 \u0431\u043B\u044F\u044F\u044F"
+      nextNodeGuid: 42f14f39-5131-4f06-aaa6-27286e149475
+      conditions: []
+      effects: []
+      showIfFailed: 0
+    - text: "\u043D\u0443 \u043D\u0443.."
+      nextNodeGuid: e3db328e-7632-444c-827a-951ddceabcd9
+      conditions: []
+      effects: []
+      showIfFailed: 0
+    entryEffects: []
+    isEntryNode: 1
+    portrait: {fileID: -1764640790, guid: e794fd78bbd84874899ad0e8be1c11d9, type: 3}
+    editorPosition: {x: 6, y: 27}
+  - guid: e3db328e-7632-444c-827a-951ddceabcd9
+    speaker: "\u0421\u0442\u0440\u0430\u0436"
+    text: "\"\u0425\u043E\u0440\u043E\u0448, \u0445\u043E\u0440\u043E\u0448\""
+    choices:
+    - text: "\"\u0430\u0433\u0430\""
+      nextNodeGuid: fc7a1e0e-23e1-444b-bbf4-d2ecee9eeb23
+      conditions: []
+      effects: []
+      showIfFailed: 0
+    entryEffects: []
+    isEntryNode: 0
+    portrait: {fileID: 0}
+    editorPosition: {x: 290, y: 17}
+  - guid: 42f14f39-5131-4f06-aaa6-27286e149475
+    speaker: "\u0421\u0442\u0440\u0430\u0436"
+    text: "\"\u0430\u0433\u0430\""
+    choices:
+    - text: "\"\u0443\u0433\u0443\""
+      nextNodeGuid: fc7a1e0e-23e1-444b-bbf4-d2ecee9eeb23
+      conditions: []
+      effects: []
+      showIfFailed: 0
+    entryEffects: []
+    isEntryNode: 0
+    portrait: {fileID: 0}
+    editorPosition: {x: 213, y: 177}
+  - guid: fc7a1e0e-23e1-444b-bbf4-d2ecee9eeb23
+    speaker: "\u0421\u0442\u0440\u0430\u0436"
+    text: "\u043A\u043E\u043D\u0435\u0446!!!"
+    choices:
+    - text: "\u0417\u0430\u043A\u043E\u043D\u0447\u0438\u0442\u044C \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440"
+      nextNodeGuid: 
+      conditions: []
+      effects: []
+      showIfFailed: 0
+    entryEffects: []
+    isEntryNode: 0
+    portrait: {fileID: 0}
+    editorPosition: {x: 492, y: 95}
