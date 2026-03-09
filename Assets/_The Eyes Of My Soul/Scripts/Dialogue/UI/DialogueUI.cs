@@ -143,7 +143,7 @@ public class DialogueUI : MonoBehaviour
         if (_typewriterCoroutine != null)
             StopCoroutine(_typewriterCoroutine);
 
-        _fullText = node.text;
+        _fullText = _runner.CurrentNodeText;
         _typewriterCoroutine = StartCoroutine(TypewriterRoutine(_fullText, choices));
     }
 

@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e85f30e834523e04bb96fadc5cbdc5a9, type: 3}
+  m_Name: QuestWolf
+  m_EditorClassIdentifier: Assembly-CSharp::QuestDefinition
+  questId: Quest_Wolf
+  title: Wolf killer
+  description: kill the wolf!
+  giverPortrait: {fileID: 0}
+  objectives:
+  - description: "\u0423\u0431\u0435\u0439 \u0432\u043E\u043B\u043A\u0430 \u0438
+      \u0434\u043E\u043B\u043E\u0436\u0438 \u0447\u0443\u0432\u0430\u043A\u0443"
+    completionFlag: 
+    isFailCondition: 0
+    isOptional: 0
+  acceptedFlag: Quest_Wolf_accept
+  completedFlag: Quest_Wolf_complete
+  failedFlag: 
+  rewardDescription: "\u0413\u0440\u0438\u0431"

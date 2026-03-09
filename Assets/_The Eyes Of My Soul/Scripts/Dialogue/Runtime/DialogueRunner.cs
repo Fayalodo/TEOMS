@@ -26,6 +26,9 @@ public class DialogueRunner : MonoBehaviour
     /// <summary>Текущий узел диалога. Используется DialogueUI для режима подсказок.</summary>
     public DialogueNode CurrentNode => _currentNode;
 
+    /// <summary>Текст текущего узла — уже выбранный случайно из alternativeTexts.</summary>
+    public string CurrentNodeText { get; private set; }
+
     // События для DialogueUI
     public event System.Action<DialogueNode, List<(DialogueChoice choice, bool available)>> OnNodeEntered;
     public event System.Action<List<DialogueEffect>> OnEntryEffectsApplied;
@@ -124,6 +127,7 @@ public class DialogueRunner : MonoBehaviour
     private void EnterNode(DialogueNode node)
     {
         _currentNode = node;
+        CurrentNodeText = node.GetText(); // выбрать случайный текст один раз
 
         foreach (var effect in node.entryEffects)
             effect.Apply(_currentAgent);
