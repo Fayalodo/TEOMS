@@ -160,10 +160,13 @@ public class LootUI : MonoBehaviour
         var items = _sourceInventory.Items;
         bool hasItems = false;
 
+        // Для сундуков всегда показываем все слоты — чтобы можно было положить предметы
+        bool forceShowAll = _chest != null;
+
         for (int i = 0; i < items.Count; i++)
         {
             bool empty = items[i].IsEmpty;
-            if (!showEmptySlots && empty) continue;
+            if (!showEmptySlots && !forceShowAll && empty) continue;
 
             hasItems = hasItems || !empty;
 
@@ -190,10 +193,10 @@ public class LootUI : MonoBehaviour
             drag.Init(i, items[i], _sourceInventory, SlotSource.Loot, this);
         }
 
-        if (!hasItems)
+        // Для трупов — закрыть если пусто. Для сундуков — оставить открытым (можно положить предметы)
+        if (!hasItems && _chest == null)
         {
             _corpse?.OnLootExhausted();
-            _chest?.OnLootExhausted();
             Close();
         }
     }
