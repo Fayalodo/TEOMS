@@ -3,6 +3,7 @@ using UnityEngine;
 /// <summary>
 /// Вешается на сундук. Поддерживает разовый/повторный лут, анимацию открытия,
 /// опциональный замок. Работает с той же LootUI что и LootableCorpse.
+/// Автоматически управляет WorldChestLabel — состояние и имя синхронизируются сами.
 /// </summary>
 [RequireComponent(typeof(Inventory))]
 public class LootableChest : MonoBehaviour
@@ -17,33 +18,36 @@ public class LootableChest : MonoBehaviour
 
     // ── Взаимодействие ────────────────────────────────────────
     [Header("Взаимодействие")]
-    public KeyCode lootKey = KeyCode.E;
+    public KeyCode lootKey   = KeyCode.E;
     [Tooltip("Максимальная дистанция для открытия")]
-    public float lootRange = 2.5f;
+    public float lootRange   = 2.5f;
     [Tooltip("Сундук можно открыть снова после закрытия (даже если пустой)")]
-    public bool reopenable = true;
+    public bool reopenable   = true;
 
     // ── Замок ─────────────────────────────────────────────────
     [Header("Замок (опционально)")]
-    [Tooltip("Требуется ли ключ для открытия")]
-    public bool isLocked = false;
-    [Tooltip("ItemDefinition ключа. Если null — замок декоративный (не убирается)")]
+    public bool           isLocked    = false;
     public ItemDefinition requiredKey;
-    [Tooltip("Уничтожить ключ после открытия")]
-    public bool consumeKey = true;
+    public bool           consumeKey  = true;
 
-    // ── UI подсказка ──────────────────────────────────────────
-    [Header("UI подсказка")]
-    [Tooltip("Объект с текстом '[E] Открыть' — включается при приближении")]
+    // ── UI подсказка (legacy world-space) ─────────────────────
+    [Header("UI подсказка (legacy, опционально)")]
+    [Tooltip("Объект '[E] Открыть' — включается при приближении")]
     public GameObject interactPrompt;
-    [Tooltip("Объект с текстом '[E] Заперто' (показывается если сундук закрыт на ключ)")]
+    [Tooltip("Объект '[E] Заперто'")]
     public GameObject lockedPrompt;
+
+    // ── World Label ───────────────────────────────────────────
+    [Header("World Label")]
+    [Tooltip("Prefab с WorldChestLabel. Если задан — создаётся и управляется автоматически")]
+    public WorldChestLabel chestLabelPrefab;
+    [Tooltip("Canvas, в который будет помещён label prefab. Если null — ищется на сцене")]
+    public Canvas          labelCanvas;
 
     // ── Анимация / звук ───────────────────────────────────────
     [Header("Анимация")]
-    [Tooltip("Аниматор сундука. Триггер 'Open' / 'Close' — опционально")]
     public Animator chestAnimator;
-    public string openTrigger = "Open";
+    public string openTrigger  = "Open";
     public string closeTrigger = "Close";
 
     [Header("Звуки")]
@@ -52,27 +56,29 @@ public class LootableChest : MonoBehaviour
     public AudioClip emptySound;
 
     // ── Состояние ─────────────────────────────────────────────
-    bool _filled = false;   // уже ли заполнен лут
-    bool _isOpen = false;   // UI сейчас открыт
-    bool _isEmpty = false;   // все предметы взяты
+    bool _filled  = false;
+    bool _isOpen  = false;
+    bool _isEmpty = false;
 
-    Inventory _inventory;
-    Transform _playerTransform;
-    Inventory _playerInventory; // нужен для проверки ключа
+    Inventory   _inventory;
+    Transform   _playerTransform;
+    Inventory   _playerInventory;
     AudioSource _audio;
-    LootUI _lootUI;
+    LootUI      _lootUI;
+
+    WorldChestLabel _label;   // экземпляр, созданный на сцене
 
     // ─────────────────────────────────────────────────────────
 
     void Awake()
     {
         _inventory = GetComponent<Inventory>();
-        _audio = GetComponent<AudioSource>();
+        _audio     = GetComponent<AudioSource>();
         if (_audio == null) _audio = gameObject.AddComponent<AudioSource>();
 
         _lootUI = Object.FindAnyObjectByType<LootUI>();
         if (_lootUI == null)
-            Debug.LogWarning($"[{name}] LootUI не найден на сцене! Добавь объект с LootUI.");
+            Debug.LogWarning($"[{name}] LootUI не найден на сцене!");
 
         var player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
@@ -82,35 +88,63 @@ public class LootableChest : MonoBehaviour
         }
     }
 
-    void OnEnable()
+    void Start()
     {
-        // Подписываемся, чтобы отслеживать когда сундук опустел
-        _inventory.OnInventoryChanged.AddListener(OnInventoryChanged);
+        // Создаём метку, если задан prefab
+        if (chestLabelPrefab != null)
+        {
+            Canvas canvas = labelCanvas != null
+                ? labelCanvas
+                : Object.FindAnyObjectByType<Canvas>();
+
+            if (canvas != null)
+            {
+                _label = Instantiate(chestLabelPrefab, canvas.transform);
+                _label.AttachTo(
+                    transform,
+                    initialState:  isLocked ? WorldChestLabel.ChestState.Locked
+                                            : WorldChestLabel.ChestState.Closed,
+                    parentCanvasOverride: canvas);
+            }
+            else
+            {
+                Debug.LogWarning($"[{name}] Canvas не найден — WorldChestLabel не создан.");
+            }
+        }
     }
 
+    void OnEnable()  => _inventory.OnInventoryChanged.AddListener(OnInventoryChanged);
     void OnDisable()
     {
         _inventory.OnInventoryChanged.RemoveListener(OnInventoryChanged);
         SetPrompts(false, false);
     }
 
+    void OnDestroy()
+    {
+        if (_label != null) Destroy(_label.gameObject);
+    }
+
+    // ─────────────────────────────────────────────────────────
+
     void OnInventoryChanged()
     {
         _isEmpty = _inventory.IsEmpty();
+        if (_isOpen && _isEmpty) OnLootExhausted();
 
-        // Если UI открыт и сундук опустел — уведомляем
-        if (_isOpen && _isEmpty)
-            OnLootExhausted();
+        // Обновляем метку если сундук опустел
+        if (_isEmpty && _label != null)
+            _label.SetState(WorldChestLabel.ChestState.Empty);
     }
 
     void Update()
     {
         if (_playerTransform == null) return;
 
-        float dist = Vector3.Distance(transform.position, _playerTransform.position);
-        bool inRange = dist <= lootRange;
+        float dist    = Vector3.Distance(transform.position, _playerTransform.position);
+        bool  inRange = dist <= lootRange;
 
-        // Показ подсказок
+        // Legacy подсказки
         if (inRange)
         {
             if (isLocked)
@@ -125,13 +159,10 @@ public class LootableChest : MonoBehaviour
             SetPrompts(false, false);
         }
 
-        // Нажатие взаимодействия
         if (inRange && Input.GetKeyDown(lootKey))
         {
-            if (isLocked)
-                TryUnlock();
-            else
-                OpenChest();
+            if (isLocked) TryUnlock();
+            else          OpenChest();
         }
     }
 
@@ -141,14 +172,15 @@ public class LootableChest : MonoBehaviour
     {
         if (requiredKey != null && _playerInventory != null)
         {
-            int qty = _playerInventory.GetTotalQuantity(requiredKey);
-            if (qty > 0)
+            if (_playerInventory.GetTotalQuantity(requiredKey) > 0)
             {
                 if (consumeKey)
                     _playerInventory.RemoveItems(requiredKey, 1);
 
                 isLocked = false;
                 Debug.Log($"[{name}] Замок открыт ключом {requiredKey.displayName}.");
+
+                _label?.SetState(WorldChestLabel.ChestState.Closed);
                 OpenChest();
             }
             else
@@ -166,7 +198,6 @@ public class LootableChest : MonoBehaviour
 
     void OpenChest()
     {
-        // Заполняем лут один раз (или каждый раз — зависит от fillOnce)
         if (!_filled || !fillOnce)
         {
             if (lootTable != null)
@@ -180,14 +211,15 @@ public class LootableChest : MonoBehaviour
         {
             PlaySound(emptySound);
             SetPrompts(false, false);
+            _label?.SetState(WorldChestLabel.ChestState.Empty);
             return;
         }
 
-        // Анимация открытия
         PlayAnimation(openTrigger);
         PlaySound(openSound);
 
-        // Открываем UI
+        _label?.SetState(WorldChestLabel.ChestState.Open);
+
         if (_lootUI == null)
             _lootUI = Object.FindAnyObjectByType<LootUI>();
 
@@ -208,7 +240,14 @@ public class LootableChest : MonoBehaviour
         PlayAnimation(closeTrigger);
 
         if (!reopenable)
+        {
             SetPrompts(false, false);
+            _label?.SetState(WorldChestLabel.ChestState.Empty);
+        }
+        else
+        {
+            _label?.SetState(WorldChestLabel.ChestState.Closed);
+        }
     }
 
     // ─────────────────────────────────────────────────────────
@@ -216,7 +255,7 @@ public class LootableChest : MonoBehaviour
     void SetPrompts(bool showInteract, bool showLocked)
     {
         if (interactPrompt != null) interactPrompt.SetActive(showInteract);
-        if (lockedPrompt != null) lockedPrompt.SetActive(showLocked);
+        if (lockedPrompt   != null) lockedPrompt.SetActive(showLocked);
     }
 
     void PlayAnimation(string trigger)
@@ -234,7 +273,7 @@ public class LootableChest : MonoBehaviour
 #if UNITY_EDITOR
     void OnDrawGizmosSelected()
     {
-        Gizmos.color = Color.yellow;
+        Gizmos.color = isLocked ? Color.red : Color.yellow;
         Gizmos.DrawWireSphere(transform.position, lootRange);
     }
 #endif

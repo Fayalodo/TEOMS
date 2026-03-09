@@ -5,6 +5,8 @@ using UnityEngine.Events;
 /// Компонент на NPC. Хранит граф диалога и репутацию.
 /// При начале диалога останавливает WanderBehavior/MovementController,
 /// при конце — возобновляет. Не начинает диалог если NPC мёртв.
+/// Также управляет WorldNPCLabel — метка создаётся/удаляется через PlayerPickupController.
+/// Имя в диалоге берётся автоматически из gameObject.name.
 /// </summary>
 [RequireComponent(typeof(Collider))]
 public class DialogueAgent : MonoBehaviour
@@ -16,11 +18,22 @@ public class DialogueAgent : MonoBehaviour
     [Tooltip("Портрет NPC по умолчанию (используется если у узла нет своего портрета)")]
     public Sprite defaultPortrait;
 
+    [Header("Имя NPC")]
+    [Tooltip("Отображаемое имя в диалогах и метке. Если пусто — берётся gameObject.name.")]
+    public string displayName = "";
+
+    [Header("Метка над головой")]
+    [Tooltip("Роль / профессия НПЦ (торговец, страж, квестодатель…). Пусто = не показывать.")]
+    public string role = "";
+
+    [Tooltip("Отношение НПЦ к игроку — определяет цвет метки.")]
+    public WorldNPCLabel.NPCRelation relation = WorldNPCLabel.NPCRelation.Neutral;
+
     [Header("Репутация")]
     [SerializeField] private int startingReputation = 0;
 
     [Header("Взаимодействие")]
-    public float interactionRange = 3f;
+    public float interactionRange = 4f;
 
     [Header("События")]
     public UnityEvent onDialogueStarted;
@@ -28,27 +41,31 @@ public class DialogueAgent : MonoBehaviour
 
     public event System.Action<int> OnReputationChanged;
 
+    // ── Публичное имя (используется диалогами и меткой) ──────────────────────
+    /// <summary>Имя НПЦ: displayName если задан, иначе gameObject.name.</summary>
+    public string NPCName => string.IsNullOrWhiteSpace(displayName) ? gameObject.name : displayName;
+
     private int _reputation;
     private bool _playerInRange;
 
-    // Компоненты движения NPC
     private MovementController _movement;
     private WanderBehavior _wander;
     private Health _health;
     private NPCDailyScheduler _scheduler;
 
+    // ─────────────────────────────────────────────────────────────────────────
+
     private void Awake()
     {
         _reputation = startingReputation;
-        _movement = GetComponent<MovementController>();
-        _wander = GetComponent<WanderBehavior>();
-        _health = GetComponent<Health>();
-        _scheduler = GetComponent<NPCDailyScheduler>();
+        _movement   = GetComponent<MovementController>();
+        _wander     = GetComponent<WanderBehavior>();
+        _health     = GetComponent<Health>();
+        _scheduler  = GetComponent<NPCDailyScheduler>();
     }
 
     private void Start()
     {
-        // Остановить всё при смерти
         if (_health != null)
             _health.OnDeath += OnDeath;
     }
@@ -61,12 +78,10 @@ public class DialogueAgent : MonoBehaviour
 
     private void OnDeath()
     {
-        // Остановить расписание и движение навсегда
         if (_scheduler != null) _scheduler.enabled = false;
         _movement?.StopMovement();
         if (_wander != null) _wander.enabled = false;
 
-        // Если умер во время диалога — завершить диалог
         if (DialogueRunner.Instance.IsRunning &&
             DialogueRunner.Instance.CurrentAgent == this)
             DialogueRunner.Instance.EndDialogue();
@@ -78,30 +93,28 @@ public class DialogueAgent : MonoBehaviour
             TryStartDialogue();
     }
 
-    // ── Репутация ────────────────────────────────────────────────────────────
+    // ── Репутация ─────────────────────────────────────────────────────────────
 
     public int GetReputation() => _reputation;
 
     public void AddReputation(int delta)
     {
         _reputation += delta;
-        Debug.Log($"[DialogueAgent] {name}: reputation = {_reputation} ({(delta >= 0 ? "+" : "")}{delta})");
+        Debug.Log($"[DialogueAgent] {NPCName}: reputation = {_reputation} ({(delta >= 0 ? "+" : "")}{delta})");
         OnReputationChanged?.Invoke(_reputation);
     }
 
-    // ── Диалог ───────────────────────────────────────────────────────────────
+    // ── Диалог ────────────────────────────────────────────────────────────────
 
     public void TryStartDialogue()
     {
         if (dialogueGraph == null)
         {
-            Debug.LogWarning($"[DialogueAgent] {name}: нет DialogueGraph!");
+            Debug.LogWarning($"[DialogueAgent] {NPCName}: нет DialogueGraph!");
             return;
         }
 
         if (DialogueRunner.Instance.IsRunning) return;
-
-        // Не начинать диалог с мёртвым NPC
         if (_health != null && !_health.IsAlive) return;
 
         PauseMovement();
@@ -116,18 +129,14 @@ public class DialogueAgent : MonoBehaviour
         onDialogueEnded.Invoke();
     }
 
-    // ── Движение NPC ─────────────────────────────────────────────────────────
+    // ── Движение NPC ──────────────────────────────────────────────────────────
 
     private void PauseMovement()
     {
         if (_scheduler != null)
-        {
-            // Scheduler управляет и движением и поведением — используем его API
             _scheduler.InterruptForDialogue();
-        }
         else
         {
-            // Fallback если нет scheduler — останавливаем напрямую
             _wander?.ForcePause();
             _movement?.StopMovement();
         }
@@ -135,7 +144,6 @@ public class DialogueAgent : MonoBehaviour
 
     private void ResumeMovement()
     {
-        // Не возобновлять если NPC умер пока шёл диалог
         if (_health != null && !_health.IsAlive) return;
 
         if (_scheduler != null)
@@ -144,7 +152,7 @@ public class DialogueAgent : MonoBehaviour
             _wander?.ResumeWandering();
     }
 
-    // ── Триггеры ─────────────────────────────────────────────────────────────
+    // ── Триггеры ──────────────────────────────────────────────────────────────
 
     private void OnTriggerEnter(Collider other)
     {
@@ -160,7 +168,12 @@ public class DialogueAgent : MonoBehaviour
 
     private void OnDrawGizmosSelected()
     {
-        Gizmos.color = Color.cyan;
+        Gizmos.color = relation switch
+        {
+            WorldNPCLabel.NPCRelation.Friendly => Color.green,
+            WorldNPCLabel.NPCRelation.Hostile  => Color.red,
+            _                                  => Color.cyan,
+        };
         Gizmos.DrawWireSphere(transform.position, interactionRange);
     }
 }

@@ -294,7 +294,4 @@ MonoBehaviour:
   canvasGroup: {fileID: 2611800918145725039}
   worldOffset: {x: 0, y: 1, z: 0}
   fadeSpeed: 2
-  moveSmoothness: 2
   appearanceDelay: 0.5
-  minScale: 0.7
-  maxScale: 0.7

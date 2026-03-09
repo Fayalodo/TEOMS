@@ -23,11 +23,17 @@ public class DialogueRunner : MonoBehaviour
     public bool IsRunning { get; private set; }
     public DialogueAgent CurrentAgent => _currentAgent;
 
-    /// <summary>Текущий узел диалога. Используется DialogueUI для режима подсказок.</summary>
+    /// <summary>Текущий узел диалога.</summary>
     public DialogueNode CurrentNode => _currentNode;
 
     /// <summary>Текст текущего узла — уже выбранный случайно из alternativeTexts.</summary>
     public string CurrentNodeText { get; private set; }
+
+    /// <summary>Имя текущего НПЦ для отображения в UI диалога.</summary>
+    public string CurrentNPCName => _currentAgent != null ? _currentAgent.NPCName : "";
+
+    /// <summary>Портрет текущего НПЦ для отображения в UI диалога.</summary>
+    public Sprite CurrentPortrait => _currentAgent != null ? _currentAgent.defaultPortrait : null;
 
     // События для DialogueUI
     public event System.Action<DialogueNode, List<(DialogueChoice choice, bool available)>> OnNodeEntered;
@@ -36,7 +42,7 @@ public class DialogueRunner : MonoBehaviour
 
     private DialogueGraph _currentGraph;
     private DialogueAgent _currentAgent;
-    private DialogueNode _currentNode;
+    private DialogueNode  _currentNode;
 
     private void Awake()
     {
@@ -44,13 +50,13 @@ public class DialogueRunner : MonoBehaviour
         _instance = this;
     }
 
-    // ── Публичный API ────────────────────────────────────────────────────────
+    // ── Публичный API ─────────────────────────────────────────────────────────
 
     public void StartDialogue(DialogueGraph graph, DialogueAgent agent)
     {
         _currentGraph = graph;
         _currentAgent = agent;
-        IsRunning = true;
+        IsRunning     = true;
 
         var player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
@@ -70,7 +76,6 @@ public class DialogueRunner : MonoBehaviour
         EnterNode(entry);
     }
 
-    /// <summary>Игрок выбрал вариант ответа по индексу в списке видимых вариантов.</summary>
     public void SelectChoice(int visibleIndex)
     {
         if (!IsRunning || _currentNode == null) return;
@@ -82,8 +87,6 @@ public class DialogueRunner : MonoBehaviour
         if (!available) return;
 
         choice.ApplyEffects(_currentAgent);
-
-        // Проверить квесты после применения эффектов
         QuestManager.Instance?.CheckAll();
 
         if (string.IsNullOrEmpty(choice.nextNodeGuid))
@@ -118,25 +121,23 @@ public class DialogueRunner : MonoBehaviour
 
         _currentGraph = null;
         _currentAgent = null;
-        _currentNode = null;
+        _currentNode  = null;
         OnDialogueEnded?.Invoke();
     }
 
-    // ── Внутренняя логика ────────────────────────────────────────────────────
+    // ── Внутренняя логика ─────────────────────────────────────────────────────
 
     private void EnterNode(DialogueNode node)
     {
-        _currentNode = node;
-        CurrentNodeText = node.GetText(); // выбрать случайный текст один раз
+        _currentNode    = node;
+        CurrentNodeText = node.GetText();
 
         foreach (var effect in node.entryEffects)
             effect.Apply(_currentAgent);
 
-        // Уведомить UI об entry-эффектах (для Corner Notifications)
         if (node.entryEffects.Count > 0)
             OnEntryEffectsApplied?.Invoke(node.entryEffects);
 
-        // Проверить квесты после entry-эффектов
         QuestManager.Instance?.CheckAll();
 
         var visible = GetVisibleChoices();

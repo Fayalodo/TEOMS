@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -58,10 +59,17 @@ public class QuestJournalUI : MonoBehaviour
     private Tab _currentTab = Tab.Active;
     private QuestDefinition _selectedQuest;
     private List<Button> _questEntries = new List<Button>();
+    private Vector3 _originalScale;
+    private CanvasGroup _canvasGroup;
+    private Coroutine _detailsAnimCoroutine;
 
     private void Awake()
     {
         journalPanel.SetActive(false);
+        _originalScale = journalPanel.transform.localScale;
+        _canvasGroup = journalPanel.GetComponent<CanvasGroup>();
+        if (_canvasGroup == null)
+            _canvasGroup = journalPanel.AddComponent<CanvasGroup>();
 
         tabActive?.onClick.AddListener(() => SwitchTab(Tab.Active));
         tabCompleted?.onClick.AddListener(() => SwitchTab(Tab.Completed));
@@ -84,26 +92,84 @@ public class QuestJournalUI : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.J))
             Toggle();
+        if (Input.GetKeyDown(KeyCode.Escape) && journalPanel.activeSelf)
+            Close();
     }
 
     // ── Открытие / закрытие ──────────────────────────────────────────────────
 
     public void Toggle()
     {
-        bool open = !journalPanel.activeSelf;
-        journalPanel.SetActive(open);
-        if (open) Refresh();
+        if (journalPanel.activeSelf)
+            StartCoroutine(CloseAnim());
+        else
+            Open();
     }
 
     public void Open()
     {
         journalPanel.SetActive(true);
+        Canvas.ForceUpdateCanvases();
+
+        // Если нет выбранного квеста — выбрать первый из активных
+        if (_selectedQuest == null && QuestManager.Instance != null)
+        {
+            var active = QuestManager.Instance.ActiveQuests;
+            if (active.Count > 0)
+                _selectedQuest = active[0];
+        }
+
         Refresh();
+        StartCoroutine(OpenAnim());
     }
 
     public void Close()
     {
+        StartCoroutine(CloseAnim());
+    }
+
+    private IEnumerator OpenAnim()
+    {
+        float duration = 0.18f;
+        float t = 0f;
+        Vector3 from = _originalScale * 0.94f;
+        Vector3 to   = _originalScale;
+
+        _canvasGroup.alpha = 0f;
+        journalPanel.transform.localScale = from;
+
+        while (t < duration)
+        {
+            t += Time.unscaledDeltaTime;
+            float p = Mathf.SmoothStep(0f, 1f, t / duration);
+            _canvasGroup.alpha = p;
+            journalPanel.transform.localScale = Vector3.Lerp(from, to, p);
+            yield return null;
+        }
+
+        _canvasGroup.alpha = 1f;
+        journalPanel.transform.localScale = to;
+    }
+
+    private IEnumerator CloseAnim()
+    {
+        float duration = 0.12f;
+        float t = 0f;
+        Vector3 from = _originalScale;
+        Vector3 to   = _originalScale * 0.96f;
+
+        while (t < duration)
+        {
+            t += Time.unscaledDeltaTime;
+            float p = Mathf.SmoothStep(0f, 1f, t / duration);
+            _canvasGroup.alpha = 1f - p;
+            journalPanel.transform.localScale = Vector3.Lerp(from, to, p);
+            yield return null;
+        }
+
         journalPanel.SetActive(false);
+        journalPanel.transform.localScale = from;
+        _canvasGroup.alpha = 1f;
     }
 
     // ── Обновление ───────────────────────────────────────────────────────────
@@ -117,7 +183,17 @@ public class QuestJournalUI : MonoBehaviour
     private void SwitchTab(Tab tab)
     {
         _currentTab = tab;
-        _selectedQuest = null;
+
+        // Выбрать первый квест новой вкладки автоматически
+        IReadOnlyList<QuestDefinition> list = tab switch
+        {
+            Tab.Active    => QuestManager.Instance.ActiveQuests,
+            Tab.Completed => QuestManager.Instance.CompletedQuests,
+            Tab.Failed    => QuestManager.Instance.FailedQuests,
+            _             => QuestManager.Instance.ActiveQuests
+        };
+        _selectedQuest = list.Count > 0 ? list[0] : null;
+
         Refresh();
     }
 
@@ -192,21 +268,24 @@ public class QuestJournalUI : MonoBehaviour
 
     private void RefreshDetails()
     {
+        // Остановить предыдущую анимацию деталей
+        if (_detailsAnimCoroutine != null)
+            StopCoroutine(_detailsAnimCoroutine);
+
         bool hasSelection = _selectedQuest != null;
 
         if (detailsPlaceholder != null)
             detailsPlaceholder.SetActive(!hasSelection);
 
-        if (questTitleText != null)
-            questTitleText.gameObject.SetActive(hasSelection);
-        if (questDescriptionText != null)
-            questDescriptionText.gameObject.SetActive(hasSelection);
-        if (objectivesContainer != null)
-            objectivesContainer.gameObject.SetActive(hasSelection);
-        if (rewardText != null)
-            rewardText.gameObject.SetActive(hasSelection);
+        if (questTitleText != null)       questTitleText.gameObject.SetActive(hasSelection);
+        if (questDescriptionText != null) questDescriptionText.gameObject.SetActive(hasSelection);
+        if (objectivesContainer != null)  objectivesContainer.gameObject.SetActive(hasSelection);
+        if (rewardText != null)           rewardText.gameObject.SetActive(hasSelection);
 
         if (!hasSelection) return;
+
+        // Собрать список элементов для анимации
+        var animTargets = new System.Collections.Generic.List<CanvasGroup>();
 
         // Заголовок
         if (questTitleText != null)
@@ -218,11 +297,15 @@ public class QuestJournalUI : MonoBehaviour
                 Tab.Failed    => colorFailed,
                 _             => colorActive
             };
+            animTargets.Add(GetOrAddCanvasGroup(questTitleText.gameObject));
         }
 
         // Описание
         if (questDescriptionText != null)
+        {
             questDescriptionText.text = _selectedQuest.description;
+            animTargets.Add(GetOrAddCanvasGroup(questDescriptionText.gameObject));
+        }
 
         // Цели
         if (objectivesContainer != null)
@@ -232,56 +315,45 @@ public class QuestJournalUI : MonoBehaviour
 
             foreach (var obj in _selectedQuest.objectives)
             {
+                GameObject entry = null;
+
                 if (objectiveEntryPrefab != null)
                 {
-                    var entry = Instantiate(objectiveEntryPrefab, objectivesContainer);
-
-                    // Попытаться найти Toggle и TMP
+                    entry = Instantiate(objectiveEntryPrefab, objectivesContainer);
                     var toggle = entry.GetComponentInChildren<Toggle>();
                     var lbl    = entry.GetComponentInChildren<TextMeshProUGUI>();
 
                     bool done   = obj.IsCompleted && !obj.isFailCondition;
                     bool failed = obj.isFailCondition && obj.IsCompleted;
 
-                    if (toggle != null)
-                    {
-                        toggle.isOn = done;
-                        toggle.interactable = false;
-                    }
+                    if (toggle != null) { toggle.isOn = done; toggle.interactable = false; }
 
                     if (lbl != null)
                     {
                         string prefix = obj.isOptional ? "(опц.) " : "";
                         string text   = prefix + obj.description;
-
-                        if (done)
-                            lbl.text = $"<s>{text}</s>"; // зачёркнутый
-                        else
-                            lbl.text = text;
-
-                        lbl.color = failed ? colorObjectiveFail
-                                  : done   ? colorObjectiveDone
-                                           : colorObjectivePending;
+                        lbl.text  = done ? $"<s>{text}</s>" : text;
+                        lbl.color = failed ? colorObjectiveFail : done ? colorObjectiveDone : colorObjectivePending;
                     }
                 }
                 else
                 {
-                    // Fallback: просто добавить Label через код если нет префаба
-                    var go  = new GameObject("Objective");
-                    go.transform.SetParent(objectivesContainer, false);
-                    var lbl = go.AddComponent<TextMeshProUGUI>();
+                    entry = new GameObject("Objective");
+                    entry.transform.SetParent(objectivesContainer, false);
+                    var lbl = entry.AddComponent<TextMeshProUGUI>();
 
                     bool done   = obj.IsCompleted && !obj.isFailCondition;
                     bool failed = obj.isFailCondition && obj.IsCompleted;
 
                     string prefix = obj.isOptional ? "(опц.) " : "";
                     string mark   = done ? "✓ " : failed ? "✗ " : "○ ";
-                    lbl.text  = mark + prefix + obj.description;
-                    lbl.color = failed ? colorObjectiveFail
-                              : done   ? colorObjectiveDone
-                                       : colorObjectivePending;
-                    lbl.fontSize = 14;
+                    lbl.text      = mark + prefix + obj.description;
+                    lbl.color     = failed ? colorObjectiveFail : done ? colorObjectiveDone : colorObjectivePending;
+                    lbl.fontSize  = 14;
                 }
+
+                if (entry != null)
+                    animTargets.Add(GetOrAddCanvasGroup(entry));
             }
         }
 
@@ -291,8 +363,53 @@ public class QuestJournalUI : MonoBehaviour
             bool hasReward = !string.IsNullOrEmpty(_selectedQuest.rewardDescription);
             rewardText.gameObject.SetActive(hasReward);
             if (hasReward)
+            {
                 rewardText.text = $"Награда: {_selectedQuest.rewardDescription}";
+                animTargets.Add(GetOrAddCanvasGroup(rewardText.transform.parent?.gameObject ?? rewardText.gameObject));
+            }
         }
+
+        // Запустить каскадную анимацию
+        _detailsAnimCoroutine = StartCoroutine(AnimateDetails(animTargets));
+    }
+
+    private CanvasGroup GetOrAddCanvasGroup(GameObject go)
+    {
+        var cg = go.GetComponent<CanvasGroup>();
+        if (cg == null) cg = go.AddComponent<CanvasGroup>();
+        cg.alpha = 0f;
+        return cg;
+    }
+
+    private IEnumerator AnimateDetails(System.Collections.Generic.List<CanvasGroup> targets)
+    {
+        float itemDelay  = 0.06f; // задержка между элементами
+        float fadeDuration = 0.15f;
+
+        for (int i = 0; i < targets.Count; i++)
+        {
+            var cg = targets[i];
+            if (cg == null) continue;
+
+            // Небольшая задержка перед каждым элементом
+            yield return new WaitForSecondsRealtime(itemDelay * i);
+
+            // Плавное появление
+            StartCoroutine(FadeIn(cg, fadeDuration));
+        }
+    }
+
+    private IEnumerator FadeIn(CanvasGroup cg, float duration)
+    {
+        float t = 0f;
+        while (t < duration)
+        {
+            t += Time.unscaledDeltaTime;
+            if (cg != null)
+                cg.alpha = Mathf.SmoothStep(0f, 1f, t / duration);
+            yield return null;
+        }
+        if (cg != null) cg.alpha = 1f;
     }
 
     private void UpdateTabColors()
