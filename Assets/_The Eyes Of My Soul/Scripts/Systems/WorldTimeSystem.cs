@@ -4,13 +4,13 @@ using System;
 [System.Serializable]
 public class TimeOfDaySettings
 {
-    public string name = "Morning";
-    public int startHour = 6;
-    public int startMinute = 0;
-    public int endHour = 10;
-    public int endMinute = 0;
-    public Color ambientColor = Color.white;
-    public float lightIntensity = 1f;
+    [Tooltip("Название периода — используется в событиях и игровой логике (NPC, квесты и т.д.)")]
+    public string name        = "Morning";
+    public int startHour      = 6;
+    public int startMinute    = 0;
+    public int endHour        = 10;
+    public int endMinute      = 0;
+    // ambientColor и lightIntensity убраны — визуалом управляет DayNightCycle
 }
 
 public class WorldTimeSystem : MonoBehaviour
@@ -96,7 +96,7 @@ public class WorldTimeSystem : MonoBehaviour
         {
             currentTimeOfDayName = newTimeOfDayName;
             OnTimeOfDayChanged?.Invoke(currentTimeOfDayName);
-            ApplyTimeOfDaySettings();
+            // Визуал не применяется — этим занимается DayNightCycle
         }
     }
 
@@ -133,19 +133,7 @@ public class WorldTimeSystem : MonoBehaviour
         return "Day"; // Значение по умолчанию
     }
 
-    void ApplyTimeOfDaySettings()
-    {
-        if (timeOfDaySettings == null) return;
-
-        foreach (var setting in timeOfDaySettings)
-        {
-            if (setting.name == currentTimeOfDayName)
-            {
-                RenderSettings.ambientLight = setting.ambientColor;
-                return;
-            }
-        }
-    }
+    // ApplyTimeOfDaySettings удалён — весь визуал в DayNightCycle
 
     #region Public API
     public void SetTime(int newHour, int newMinute, int newDay = -1)
@@ -161,18 +149,19 @@ public class WorldTimeSystem : MonoBehaviour
 
     public void AddTime(int hoursToAdd, int minutesToAdd)
     {
-        minute += minutesToAdd;
-        hour += hoursToAdd;
+        // Конвертируем всё в минуты, чтобы избежать промежуточного переполнения
+        int totalMinutes = hour * 60 + minute + hoursToAdd * 60 + minutesToAdd;
 
-        while (minute >= 60)
-        {
-            minute -= 60;
-            hour++;
-        }
+        // Считаем дни
+        int daysToAdd = Mathf.FloorToInt(totalMinutes / (24 * 60f));
+        totalMinutes -= daysToAdd * 24 * 60;
+        if (totalMinutes < 0) { totalMinutes += 24 * 60; daysToAdd--; }
 
-        while (hour >= 24)
+        hour   = totalMinutes / 60;
+        minute = totalMinutes % 60;
+
+        for (int i = 0; i < daysToAdd; i++)
         {
-            hour -= 24;
             day++;
             OnNewDay?.Invoke(day);
         }
