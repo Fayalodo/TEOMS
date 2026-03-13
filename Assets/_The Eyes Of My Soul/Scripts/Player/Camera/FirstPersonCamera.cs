@@ -23,6 +23,10 @@ using Cinemachine;
 /// ПЕРЕКЛЮЧЕНИЕ:
 ///   V — переключить режим (TopDown → ThirdPerson → FirstPerson → TopDown)
 ///   или через код: SwitchMode(CameraMode.FirstPerson)
+///
+/// ИСПРАВЛЕНИЯ:
+///   - InputBlocked: блокирует ввод камеры при открытом UI (инвентарь/диалог/журнал)
+///   - ApplyHeadbob: использует реальную скорость и не боббит в прыжке
 /// </summary>
 public class FirstPersonCamera : MonoBehaviour
 {
@@ -44,8 +48,8 @@ public class FirstPersonCamera : MonoBehaviour
     // ── ССЫЛКИ НА ДРУГИЕ КАМЕРЫ ───────────────────────────────────
     [Header("━━━ КАМЕРЫ ВЕРХНЕГО ВИДА ━━━")]
     [Tooltip("VRisingCamera или CinemachineZoomTiltSlow1 — для TopDown / ThirdPerson")]
-    public MonoBehaviour topDownCameraController;   // VRisingCamera или CinemachineZoomTiltSlow1
-    public CinemachineVirtualCamera vcTopDown;       // виртуальная камера для TopDown
+    public MonoBehaviour topDownCameraController;
+    public CinemachineVirtualCamera vcTopDown;
 
     [Header("━━━ КАМЕРА ОТ 1-ГО ЛИЦА ━━━")]
     [Tooltip("Корень камеры (пустой объект на уровне головы, дочерний к игроку)")]
@@ -125,15 +129,18 @@ public class FirstPersonCamera : MonoBehaviour
     private float bobTimer;
     private Vector3 bobOffset;
 
-    // Переход
-    private bool  isTransitioning;
-    private float transitionT;
-
-    // Ссылка на PlayerMovement для скорости (необязательно)
+    // Ссылка на PlayerMovement для скорости
     private PlayerMovement playerMovement;
 
     // Блокировка курсора
     private bool cursorLocked;
+
+    /// <summary>
+    /// Блокирует ввод мыши и переключение режимов.
+    /// Выставляется в true при открытии инвентаря / диалога / журнала.
+    /// Выставляется в false при их закрытии — курсор восстанавливается там же.
+    /// </summary>
+    public bool InputBlocked { get; set; } = false;
 
     #endregion
     // ─────────────────────────────────────────────────────────────────
@@ -145,7 +152,6 @@ public class FirstPersonCamera : MonoBehaviour
         currentMode = startMode;
         targetMode  = startMode;
 
-        // Начальный yaw = направление игрока
         fpYaw       = transform.eulerAngles.y;
         fpYawTarget = fpYaw;
 
@@ -165,7 +171,9 @@ public class FirstPersonCamera : MonoBehaviour
         {
             HandleFPInput();
             ApplyFPRotation();
-            if (enableHeadbob) ApplyHeadbob();
+            // headbob выключается когда открыт UI — иначе трясётся в диалогах
+            if (enableHeadbob && !InputBlocked) ApplyHeadbob();
+            else if (InputBlocked)             ResetHeadbob();
         }
 
         HandleCursorLock();
@@ -177,6 +185,9 @@ public class FirstPersonCamera : MonoBehaviour
 
     private void HandleModeSwitch()
     {
+        // Не переключать режим пока открыт UI
+        if (InputBlocked) return;
+
         if (Input.GetKeyDown(switchKey))
         {
             CameraMode next = (CameraMode)(((int)currentMode + 1) % 3);
@@ -226,15 +237,15 @@ public class FirstPersonCamera : MonoBehaviour
             fpYaw       = transform.eulerAngles.y;
             fpYawTarget = fpYaw;
             fpPitch     = fpPivot != null ? fpPivot.localEulerAngles.x : 0f;
-            // Нормализуем pitch из [0,360] в [-180,180]
             if (fpPitch > 180f) fpPitch -= 360f;
             fpPitchTarget = Mathf.Clamp(fpPitch, minPitchFP, maxPitchFP);
 
-            LockCursor(true);
+            // Блокируем курсор только если UI не открыт
+            if (!InputBlocked)
+                LockCursor(true);
         }
         else
         {
-            // Выходя из FP — разблокируем курсор
             LockCursor(false);
         }
     }
@@ -245,7 +256,8 @@ public class FirstPersonCamera : MonoBehaviour
 
     private void HandleFPInput()
     {
-        if (!cursorLocked) return;
+        // Не крутим камеру пока открыт UI
+        if (!cursorLocked || InputBlocked) return;
 
         float mouseX = Input.GetAxisRaw("Mouse X") * mouseSensitivityX * Time.deltaTime;
         float mouseY = Input.GetAxisRaw("Mouse Y") * mouseSensitivityY * Time.deltaTime;
@@ -253,15 +265,13 @@ public class FirstPersonCamera : MonoBehaviour
         if (invertY) mouseY = -mouseY;
 
         fpYawTarget   += mouseX;
-        fpPitchTarget -= mouseY;  // вычитаем: мышь вверх = смотрим вверх (pitch-)
+        fpPitchTarget -= mouseY;
         fpPitchTarget  = Mathf.Clamp(fpPitchTarget, minPitchFP, maxPitchFP);
     }
 
     private void ApplyFPRotation()
     {
         if (fpRoot == null || fpPivot == null) return;
-
-        float dt = Time.deltaTime;
 
         if (smoothTime > 0.001f)
         {
@@ -274,11 +284,7 @@ public class FirstPersonCamera : MonoBehaviour
             fpPitch = fpPitchTarget;
         }
 
-        // fpRoot поворачивается по Y — определяет горизонтальное направление взгляда
-        // Игрок при желании тоже может поворачиваться — управляется PlayerMovement
-        fpRoot.rotation      = Quaternion.Euler(0f, fpYaw, 0f);
-
-        // fpPivot поворачивается по X — вертикальный взгляд
+        fpRoot.rotation       = Quaternion.Euler(0f, fpYaw, 0f);
         fpPivot.localRotation = Quaternion.Euler(fpPitch + bobOffset.y * 50f, 0f, bobOffset.x * 30f);
     }
 
@@ -291,24 +297,31 @@ public class FirstPersonCamera : MonoBehaviour
         if (fpPivot == null) return;
 
         float speed = 0f;
-        if (playerMovement != null && playerMovement.IsMoving)
+
+        if (playerMovement != null
+            && playerMovement.IsMoving
+            && playerMovement.IsGrounded)
         {
-            // Получаем примерную скорость из горизонтальной velocity через reflection — или просто walkSpeed
-            speed = playerMovement.IsMoving ? playerMovement.walkSpeed : 0f;
-            if (playerMovement.IsSprinting)   speed *= playerMovement.sprintMultiplier;
-            if (playerMovement.IsWalkingSlow)  speed *= playerMovement.slowWalkMultiplier;
+            speed = playerMovement.CurrentSpeed;
         }
 
         float moveT = Mathf.Clamp01(speed / bobFullSpeed);
 
         bobTimer += Time.deltaTime * bobFrequency * Mathf.PI * 2f * moveT;
 
-        float targetX = Mathf.Sin(bobTimer)       * bobAmplitude * moveT;
-        float targetY = Mathf.Sin(bobTimer * 2f)  * bobAmplitude * 0.5f * moveT;
+        float targetX = Mathf.Sin(bobTimer)      * bobAmplitude * moveT;
+        float targetY = Mathf.Sin(bobTimer * 2f) * bobAmplitude * 0.5f * moveT;
 
         bobOffset = Vector3.Lerp(bobOffset, new Vector3(targetX, targetY, 0f), 8f * Time.deltaTime);
 
-        // Применяем смещение позиции к виртуальной камере
+        if (vcFirstPerson != null)
+            vcFirstPerson.transform.localPosition = new Vector3(bobOffset.x, bobOffset.y, 0f);
+    }
+
+    /// <summary>Плавно сбрасывает bobOffset в ноль пока открыт UI — без резкого скачка.</summary>
+    private void ResetHeadbob()
+    {
+        bobOffset = Vector3.Lerp(bobOffset, Vector3.zero, 12f * Time.deltaTime);
         if (vcFirstPerson != null)
             vcFirstPerson.transform.localPosition = new Vector3(bobOffset.x, bobOffset.y, 0f);
     }
@@ -319,6 +332,9 @@ public class FirstPersonCamera : MonoBehaviour
 
     private void HandleCursorLock()
     {
+        // Escape не трогаем курсор если открыт UI — UI сам управляет курсором
+        if (InputBlocked) return;
+
         // Escape — разблокировать курсор
         if (Input.GetKeyDown(KeyCode.Escape) && cursorLocked)
             LockCursor(false);
@@ -382,7 +398,6 @@ public class FirstPersonCamera : MonoBehaviour
 #if UNITY_EDITOR
     private void OnDrawGizmosSelected()
     {
-        // Рисуем позицию глаз персонажа
         if (fpRoot != null)
         {
             Gizmos.color = Color.green;

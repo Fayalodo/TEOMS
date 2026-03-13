@@ -259,10 +259,18 @@ public class WorldTimeSystem : MonoBehaviour
 #if UNITY_EDITOR
     void OnValidate()
     {
-        hour = Mathf.Clamp(hour, 0, 23);
+        hour   = Mathf.Clamp(hour, 0, 23);
         minute = Mathf.Clamp(minute, 0, 59);
         realSecondsPerGameMinute = Mathf.Max(0.1f, realSecondsPerGameMinute);
         timeScale = Mathf.Clamp(timeScale, 0.1f, 10f);
+
+        // При изменении hour/minute в инспекторе — сразу обновляем небо в сцене.
+        // delayCall нужен чтобы не вызывать во время сериализации Unity.
+        UnityEditor.EditorApplication.delayCall += () =>
+        {
+            var dnc = FindFirstObjectByType<DayNightCycle>();
+            if (dnc != null) dnc.EditorTick();
+        };
     }
 #endif
 }

@@ -55,6 +55,10 @@ public class QuestJournalUI : MonoBehaviour
     [SerializeField] private Color colorObjectivePending = new Color(0.75f, 0.75f, 0.75f);
     [SerializeField] private Color colorObjectiveFail    = new Color(0.85f, 0.35f, 0.35f);
 
+    [Header("Камера (для блокировки ввода)")]
+    [Tooltip("Назначь FirstPersonCamera игрока")]
+    [SerializeField] private FirstPersonCamera firstPersonCamera;
+
     private enum Tab { Active, Completed, Failed }
     private Tab _currentTab = Tab.Active;
     private QuestDefinition _selectedQuest;
@@ -111,7 +115,9 @@ public class QuestJournalUI : MonoBehaviour
         journalPanel.SetActive(true);
         Canvas.ForceUpdateCanvases();
 
-        // Если нет выбранного квеста — выбрать первый из активных
+        // Разблокировать курсор через UIManager
+        UIManager.Instance?.RegisterOpen();
+
         if (_selectedQuest == null && QuestManager.Instance != null)
         {
             var active = QuestManager.Instance.ActiveQuests;
@@ -170,6 +176,9 @@ public class QuestJournalUI : MonoBehaviour
         journalPanel.SetActive(false);
         journalPanel.transform.localScale = from;
         _canvasGroup.alpha = 1f;
+
+        // Вернуть курсор через UIManager
+        UIManager.Instance?.RegisterClose();
     }
 
     // ── Обновление ───────────────────────────────────────────────────────────

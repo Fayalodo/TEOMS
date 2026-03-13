@@ -1,5 +1,9 @@
 using UnityEngine;
 
+/// <summary>
+/// Открывает/закрывает панель инвентаря по клавише.
+/// Уведомляет UIManager — тот управляет курсором и headbob.
+/// </summary>
 public class InventoryToggle : MonoBehaviour
 {
     public GameObject inventoryPanel;
@@ -10,20 +14,37 @@ public class InventoryToggle : MonoBehaviour
     void Start()
     {
         if (inventoryPanel != null)
-            inventoryPanel.SetActive(isOpen);
+            inventoryPanel.SetActive(false);
+        isOpen = false;
     }
 
     void Update()
     {
         if (Input.GetKeyDown(toggleKey))
         {
-            isOpen = !isOpen;
-            inventoryPanel.SetActive(isOpen);
+            if (isOpen) Close();
+            else        Open();
         }
         else if (isOpen && Input.GetKeyDown(KeyCode.Escape))
         {
-            isOpen = false;
-            inventoryPanel.SetActive(false);
+            Close();
         }
     }
+
+    void Open()
+    {
+        isOpen = true;
+        inventoryPanel.SetActive(true);
+        UIManager.Instance?.RegisterOpen();
+    }
+
+    void Close()
+    {
+        isOpen = false;
+        inventoryPanel.SetActive(false);
+        UIManager.Instance?.RegisterClose();
+    }
+
+    public void OpenInventory()  => Open();
+    public void CloseInventory() => Close();
 }

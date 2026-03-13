@@ -204,4 +204,10 @@ public class PlayerMovement : MonoBehaviour
     // Свойства для получения текущего состояния движения
     public bool IsSprinting => isSprinting;
     public bool IsWalkingSlow => isWalkingSlow;
+
+    /// <summary>Реальная горизонтальная скорость (м/с) — для headbob в FirstPersonCamera.</summary>
+    public float CurrentSpeed => horizontalVelocity.magnitude;
+
+    /// <summary>True если персонаж стоит на земле — для отключения headbob в прыжке.</summary>
+    public bool IsGrounded => controller.isGrounded;
 }

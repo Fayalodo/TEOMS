@@ -50,6 +50,10 @@ public class DialogueUI : MonoBehaviour
     [Tooltip("Цвет текста подсказки о требовании репутации")]
     [SerializeField] private Color hintRequirementColor = new Color(0.7f, 0.7f, 0.2f);
 
+    [Header("Камера (для блокировки ввода)")]
+    [Tooltip("Назначь FirstPersonCamera игрока")]
+    [SerializeField] private FirstPersonCamera firstPersonCamera;
+
     private DialogueRunner _runner;
     private List<Button> _choiceButtons = new List<Button>();
     private List<(DialogueChoice choice, bool available)> _pendingChoices;
@@ -121,6 +125,10 @@ public class DialogueUI : MonoBehaviour
     private void ShowNode(DialogueNode node, List<(DialogueChoice choice, bool available)> choices)
     {
         dialoguePanel.SetActive(true);
+
+        // Разблокировать курсор через UIManager
+        UIManager.Instance?.RegisterOpen();
+
         speakerNameText.text = node.speaker;
 
         if (portraitImage != null)
@@ -504,6 +512,9 @@ public class DialogueUI : MonoBehaviour
 
         dialoguePanel.SetActive(false);
         ClearChoiceButtons();
+
+        // Вернуть курсор через UIManager
+        UIManager.Instance?.RegisterClose();
 
         if (reputationText != null)
             reputationText.text = "";

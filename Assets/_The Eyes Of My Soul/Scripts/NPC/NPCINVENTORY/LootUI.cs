@@ -114,6 +114,7 @@ public class LootUI : MonoBehaviour
 
         Refresh();
         panel?.SetActive(true);
+        UIManager.Instance?.RegisterOpen();
 
         if (scrollRect != null)
         {
@@ -133,6 +134,7 @@ public class LootUI : MonoBehaviour
 
         panel?.SetActive(false);
         ClearSlots();
+        UIManager.Instance?.RegisterClose();
 
         if (_sourceInventory != null && _sourceInventory.IsEmpty())
         {
