@@ -27,6 +27,12 @@ using Cinemachine;
 /// ИСПРАВЛЕНИЯ:
 ///   - InputBlocked: блокирует ввод камеры при открытом UI (инвентарь/диалог/журнал)
 ///   - ApplyHeadbob: использует реальную скорость и не боббит в прыжке
+///   - fpRoot.localRotation вместо rotation — исправлено смещение камеры в сторону
+///   - Инициализация fpYaw из localEulerAngles (не world)
+///   - bobOffset/bobTimer сбрасываются при входе в FP — нет скачка камеры
+///   - vcFirstPerson.localPosition сбрасывается при выходе из FP
+///   - faceMovementDirection отключается в FP и восстанавливается при выходе
+///   - Удалено неиспользуемое поле targetMode
 /// </summary>
 public class FirstPersonCamera : MonoBehaviour
 {
@@ -55,6 +61,13 @@ public class FirstPersonCamera : MonoBehaviour
     [Tooltip("Корень камеры (пустой объект на уровне головы, дочерний к игроку)")]
     public Transform fpRoot;    // крутится по Y
 
+    [Tooltip("Точка на игроке откуда берётся позиция головы (обычно тот же fpRoot или отдельный child). " +
+             "Если не назначен — fpRoot следует за transform игрока + headOffset.")]
+    public Transform fpHeadAnchor;
+
+    [Tooltip("Смещение головы от центра игрока (если fpHeadAnchor не назначен)")]
+    public Vector3 headOffset = new Vector3(0f, 1.7f, 0f);
+
     [Tooltip("Пивот камеры (дочерний к FP_Root), крутится по X")]
     public Transform fpPivot;   // крутится по X
 
@@ -74,17 +87,13 @@ public class FirstPersonCamera : MonoBehaviour
     [Tooltip("Инвертировать вертикаль")]
     public bool invertY = false;
 
-    [Tooltip("Минимальный угол взгляда вниз (°)")]
-    [Range(-90f, -10f)]
-    public float minPitchFP = -70f;
+    [Tooltip("Минимальный угол взгляда вниз (°). -89 = почти прямо вниз")]
+    [Range(-89f, -10f)]
+    public float minPitchFP = -89f;
 
-    [Tooltip("Максимальный угол взгляда вверх (°)")]
-    [Range(10f, 90f)]
-    public float maxPitchFP = 75f;
-
-    [Tooltip("Плавность вращения головы. 0 = мгновенно")]
-    [Range(0f, 0.15f)]
-    public float smoothTime = 0.03f;
+    [Tooltip("Максимальный угол взгляда вверх (°). 89 = почти прямо вверх")]
+    [Range(10f, 89f)]
+    public float maxPitchFP = 89f;
 
     [Tooltip("FOV в режиме первого лица")]
     [Range(60f, 110f)]
@@ -115,13 +124,10 @@ public class FirstPersonCamera : MonoBehaviour
     #region PRIVATE STATE
 
     private CameraMode currentMode;
-    private CameraMode targetMode;
 
     // FP вращение
     private float fpYaw;
     private float fpPitch;
-    private float fpYawVelocity;
-    private float fpPitchVelocity;
     private float fpYawTarget;
     private float fpPitchTarget;
 
@@ -150,9 +156,9 @@ public class FirstPersonCamera : MonoBehaviour
     {
         playerMovement = GetComponent<PlayerMovement>();
         currentMode = startMode;
-        targetMode  = startMode;
 
-        fpYaw       = transform.eulerAngles.y;
+        // Инициализируем yaw из локального угла fpRoot, чтобы не смещало камеру
+        fpYaw       = fpRoot != null ? fpRoot.localEulerAngles.y : 0f;
         fpYawTarget = fpYaw;
 
         ValidateReferences();
@@ -160,6 +166,11 @@ public class FirstPersonCamera : MonoBehaviour
 
     private void Start()
     {
+        // Отсоединяем fpRoot от иерархии игрока — теперь он следует только по позиции.
+        // Это полностью изолирует вращение камеры от любых наклонов CharacterController.
+        if (fpRoot != null && fpRoot.parent == transform)
+            fpRoot.SetParent(null, worldPositionStays: true);
+
         ApplyMode(currentMode, instant: true);
     }
 
@@ -177,6 +188,13 @@ public class FirstPersonCamera : MonoBehaviour
         }
 
         HandleCursorLock();
+    }
+
+    private void LateUpdate()
+    {
+        // Позиция синхронизируется в LateUpdate — после того как CharacterController
+        // уже переместил игрока в этом кадре. Исключает лаг камеры на 1 кадр.
+        SyncFpRootPosition();
     }
 
     #endregion
@@ -234,11 +252,24 @@ public class FirstPersonCamera : MonoBehaviour
         // При входе в FP — синхронизируем yaw с текущим направлением игрока
         if (isFP)
         {
+            // Берём world yaw игрока — fpRoot уже отсоединён от иерархии
             fpYaw       = transform.eulerAngles.y;
             fpYawTarget = fpYaw;
-            fpPitch     = fpPivot != null ? fpPivot.localEulerAngles.x : 0f;
-            if (fpPitch > 180f) fpPitch -= 360f;
-            fpPitchTarget = Mathf.Clamp(fpPitch, minPitchFP, maxPitchFP);
+
+            // Pitch всегда стартуем с 0 — любое сохранённое значение из localEulerAngles
+            // может быть в диапазоне 0..360 и сломать SmoothDamp/LerpAngle
+            fpPitch         = 0f;
+            fpPitchTarget   = 0f;
+
+            // FIX: сбрасываем headbob чтобы не было скачка при входе в FP
+            bobOffset = Vector3.zero;
+            bobTimer  = 0f;
+            if (vcFirstPerson != null)
+                vcFirstPerson.transform.localPosition = Vector3.zero;
+
+            // FIX: отключаем поворот тела игрока — в FP камера управляет взглядом сама
+            if (playerMovement != null)
+                playerMovement.faceMovementDirection = false;
 
             // Блокируем курсор только если UI не открыт
             if (!InputBlocked)
@@ -246,8 +277,34 @@ public class FirstPersonCamera : MonoBehaviour
         }
         else
         {
+            // FIX: возвращаем поворот тела при выходе из FP
+            if (playerMovement != null)
+                playerMovement.faceMovementDirection = true;
+
+            // FIX: сбрасываем позицию headbob камеры при выходе из FP
+            if (vcFirstPerson != null)
+                vcFirstPerson.transform.localPosition = Vector3.zero;
+
             LockCursor(false);
         }
+    }
+
+    #endregion
+    // ─────────────────────────────────────────────────────────────────
+    #region FP ROOT POSITION SYNC
+
+    /// <summary>
+    /// Синхронизирует только позицию fpRoot с игроком — вращение не трогает.
+    /// fpRoot отсоединён от иерархии в Start, поэтому его вращение полностью
+    /// независимо от наклонов CharacterController.
+    /// </summary>
+    private void SyncFpRootPosition()
+    {
+        if (fpRoot == null) return;
+        Vector3 targetPos = fpHeadAnchor != null
+            ? fpHeadAnchor.position
+            : transform.position + headOffset;
+        fpRoot.position = targetPos;
     }
 
     #endregion
@@ -266,26 +323,22 @@ public class FirstPersonCamera : MonoBehaviour
 
         fpYawTarget   += mouseX;
         fpPitchTarget -= mouseY;
-        fpPitchTarget  = Mathf.Clamp(fpPitchTarget, minPitchFP, maxPitchFP);
+        fpPitchTarget  = Mathf.Clamp(fpPitchTarget, minPitchFP + 0.1f, maxPitchFP - 0.1f);
     }
 
     private void ApplyFPRotation()
     {
         if (fpRoot == null || fpPivot == null) return;
 
-        if (smoothTime > 0.001f)
-        {
-            fpYaw   = Mathf.SmoothDampAngle(fpYaw,   fpYawTarget,   ref fpYawVelocity,   smoothTime);
-            fpPitch = Mathf.SmoothDampAngle(fpPitch, fpPitchTarget, ref fpPitchVelocity, smoothTime);
-        }
-        else
-        {
-            fpYaw   = fpYawTarget;
-            fpPitch = fpPitchTarget;
-        }
+        // Pitch и Yaw — мгновенно, 1-в-1 с мышью.
+        // Любое сглаживание в FPS даёт рывки и ощущение инерции — не нужно.
+        // Если нужна плавность — регулируй чувствительность мыши, а не smoothing.
+        fpYaw   = fpYawTarget;
+        fpPitch = fpPitchTarget;
 
         fpRoot.rotation       = Quaternion.Euler(0f, fpYaw, 0f);
-        fpPivot.localRotation = Quaternion.Euler(fpPitch + bobOffset.y * 50f, 0f, bobOffset.x * 30f);
+        fpPivot.localRotation = Quaternion.Euler(fpPitch, 0f, 0f) *
+                                Quaternion.Euler(bobOffset.y * 50f, 0f, bobOffset.x * 30f);
     }
 
     #endregion
@@ -362,6 +415,9 @@ public class FirstPersonCamera : MonoBehaviour
     /// <summary>True если сейчас активен вид от первого лица.</summary>
     public bool IsFirstPerson => currentMode == CameraMode.FirstPerson;
 
+    /// <summary>Корень FP камеры — для движения персонажа относительно взгляда в FP режиме.</summary>
+    public Transform FpRoot => fpRoot;
+
     /// <summary>
     /// Направление взгляда камеры (для стрельбы/прицеливания в FP).
     /// В других режимах возвращает forward игрока.
@@ -378,7 +434,6 @@ public class FirstPersonCamera : MonoBehaviour
     {
         fpYaw = fpYawTarget = yaw;
         fpPitch = fpPitchTarget = Mathf.Clamp(pitch, minPitchFP, maxPitchFP);
-        fpYawVelocity = fpPitchVelocity = 0f;
     }
 
     #endregion

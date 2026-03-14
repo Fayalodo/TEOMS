@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Sky_Day_Night
-  m_Shader: {fileID: 4800000, guid: cdbb09ae338a4bb4283ab7878534b7bf, type: 3}
+  m_Shader: {fileID: 4800000, guid: eeaee928c8c40ed4aad89d68f7592103, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -20,7 +20,7 @@ Material:
   stringTagMap: {}
   disabledShaderPasses:
   - MOTIONVECTORS
-  m_LockedProperties: 
+  m_LockedProperties: _SunGlowRadius
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -104,11 +104,16 @@ Material:
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
     - _CloudCoverage: 0.4
-    - _CloudDensity: 0.42624
+    - _CloudDensity: 0.71923196
+    - _CloudHeightFade: 0.44
     - _CloudLayer2Density: 0.3
     - _CloudLayer2Speed: 0.001
-    - _CloudSoftness: 0.3
-    - _CloudSpeed: 0.0018
+    - _CloudRimWidth: 0.242
+    - _CloudScale: 4.72
+    - _CloudShadowStrength: 0.55
+    - _CloudSoftness: 0.184
+    - _CloudSpeed: 0.0158
+    - _CloudSunStrength: 0.9
     - _Cull: 2
     - _Cutoff: 0.5
     - _DetailAlbedoMapScale: 1
@@ -152,6 +157,7 @@ Material:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _CloudColor: {r: 1, g: 0.9636, b: 0.9324, a: 1}
     - _CloudColorNight: {r: 0.108320005, g: 0.11792, b: 0.23232, a: 1}
+    - _CloudRimColor: {r: 1.1, g: 1, b: 0.85, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _FogColor: {r: 0.5, g: 0.6, b: 0.8, a: 1}

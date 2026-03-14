@@ -32,6 +32,9 @@ public class PlayerMovement : MonoBehaviour
     public bool cameraRelativeMovement = true;
     public Transform cameraTransform;
 
+    [Tooltip("Ссылка на FirstPersonCamera — движение в FP будет относительно взгляда игрока, а не TopDown камеры")]
+    public FirstPersonCamera firstPersonCamera;
+
     [Header("Визуал/поворот")]
     [Tooltip("Если true — поворачиваем только визуальный child (sprite/visual)")]
     public bool rotateVisualOnly = true;
@@ -68,6 +71,7 @@ public class PlayerMovement : MonoBehaviour
         controller = GetComponent<CharacterController>();
         cachedJumpVelocity = Mathf.Sqrt(2f * gravity * Mathf.Max(0.001f, jumpHeight));
         if (cameraRelativeMovement && cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
+        if (firstPersonCamera == null) firstPersonCamera = GetComponent<FirstPersonCamera>();
         UpdateCameraCache();
         if (spriteRenderer == null) spriteRenderer = GetComponentInChildren<SpriteRenderer>();
         if (visualRoot == null && spriteRenderer != null) visualRoot = spriteRenderer.transform;
@@ -110,8 +114,19 @@ public class PlayerMovement : MonoBehaviour
         Vector3 targetDirection;
         if (cameraRelativeMovement && cameraTransform != null)
         {
-            // FIX: используем кешированные векторы
-            targetDirection = cachedCamR * input.x + cachedCamF * input.z;
+            // В режиме FP используем направление fpRoot (взгляд игрока), а не TopDown камеру.
+            // Иначе "вперёд" TopDown камеры смотрит вниз на сцену и движение инвертируется.
+            if (firstPersonCamera != null && firstPersonCamera.IsFirstPerson && firstPersonCamera.FpRoot != null)
+            {
+                Vector3 fpF = firstPersonCamera.FpRoot.forward; fpF.y = 0f; fpF.Normalize();
+                Vector3 fpR = firstPersonCamera.FpRoot.right;   fpR.y = 0f; fpR.Normalize();
+                targetDirection = fpR * input.x + fpF * input.z;
+            }
+            else
+            {
+                // FIX: используем кешированные векторы
+                targetDirection = cachedCamR * input.x + cachedCamF * input.z;
+            }
         }
         else
         {
