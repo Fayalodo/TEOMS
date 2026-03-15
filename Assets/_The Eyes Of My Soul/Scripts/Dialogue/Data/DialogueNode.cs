@@ -47,7 +47,6 @@ public class DialogueNode
         if (alternativeTexts == null || alternativeTexts.Count == 0)
             return text;
 
-        // Собрать пул: основной текст + все альтернативы
         var pool = new List<string>();
         if (!string.IsNullOrEmpty(text))
             pool.Add(text);
@@ -57,5 +56,14 @@ public class DialogueNode
 
         if (pool.Count == 0) return text;
         return pool[UnityEngine.Random.Range(0, pool.Count)];
+    }
+
+    /// <summary>
+    /// Применить entryEffects при входе в узел.
+    /// </summary>
+    public void ApplyEntryEffects(DialogueContext ctx)
+    {
+        foreach (var effect in entryEffects)
+            effect.Apply(ctx);
     }
 }

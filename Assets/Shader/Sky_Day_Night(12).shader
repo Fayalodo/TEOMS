@@ -36,6 +36,10 @@ Shader "Custom/SkyboxLayered"
         _SunGlowRadius        ("Sun Glow Radius",    Range(0, 0.2)) = 0.03
         _SunGlowPower         ("Sun Glow Falloff",   Range(1, 32))  = 8
         [HDR] _SunGlowColor   ("Sun Glow Color",     Color)         = (1, 0.7, 0.3, 1)
+
+        // ── Star twinkle ──────────────────────────────────────────────────────
+        _StarTwinkleSpeed     ("Star Twinkle Speed", Range(0, 10))  = 3.0
+        _StarTwinkleAmt       ("Star Twinkle Amount",Range(0, 0.5)) = 0.12
     }
 
     SubShader
@@ -79,6 +83,9 @@ Shader "Custom/SkyboxLayered"
             float       _SunGlowRadius;
             float       _SunGlowPower;
             half4       _SunGlowColor;
+
+            float       _StarTwinkleSpeed;
+            float       _StarTwinkleAmt;
 
             struct appdata { float4 vertex : POSITION; };
             struct v2f
@@ -198,6 +205,13 @@ Shader "Custom/SkyboxLayered"
                 half3 starColor   = starVal * _StarBrightness * nightFactor
                                   * saturate(up * 4.0);
 
+                // ── Мерцание звёзд ────────────────────────────────────────────
+                // Каждая звезда мерцает на своей уникальной частоте через hash
+                float twinklePhase = hash3(floor(normalize(starDir) * 120.0) + float3(7.3, 3.1, 9.7));
+                float twinkle      = 1.0 + _StarTwinkleAmt *
+                                     sin(_Time.y * _StarTwinkleSpeed * (0.5 + twinklePhase));
+                starColor *= twinkle * nightFactor;
+
                 // ── 3. Облака ─────────────────────────────────────────────────
 
                 // Маска высоты: плавно гасим облака ближе к горизонту
@@ -297,7 +311,7 @@ Shader "Custom/SkyboxLayered"
                 sunGlow = min(sunGlow * saturate(_Exposure * 0.9), 0.85);
                 half3 glowCol  = _SunGlowColor.rgb * sunGlow;
 
-                // ── 5. Сборка ─────────────────────────────────────────────────
+                // ── 5. Сборка ─── ─────────────────────────────────────────────
                 half3 col = skyBase;
                 col = lerp(col, cloudCol, cloudAlpha);
                 col += starColor;

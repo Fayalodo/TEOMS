@@ -13,8 +13,15 @@ public class DialogueGraph : ScriptableObject
             if (node.isEntryNode)
                 return node;
 
-        // Fallback: первый узел
-        return nodes.Count > 0 ? nodes[0] : null;
+        // Fallback: первый узел (с предупреждением — отсутствие entryNode скорее всего ошибка)
+        if (nodes.Count > 0)
+        {
+            Debug.LogWarning($"[DialogueGraph] '{name}': ни один узел не помечен как Entry. Используется первый узел как fallback.");
+            return nodes[0];
+        }
+
+        Debug.LogError($"[DialogueGraph] '{name}': граф пуст, диалог не может быть запущен.");
+        return null;
     }
 
     /// <summary>Найти узел по GUID.</summary>
@@ -41,7 +48,6 @@ public class DialogueGraph : ScriptableObject
     public void RemoveNode(string guid)
     {
         nodes.RemoveAll(n => n.guid == guid);
-        // Очистить ссылки на удалённый узел из choices
         foreach (var node in nodes)
             foreach (var choice in node.choices)
                 if (choice.nextNodeGuid == guid)

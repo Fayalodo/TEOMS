@@ -67,7 +67,7 @@ MonoBehaviour:
     entryEffects: []
     isEntryNode: 1
     portrait: {fileID: -1764640790, guid: e794fd78bbd84874899ad0e8be1c11d9, type: 3}
-    editorPosition: {x: 6, y: 27}
+    editorPosition: {x: 0, y: 0}
   - guid: e3db328e-7632-444c-827a-951ddceabcd9
     speaker: "\u0421\u0442\u0440\u0430\u0436"
     text: "\u041F\u0440\u0438\u043D\u0435\u0441\u0438 \u043C\u043D\u0435 \u0433\u0440\u0438\u0431"
@@ -91,7 +91,7 @@ MonoBehaviour:
     entryEffects: []
     isEntryNode: 0
     portrait: {fileID: 0}
-    editorPosition: {x: 290, y: 17}
+    editorPosition: {x: 0, y: 0}
   - guid: dd9f7b04-d6df-47fa-b7ef-faad08f3622a
     speaker: "\u0421\u0442\u0440\u0430\u0436"
     text: "\u0412\u043E\u0442 \u0441\u043F\u0430\u0441\u0438\u0431\u043E!"
@@ -105,7 +105,7 @@ MonoBehaviour:
     entryEffects: []
     isEntryNode: 0
     portrait: {fileID: 0}
-    editorPosition: {x: 280.8, y: 185.6}
+    editorPosition: {x: 0, y: 0}
   - guid: 5324ce4e-e865-40ab-bd57-28b2ab6375ba
     speaker: "\u0421\u0442\u0440\u0430\u0436"
     text: "\u042D\u0442\u043E \u0442\u0435\u0431\u0435!"
@@ -124,4 +124,4 @@ MonoBehaviour:
       quest: {fileID: 0}
     isEntryNode: 0
     portrait: {fileID: 0}
-    editorPosition: {x: 457.6, y: 244}
+    editorPosition: {x: 293.6, y: 56.656006}

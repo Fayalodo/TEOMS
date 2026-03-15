@@ -20,19 +20,31 @@ public class DialogueChoice
     [Tooltip("Если true — вариант виден но недоступен (серый), а не скрыт")]
     public bool showIfFailed = false;
 
+    // ── Новый API ────────────────────────────────────────────────────────
+
     /// <summary>Все условия выполнены?</summary>
-    public bool IsAvailable(DialogueAgent npcAgent)
+    public bool IsAvailable(DialogueContext ctx)
     {
         foreach (var cond in conditions)
-            if (!cond.Evaluate(npcAgent))
+            if (!cond.Evaluate(ctx))
                 return false;
         return true;
     }
 
     /// <summary>Применить все эффекты выбора.</summary>
-    public void ApplyEffects(DialogueAgent npcAgent)
+    public void ApplyEffects(DialogueContext ctx)
     {
         foreach (var effect in effects)
-            effect.Apply(npcAgent);
+            effect.Apply(ctx);
     }
+
+    // ── Обратная совместимость ───────────────────────────────────────────
+
+    [Obsolete("Используй IsAvailable(DialogueContext ctx).")]
+    public bool IsAvailable(DialogueAgent npcAgent)
+        => IsAvailable(DialogueContext.FromSingletons(npcAgent));
+
+    [Obsolete("Используй ApplyEffects(DialogueContext ctx).")]
+    public void ApplyEffects(DialogueAgent npcAgent)
+        => ApplyEffects(DialogueContext.FromSingletons(npcAgent));
 }

@@ -14,7 +14,7 @@ public enum ItemSource
 }
 
 [RequireComponent(typeof(AudioSource))]
-public class Inventory : MonoBehaviour
+public class Inventory : MonoBehaviour, IInventory
 {
     [Header("Основные настройки")]
     [Tooltip("Кол-во слотов в инвентаре")]

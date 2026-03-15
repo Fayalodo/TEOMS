@@ -25,7 +25,7 @@ public class DayNightCycle : MonoBehaviour
     public class LightPreset
     {
         [Tooltip("Время начала этого пресета")]
-        [Range(0, 23)] public int hour   = 6;
+        [Range(0, 23)] public int hour = 6;
         [Range(0, 59)] public int minute = 0;
 
         [Header("Directional Light (Солнце)")]
@@ -33,9 +33,9 @@ public class DayNightCycle : MonoBehaviour
         [Range(0f, 8f)] public float sunIntensity = 1f;
 
         [Header("Ambient (Trilight)")]
-        public Color ambientSkyColor     = Color.gray;
+        public Color ambientSkyColor = Color.gray;
         public Color ambientEquatorColor = Color.gray;
-        public Color ambientGroundColor  = Color.gray;
+        public Color ambientGroundColor = Color.gray;
 
         [Header("Fog")]
         public Color fogColor = Color.gray;
@@ -94,7 +94,7 @@ public class DayNightCycle : MonoBehaviour
     [Tooltip("Меш солнца. Если не назначен — создаётся автоматически (сфера).")]
     public Renderer sunVisual;
     public float sunDistance = 500f;
-    public float sunSize     = 20f;
+    public float sunSize = 20f;
     [Tooltip("Unlit / Emissive материал.")]
     public Material sunMaterial;
 
@@ -102,7 +102,7 @@ public class DayNightCycle : MonoBehaviour
     [Tooltip("Меш луны. Если не назначен — создаётся автоматически (сфера).")]
     public Renderer moonVisual;
     public float moonDistance = 500f;
-    public float moonSize     = 14f;
+    public float moonSize = 14f;
     public Material moonMaterial;
 
     [Header("Moon Light")]
@@ -117,10 +117,20 @@ public class DayNightCycle : MonoBehaviour
     [Tooltip("Азимут восхода: 0=север, 90=восток, 180=юг, 270=запад.")]
     [Range(0f, 360f)] public float sunriseAzimuth = 90f;
     [Tooltip("Наклон орбитальной плоскости (0=через зенит, 20=реалистично).")]
-    [Range(0f, 89f)]  public float orbitTilt = 20f;
+    [Range(0f, 89f)] public float orbitTilt = 20f;
 
     [Header("Fog")]
     public bool enableFog = true;
+
+    [Header("Moon Phase")]
+    [Tooltip("Фаза луны: 0 = новолуние (не видна), 0.5 = полнолуние (полная яркость).\n" +
+             "Меняй вручную или привязывай к игровому календарю.")]
+    [Range(0f, 1f)] public float moonPhase = 0.5f;
+
+    [Header("Sun Size Pulse")]
+    [Tooltip("Насколько больше становится диск солнца у горизонта (атмосферный эффект).\n" +
+             "0 = без эффекта, 1.5 = заметное увеличение на закате/рассвете.")]
+    [Range(0f, 3f)] public float sunHorizonSizeBoost = 1.4f;
 
     [Header("Light Presets  ← сортировать по времени!")]
     public LightPreset[] presets = GetDefaultPresets();
@@ -140,19 +150,19 @@ public class DayNightCycle : MonoBehaviour
 
     float _starRotationAngle = 0f;
 
-    static readonly int ID_SkyTint          = Shader.PropertyToID("_SkyTint");
-    static readonly int ID_Exposure         = Shader.PropertyToID("_Exposure");
-    static readonly int ID_HorizonColor     = Shader.PropertyToID("_HorizonColor");
+    static readonly int ID_SkyTint = Shader.PropertyToID("_SkyTint");
+    static readonly int ID_Exposure = Shader.PropertyToID("_Exposure");
+    static readonly int ID_HorizonColor = Shader.PropertyToID("_HorizonColor");
     static readonly int ID_HorizonSharpness = Shader.PropertyToID("_HorizonSharpness");
-    static readonly int ID_SunGlowColor     = Shader.PropertyToID("_SunGlowColor");
-    static readonly int ID_SunGlowRadius    = Shader.PropertyToID("_SunGlowRadius");
-    static readonly int ID_CloudDensity     = Shader.PropertyToID("_CloudDensity");
-    static readonly int ID_CloudColor       = Shader.PropertyToID("_CloudColor");
-    static readonly int ID_CloudColorNight  = Shader.PropertyToID("_CloudColorNight");
-    static readonly int ID_StarMatrix       = Shader.PropertyToID("_StarMatrix");
-    static readonly int ID_StarFadeStart    = Shader.PropertyToID("_StarFadeStart");
-    static readonly int ID_StarFadeEnd      = Shader.PropertyToID("_StarFadeEnd");
-    static readonly int ID_Color            = Shader.PropertyToID("_Color");
+    static readonly int ID_SunGlowColor = Shader.PropertyToID("_SunGlowColor");
+    static readonly int ID_SunGlowRadius = Shader.PropertyToID("_SunGlowRadius");
+    static readonly int ID_CloudDensity = Shader.PropertyToID("_CloudDensity");
+    static readonly int ID_CloudColor = Shader.PropertyToID("_CloudColor");
+    static readonly int ID_CloudColorNight = Shader.PropertyToID("_CloudColorNight");
+    static readonly int ID_StarMatrix = Shader.PropertyToID("_StarMatrix");
+    static readonly int ID_StarFadeStart = Shader.PropertyToID("_StarFadeStart");
+    static readonly int ID_StarFadeEnd = Shader.PropertyToID("_StarFadeEnd");
+    static readonly int ID_Color = Shader.PropertyToID("_Color");
 
     // ─────────────────────────────────────────────────────────────────────────
     //  Приватные поля
@@ -161,7 +171,9 @@ public class DayNightCycle : MonoBehaviour
     MaterialPropertyBlock _sunPropBlock;
     MaterialPropertyBlock _moonPropBlock;
     Camera _cachedCamera;
-    float  _currentMinutes;
+    float _currentMinutes;
+    float _lastGIExposure = -1f;
+    float _lastGIUpdateTime = -999f;
 
     // ─────────────────────────────────────────────────────────────────────────
     //  Unity lifecycle
@@ -170,7 +182,7 @@ public class DayNightCycle : MonoBehaviour
     // Инициализируем property blocks в любом месте где они могут быть null
     void EnsurePropertyBlocks()
     {
-        if (_sunPropBlock  == null) _sunPropBlock  = new MaterialPropertyBlock();
+        if (_sunPropBlock == null) _sunPropBlock = new MaterialPropertyBlock();
         if (_moonPropBlock == null) _moonPropBlock = new MaterialPropertyBlock();
     }
 
@@ -182,8 +194,8 @@ public class DayNightCycle : MonoBehaviour
         SetupSunVisual();
         SetupMoonVisual();
 
-        RenderSettings.fog         = enableFog;
-        RenderSettings.fogMode     = FogMode.ExponentialSquared;
+        RenderSettings.fog = enableFog;
+        RenderSettings.fogMode = FogMode.ExponentialSquared;
         RenderSettings.ambientMode = AmbientMode.Trilight;
 
         if (skyboxMaterial != null)
@@ -251,17 +263,17 @@ public class DayNightCycle : MonoBehaviour
         if (moonLight != null) return;
         var go = new GameObject("Moon Light");
         go.transform.SetParent(transform);
-        moonLight           = go.AddComponent<Light>();
-        moonLight.type      = LightType.Directional;
-        moonLight.color     = moonLightColor;
+        moonLight = go.AddComponent<Light>();
+        moonLight.type = LightType.Directional;
+        moonLight.color = moonLightColor;
         moonLight.intensity = 0f;
-        moonLight.shadows   = LightShadows.None;
+        moonLight.shadows = LightShadows.None;
     }
 
     void SetupSunVisual()
     {
         if (sunVisual != null) return;
-        if (sunLight  == null) return;
+        if (sunLight == null) return;
         var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         go.name = "Sun Mesh";
         Destroy(go.GetComponent<Collider>());
@@ -284,7 +296,7 @@ public class DayNightCycle : MonoBehaviour
     void SetupMoonVisual()
     {
         if (moonVisual != null) return;
-        if (moonLight  == null) return;
+        if (moonLight == null) return;
         var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         go.name = "Moon Mesh";
         Destroy(go.GetComponent<Collider>());
@@ -314,7 +326,7 @@ public class DayNightCycle : MonoBehaviour
             return;
 
         float totalRaw = WorldTimeSystem.Instance.GetTotalGameMinutes();
-        float dayMins  = 24f * 60f;
+        float dayMins = 24f * 60f;
         _currentMinutes = totalRaw % dayMins;
         if (_currentMinutes < 0f) _currentMinutes += dayMins;
 
@@ -343,11 +355,11 @@ public class DayNightCycle : MonoBehaviour
             if (wts != null) mins = wts.hour * 60f + wts.minute;
         }
 #endif
-        float t          = mins / (24f * 60f);
+        float t = mins / (24f * 60f);
         float orbitAngle = t * 360f;
-        Quaternion riseRot   = Quaternion.Euler(0f, sunriseAzimuth + 90f, 0f);
-        Vector3    orbitAxis = riseRot * Quaternion.Euler(-orbitTilt, 0f, 0f) * Vector3.right;
-        Vector3    toSun     = Quaternion.AngleAxis(orbitAngle, orbitAxis) * Vector3.down;
+        Quaternion riseRot = Quaternion.Euler(0f, sunriseAzimuth + 90f, 0f);
+        Vector3 orbitAxis = riseRot * Quaternion.Euler(-orbitTilt, 0f, 0f) * Vector3.right;
+        Vector3 toSun = Quaternion.AngleAxis(orbitAngle, orbitAxis) * Vector3.down;
         return Quaternion.LookRotation(-toSun, Vector3.up);
     }
 
@@ -363,27 +375,38 @@ public class DayNightCycle : MonoBehaviour
             moonLight.transform.rotation = Quaternion.LookRotation(-sunLight.transform.forward, Vector3.up);
 
         // Высота над горизонтом
-        float sunAlt  = -Mathf.Asin(Mathf.Clamp(sunLight.transform.forward.y, -1f, 1f)) * Mathf.Rad2Deg;
+        float sunAlt = -Mathf.Asin(Mathf.Clamp(sunLight.transform.forward.y, -1f, 1f)) * Mathf.Rad2Deg;
         float moonAlt = -sunAlt;
 
-        float sunAlpha  = Mathf.Clamp01((sunAlt  + horizonFadeAngle) / horizonFadeAngle);
+        float sunAlpha = Mathf.Clamp01((sunAlt + horizonFadeAngle) / horizonFadeAngle);
         float moonAlpha = Mathf.Clamp01((moonAlt + horizonFadeAngle) / horizonFadeAngle);
         // Луна невидима когда яркое солнце
         moonAlpha *= 1f - Mathf.Clamp01(sunLight.intensity / 1.5f);
+        // Фаза луны: новолуние (0) → не видна, полнолуние (0.5) → полная яркость
+        // sin(phase * PI) даёт плавную кривую 0→1→0
+        float moonPhaseBrightness = Mathf.Sin(moonPhase * Mathf.PI);
+        moonAlpha *= moonPhaseBrightness;
 
         if (moonLight != null)
-            moonLight.intensity = moonMaxIntensity * moonAlpha;
+            moonLight.intensity = moonMaxIntensity * moonAlpha * moonPhaseBrightness;
 
         if (_cachedCamera == null) _cachedCamera = Camera.main;
         Vector3 origin = _cachedCamera != null ? _cachedCamera.transform.position : Vector3.zero;
 
-        Vector3 toSun  = -sunLight.transform.forward;
-        Vector3 toMoon =  sunLight.transform.forward;
+        Vector3 toSun = -sunLight.transform.forward;
+        Vector3 toMoon = sunLight.transform.forward;
 
         if (sunVisual != null)
         {
             sunVisual.transform.position = origin + toSun * sunDistance;
             sunVisual.transform.rotation = Quaternion.LookRotation(origin - sunVisual.transform.position);
+
+            // Пульсация размера солнца у горизонта: чем ниже — тем крупнее
+            // sunAlt: >20° = нормальный размер, <5° = максимальный буст
+            float horizonFactor = 1f - Mathf.Clamp01((sunAlt - 5f) / 15f);
+            float pulsedSize = sunSize * (1f + horizonFactor * sunHorizonSizeBoost * 0.15f);
+            sunVisual.transform.localScale = Vector3.one * pulsedSize;
+
             Color sc = sunLight.color * (1f + sunLight.intensity * 0.5f);
             sc.a = sunAlpha;
             _sunPropBlock.SetColor(ID_Color, sc);
@@ -421,7 +444,7 @@ public class DayNightCycle : MonoBehaviour
         // latitude=90  → ось = Vector3.up    (полюс, карусель)
         // latitude=45  → ось наклонена 45° от зенита к северу (реалистично для средних широт)
         // latitude=0   → ось = Vector3.forward (экватор, звёзды встают строго на востоке)
-        float latRad   = latitude * Mathf.Deg2Rad;
+        float latRad = latitude * Mathf.Deg2Rad;
         // Ось направлена на северный полюс мира: наклон от Y к -Z на (90-latitude)°
         Vector3 polarAxis = new Vector3(0f, Mathf.Sin(latRad), -Mathf.Cos(latRad));
 
@@ -438,19 +461,19 @@ public class DayNightCycle : MonoBehaviour
     {
         const float dayMinutes = 24f * 60f;
         from = presets[presets.Length - 1];
-        to   = presets[0];
+        to = presets[0];
         for (int i = 0; i < presets.Length; i++)
         {
             float pMin = presets[i].hour * 60f + presets[i].minute;
             if (pMin <= currentMinutes)
             {
                 from = presets[i];
-                to   = presets[(i + 1) % presets.Length];
+                to = presets[(i + 1) % presets.Length];
             }
         }
         float fromMin = from.hour * 60f + from.minute;
-        float toMin   = to.hour   * 60f + to.minute;
-        float span    = toMin - fromMin;
+        float toMin = to.hour * 60f + to.minute;
+        float span = toMin - fromMin;
         if (span <= 0f) span += dayMinutes;
         if (span < 0.01f) { t = 0f; return; }
         float elapsed = currentMinutes - fromMin;
@@ -469,18 +492,18 @@ public class DayNightCycle : MonoBehaviour
         // ── Directional Light ────────────────────────────────────────────────
         if (sunLight != null)
         {
-            sunLight.color              = Color.Lerp(from.sunColor, to.sunColor, st);
-            sunLight.intensity          = Mathf.Lerp(from.sunIntensity, to.sunIntensity, st);
+            sunLight.color = Color.Lerp(from.sunColor, to.sunColor, st);
+            sunLight.intensity = Mathf.Lerp(from.sunIntensity, to.sunIntensity, st);
             sunLight.transform.rotation = GetSunRotation();
         }
 
         // ── Ambient ──────────────────────────────────────────────────────────
-        RenderSettings.ambientSkyColor     = Color.Lerp(from.ambientSkyColor,     to.ambientSkyColor,     st);
+        RenderSettings.ambientSkyColor = Color.Lerp(from.ambientSkyColor, to.ambientSkyColor, st);
         RenderSettings.ambientEquatorColor = Color.Lerp(from.ambientEquatorColor, to.ambientEquatorColor, st);
-        RenderSettings.ambientGroundColor  = Color.Lerp(from.ambientGroundColor,  to.ambientGroundColor,  st);
+        RenderSettings.ambientGroundColor = Color.Lerp(from.ambientGroundColor, to.ambientGroundColor, st);
 
         // ── Fog ──────────────────────────────────────────────────────────────
-        RenderSettings.fogColor   = Color.Lerp(from.fogColor,   to.fogColor,   st);
+        RenderSettings.fogColor = Color.Lerp(from.fogColor, to.fogColor, st);
         RenderSettings.fogDensity = Mathf.Lerp(from.fogDensity, to.fogDensity, st);
 
         // ── Skybox (Custom/SkyboxLayered) ────────────────────────────────────
@@ -508,9 +531,20 @@ public class DayNightCycle : MonoBehaviour
             // Пороги гашения звёзд — задаём один раз, не нужно каждый кадр
             // (можно вынести в Start если не хочется трогать)
             skyboxMaterial.SetFloat(ID_StarFadeStart, 0.20f);
-            skyboxMaterial.SetFloat(ID_StarFadeEnd,   0.55f);
+            skyboxMaterial.SetFloat(ID_StarFadeEnd, 0.55f);
 
-            DynamicGI.UpdateEnvironment();
+            // DynamicGI — только если exposure изменился заметно (>0.02)
+            // или прошло больше 3 секунд. Каждый кадр — лишняя нагрузка.
+            float curExp = Mathf.Lerp(from.exposure, to.exposure, st);
+            float timeSinceGI = Application.isPlaying
+                ? Time.time - _lastGIUpdateTime
+                : float.MaxValue; // в редакторе обновляем всегда
+            if (Mathf.Abs(curExp - _lastGIExposure) > 0.02f || timeSinceGI > 3f)
+            {
+                DynamicGI.UpdateEnvironment();
+                _lastGIExposure = curExp;
+                _lastGIUpdateTime = Application.isPlaying ? Time.time : 0f;
+            }
         }
     }
 
@@ -536,7 +570,7 @@ public class DayNightCycle : MonoBehaviour
             exposure            = 0.15f,   // звёзды видны — nightFactor высокий
             sunGlowColor        = new Color(0.2f, 0.3f, 0.6f),
             sunGlowRadius       = 0.0f,
-            cloudDensity        = 0.55f,
+            cloudDensity        = 0.68f,   // ночью плотнее — редкие просветы со звёздами
             cloudColorDay       = new Color(0.6f,  0.65f, 0.8f),
             cloudColorNight     = new Color(0.08f, 0.10f, 0.22f),
         },
@@ -549,14 +583,14 @@ public class DayNightCycle : MonoBehaviour
             ambientEquatorColor = new Color(0.42f, 0.26f, 0.16f),
             ambientGroundColor  = new Color(0.12f, 0.08f, 0.05f),
             fogColor            = new Color(0.72f, 0.50f, 0.32f),
-            fogDensity          = 0.014f,
+            fogDensity          = 0.028f,  // утренний туман максимальный на рассвете
             skyTint             = new Color(0.55f, 0.38f, 0.28f),
             horizonColor        = new Color(1.0f,  0.55f, 0.18f),
             horizonSharpness    = 5f,
             exposure            = 0.45f,
             sunGlowColor        = new Color(1.0f, 0.60f, 0.20f),
             sunGlowRadius       = 0.04f,
-            cloudDensity        = 0.50f,
+            cloudDensity        = 0.65f,
             cloudColorDay       = new Color(1.0f, 0.80f, 0.60f),
             cloudColorNight     = new Color(0.15f, 0.10f, 0.08f),
         },
@@ -569,14 +603,14 @@ public class DayNightCycle : MonoBehaviour
             ambientEquatorColor = new Color(0.35f, 0.46f, 0.62f),
             ambientGroundColor  = new Color(0.16f, 0.20f, 0.16f),
             fogColor            = new Color(0.70f, 0.78f, 0.90f),
-            fogDensity          = 0.007f,
+            fogDensity          = 0.018f,  // туман ещё есть, но рассеивается
             skyTint             = new Color(0.30f, 0.52f, 0.88f),
             horizonColor        = new Color(0.72f, 0.80f, 0.95f),
             horizonSharpness    = 7f,
             exposure            = 0.8f,
             sunGlowColor        = new Color(1.0f, 0.88f, 0.60f),
             sunGlowRadius       = 0.03f,
-            cloudDensity        = 0.45f,
+            cloudDensity        = 0.60f,
             cloudColorDay       = new Color(1.0f, 1.0f, 1.0f),
             cloudColorNight     = new Color(0.1f, 0.12f, 0.25f),
         },
@@ -589,16 +623,42 @@ public class DayNightCycle : MonoBehaviour
             ambientEquatorColor = new Color(0.22f, 0.34f, 0.55f),
             ambientGroundColor  = new Color(0.10f, 0.14f, 0.10f),
             fogColor            = new Color(0.55f, 0.68f, 0.85f),
-            fogDensity          = 0.004f,
-            skyTint             = new Color(0.18f, 0.38f, 0.75f),  // насыщенный синий
-            horizonColor        = new Color(0.55f, 0.68f, 0.88f),  // бледно-голубой горизонт
+            fogDensity          = 0.003f,  // в полдень туман минимальный
+            skyTint             = new Color(0.18f, 0.38f, 0.75f),
+            horizonColor        = new Color(0.55f, 0.68f, 0.88f),
             horizonSharpness    = 6f,
-            exposure            = 0.85f,  // НЕ 1.0 — иначе пересвет
+            exposure            = 0.85f,
             sunGlowColor        = new Color(1.0f, 0.95f, 0.80f),
-            sunGlowRadius       = 0.025f, // маленький чёткий ореол
-            cloudDensity        = 0.42f,
+            sunGlowRadius       = 0.025f,
+            cloudDensity        = 0.55f,   // дневная норма
             cloudColorDay       = new Color(1.0f, 1.0f, 1.0f),
             cloudColorNight     = new Color(0.1f, 0.12f, 0.25f),
+        },
+        new LightPreset   // 15:00 — послеполуденное
+        {
+            hour = 15, minute = 0,
+            // Солнце ещё высоко, но свет теплее и мягче чем в полдень
+            sunColor            = new Color(1.0f, 0.91f, 0.72f),
+            sunIntensity        = 1.3f,
+            // Ambient теплее — золотистый подтон на объектах
+            ambientSkyColor     = new Color(0.32f, 0.48f, 0.76f),
+            ambientEquatorColor = new Color(0.30f, 0.40f, 0.58f),
+            ambientGroundColor  = new Color(0.14f, 0.16f, 0.11f),
+            // Туман почти нет — ясный послеполуденный воздух
+            fogColor            = new Color(0.60f, 0.70f, 0.86f),
+            fogDensity          = 0.004f,
+            // Небо чуть теплее и менее насыщено чем в полдень
+            skyTint             = new Color(0.24f, 0.44f, 0.78f),
+            horizonColor        = new Color(0.65f, 0.74f, 0.90f),
+            horizonSharpness    = 6f,
+            exposure            = 0.83f,
+            // Ореол солнца чуть теплее чем в полдень
+            sunGlowColor        = new Color(1.0f, 0.90f, 0.65f),
+            sunGlowRadius       = 0.028f,
+            // Облака слегка кремовые — не чисто белые как в полдень
+            cloudDensity        = 0.58f,
+            cloudColorDay       = new Color(1.0f, 0.98f, 0.93f),
+            cloudColorNight     = new Color(0.10f, 0.12f, 0.25f),
         },
         new LightPreset   // 17:00 — закат
         {
@@ -609,14 +669,14 @@ public class DayNightCycle : MonoBehaviour
             ambientEquatorColor = new Color(0.44f, 0.28f, 0.16f),
             ambientGroundColor  = new Color(0.14f, 0.09f, 0.06f),
             fogColor            = new Color(0.70f, 0.42f, 0.22f),
-            fogDensity          = 0.010f,
+            fogDensity          = 0.012f,  // вечерняя дымка нарастает
             skyTint             = new Color(0.48f, 0.30f, 0.22f),
             horizonColor        = new Color(1.0f,  0.42f, 0.10f),
             horizonSharpness    = 5f,
             exposure            = 0.7f,
             sunGlowColor        = new Color(1.0f, 0.50f, 0.10f),
             sunGlowRadius       = 0.05f,
-            cloudDensity        = 0.48f,
+            cloudDensity        = 0.70f,   // закатные облака плотнее — больше красоты
             cloudColorDay       = new Color(1.0f, 0.65f, 0.35f),
             cloudColorNight     = new Color(0.18f, 0.10f, 0.08f),
         },
@@ -636,7 +696,7 @@ public class DayNightCycle : MonoBehaviour
             exposure            = 0.28f,   // звёзды начинают появляться
             sunGlowColor        = new Color(0.4f, 0.3f, 0.6f),
             sunGlowRadius       = 0.06f,
-            cloudDensity        = 0.52f,
+            cloudDensity        = 0.65f,   // сумерки — облака плотнеют
             cloudColorDay       = new Color(0.5f,  0.48f, 0.62f),
             cloudColorNight     = new Color(0.08f, 0.09f, 0.20f),
         },
@@ -650,7 +710,7 @@ public class DayNightCycle : MonoBehaviour
     void OnDrawGizmosSelected()
     {
         Vector3 center = transform.position;
-        float radius   = 40f;
+        float radius = 40f;
 
         if (sunLight != null)
         {
@@ -666,7 +726,7 @@ public class DayNightCycle : MonoBehaviour
         }
         if (presets != null && presets.Length >= 2)
         {
-            DrawOrbitArc(center, radius,        presets, new Color(1f, 0.8f, 0f, 0.7f),    false);
+            DrawOrbitArc(center, radius, presets, new Color(1f, 0.8f, 0f, 0.7f), false);
             DrawOrbitArc(center, radius * 0.8f, presets, new Color(0.5f, 0.65f, 1f, 0.5f), true);
         }
         UnityEditor.Handles.color = new Color(0.4f, 0.4f, 0.4f, 0.3f);
@@ -676,24 +736,24 @@ public class DayNightCycle : MonoBehaviour
 
     void DrawOrbitArc(Vector3 center, float radius, LightPreset[] presetList, Color color, bool invert)
     {
-        Quaternion riseRot   = Quaternion.Euler(0f, sunriseAzimuth + 90f, 0f);
-        Vector3    orbitAxis = riseRot * Quaternion.Euler(-orbitTilt, 0f, 0f) * Vector3.right;
+        Quaternion riseRot = Quaternion.Euler(0f, sunriseAzimuth + 90f, 0f);
+        Vector3 orbitAxis = riseRot * Quaternion.Euler(-orbitTilt, 0f, 0f) * Vector3.right;
         Gizmos.color = new Color(color.r, color.g, color.b, 0.25f);
         Vector3 prev = Vector3.zero;
         for (int i = 0; i <= 72; i++)
         {
-            float   angle = i * 5f;
-            Vector3 dir   = Quaternion.AngleAxis(angle, orbitAxis) * (invert ? Vector3.up : Vector3.down);
-            Vector3 pos   = center + dir * radius;
+            float angle = i * 5f;
+            Vector3 dir = Quaternion.AngleAxis(angle, orbitAxis) * (invert ? Vector3.up : Vector3.down);
+            Vector3 pos = center + dir * radius;
             if (i > 0) Gizmos.DrawLine(prev, pos);
             prev = pos;
         }
         Gizmos.color = color;
         foreach (var p in presetList)
         {
-            float   dayAngle = ((p.hour * 60f + p.minute) / (24f * 60f)) * 360f;
-            Vector3 dir      = Quaternion.AngleAxis(invert ? dayAngle + 180f : dayAngle, orbitAxis) * Vector3.down;
-            Vector3 pos      = center + dir * radius;
+            float dayAngle = ((p.hour * 60f + p.minute) / (24f * 60f)) * 360f;
+            Vector3 dir = Quaternion.AngleAxis(invert ? dayAngle + 180f : dayAngle, orbitAxis) * Vector3.down;
+            Vector3 pos = center + dir * radius;
             Gizmos.DrawWireSphere(pos, 0.5f);
             UnityEditor.Handles.color = color;
             UnityEditor.Handles.Label(pos + Vector3.up * 1.5f,
@@ -705,9 +765,9 @@ public class DayNightCycle : MonoBehaviour
     {
         float r = radius + 5f;
         UnityEditor.Handles.color = new Color(1f, 1f, 1f, 0.5f);
-        UnityEditor.Handles.Label(center + new Vector3(0, 0,  r), "N (+Z)");
+        UnityEditor.Handles.Label(center + new Vector3(0, 0, r), "N (+Z)");
         UnityEditor.Handles.Label(center + new Vector3(0, 0, -r), "S (-Z)");
-        UnityEditor.Handles.Label(center + new Vector3( r, 0, 0), "E (+X)");
+        UnityEditor.Handles.Label(center + new Vector3(r, 0, 0), "E (+X)");
         UnityEditor.Handles.Label(center + new Vector3(-r, 0, 0), "W (-X)");
     }
 #endif

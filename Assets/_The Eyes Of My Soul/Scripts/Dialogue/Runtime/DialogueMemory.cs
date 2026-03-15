@@ -6,7 +6,7 @@ using UnityEngine;
 /// Синглтон, создаётся автоматически при первом обращении.
 /// + GetAllFlags / GetAllInts для SaveSystem.
 /// </summary>
-public class DialogueMemory : MonoBehaviour
+public class DialogueMemory : MonoBehaviour, IDialogueMemory
 {
     private static DialogueMemory _instance;
     public static DialogueMemory Instance

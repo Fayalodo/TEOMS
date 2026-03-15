@@ -121,14 +121,12 @@ public class DialogueUI : MonoBehaviour
     }
 
     // ── Отображение ──────────────────────────────────────────────────────────
-
     private void ShowNode(DialogueNode node, List<(DialogueChoice choice, bool available)> choices)
     {
+        if (!dialoguePanel.activeSelf)
+            UIManager.Instance?.RegisterOpen();
+
         dialoguePanel.SetActive(true);
-
-        // Разблокировать курсор через UIManager
-        UIManager.Instance?.RegisterOpen();
-
         speakerNameText.text = node.speaker;
 
         if (portraitImage != null)

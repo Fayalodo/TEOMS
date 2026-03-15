@@ -26,54 +26,93 @@ public class DialogueCondition
     [Tooltip("Квест для условий QuestActive / QuestCompleted / QuestFailed / QuestNotStarted")]
     public QuestDefinition quest;
 
-    public bool Evaluate(DialogueAgent npcAgent)
-    {
-        var memory = DialogueMemory.Instance;
+    // ── Новый API: принимает контекст ────────────────────────────────────
 
+    /// <summary>Вычислить условие, используя переданный контекст.</summary>
+    public bool Evaluate(DialogueContext ctx)
+    {
         switch (type)
         {
             case ConditionType.Flag:
-                return memory.GetFlag(key);
+                return ctx.Memory.GetFlag(key);
 
             case ConditionType.NotFlag:
-                return !memory.GetFlag(key);
+                return !ctx.Memory.GetFlag(key);
 
             case ConditionType.IntValue:
-                return memory.GetInt(key) >= intValue;
+                return ctx.Memory.GetInt(key) >= intValue;
 
             case ConditionType.Reputation:
-                return npcAgent != null && npcAgent.GetReputation() >= intValue;
+                if (ctx.NpcAgent == null)
+                {
+                    Debug.LogWarning($"[DialogueCondition] Reputation: NpcAgent не задан в контексте (key='{key}'). Условие = false.");
+                    return false;
+                }
+                return ctx.NpcAgent.GetReputation() >= intValue;
 
             case ConditionType.HasItem:
-                return item != null && PlayerRef.Instance != null &&
-                       PlayerRef.Instance.Inventory != null &&
-                       PlayerRef.Instance.Inventory.GetTotalQuantity(item) > 0;
+                if (ctx.Inventory == null)
+                {
+                    Debug.LogWarning("[DialogueCondition] HasItem: Inventory не задан в контексте. Условие = false.");
+                    return false;
+                }
+                return item != null && ctx.Inventory.GetTotalQuantity(item) > 0;
 
             case ConditionType.NoItem:
-                return item == null || PlayerRef.Instance == null ||
-                       PlayerRef.Instance.Inventory == null ||
-                       PlayerRef.Instance.Inventory.GetTotalQuantity(item) <= 0;
+                if (ctx.Inventory == null)
+                {
+                    Debug.LogWarning("[DialogueCondition] NoItem: Inventory не задан в контексте. Условие = true (предмета точно нет).");
+                    return true;
+                }
+                return item == null || ctx.Inventory.GetTotalQuantity(item) <= 0;
 
             case ConditionType.QuestActive:
-                return quest != null && QuestManager.Instance != null &&
-                       QuestManager.Instance.IsActive(quest);
+                return EvaluateQuest(ctx, q => q.IsActive(quest));
 
             case ConditionType.QuestCompleted:
-                return quest != null && QuestManager.Instance != null &&
-                       QuestManager.Instance.IsCompleted(quest);
+                return EvaluateQuest(ctx, q => q.IsCompleted(quest));
 
             case ConditionType.QuestFailed:
-                return quest != null && QuestManager.Instance != null &&
-                       QuestManager.Instance.IsFailed(quest);
+                return EvaluateQuest(ctx, q => q.IsFailed(quest));
 
             case ConditionType.QuestNotStarted:
-                return quest != null && QuestManager.Instance != null &&
-                       !QuestManager.Instance.IsActive(quest) &&
-                       !QuestManager.Instance.IsCompleted(quest) &&
-                       !QuestManager.Instance.IsFailed(quest);
+                return EvaluateQuest(ctx, q =>
+                    !q.IsActive(quest) && !q.IsCompleted(quest) && !q.IsFailed(quest));
 
             default:
+                Debug.LogWarning($"[DialogueCondition] Неизвестный тип условия: {type}");
                 return true;
         }
+    }
+
+    // ── Обратная совместимость: старый API через синглтоны ───────────────
+
+    /// <summary>
+    /// Устаревший метод. Используй Evaluate(DialogueContext) для новых диалогов.
+    /// Оставлен чтобы не сломать существующий код.
+    /// </summary>
+    [Obsolete("Используй Evaluate(DialogueContext ctx). Этот метод будет удалён в следующей версии.")]
+    public bool Evaluate(DialogueAgent npcAgent)
+    {
+        return Evaluate(DialogueContext.FromSingletons(npcAgent));
+    }
+
+    // ── Приватные хелперы ────────────────────────────────────────────────
+
+    private bool EvaluateQuest(DialogueContext ctx, System.Func<IQuestManager, bool> check)
+    {
+        if (quest == null)
+        {
+            Debug.LogWarning($"[DialogueCondition] Квест не задан для условия {type}.");
+            return false;
+        }
+
+        if (ctx.Quests == null)
+        {
+            Debug.LogWarning($"[DialogueCondition] QuestManager не задан в контексте (условие {type}). Условие = false.");
+            return false;
+        }
+
+        return check(ctx.Quests);
     }
 }

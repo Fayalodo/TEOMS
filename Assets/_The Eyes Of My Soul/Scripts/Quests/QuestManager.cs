@@ -5,7 +5,7 @@ using UnityEngine;
 /// Синглтон. Хранит активные и завершённые квесты.
 /// + ResetForLoad / ForceComplete / ForceFail для SaveSystem.
 /// </summary>
-public class QuestManager : MonoBehaviour
+public class QuestManager : MonoBehaviour, IQuestManager
 {
     private static QuestManager _instance;
     public static QuestManager Instance
@@ -90,7 +90,7 @@ public class QuestManager : MonoBehaviour
         OnQuestsChanged?.Invoke();
     }
 
-    private void CompleteQuest(QuestDefinition quest)
+    public void CompleteQuest(QuestDefinition quest)
     {
         _active.Remove(quest);
         _completed.Add(quest);
@@ -102,7 +102,7 @@ public class QuestManager : MonoBehaviour
         OnQuestsChanged?.Invoke();
     }
 
-    private void FailQuest(QuestDefinition quest)
+    public void FailQuest(QuestDefinition quest)
     {
         _active.Remove(quest);
         _failed.Add(quest);
