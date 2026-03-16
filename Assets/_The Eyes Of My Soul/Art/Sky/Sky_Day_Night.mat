@@ -107,7 +107,7 @@ Material:
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
     - _CloudCoverage: 0.4
-    - _CloudDensity: 0.5578125
+    - _CloudDensity: 0.64
     - _CloudHeightFade: 0.086
     - _CloudLayer2Density: 0.3
     - _CloudLayer2Speed: 0.001
@@ -124,12 +124,12 @@ Material:
     - _DstBlend: 0
     - _DstBlendAlpha: 0
     - _EnvironmentReflections: 1
-    - _Exposure: 0.8421875
+    - _Exposure: 0.765
     - _FogDensity: 0.1
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
-    - _HorizonSharpness: 6.15625
+    - _HorizonSharpness: 5.5
     - _Metallic: 0
     - _MoonBrightness: 0.8
     - _MoonPhase: 0.5
@@ -152,7 +152,7 @@ Material:
     - _StarTwinkleAmt: 0
     - _StarTwinkleSpeed: 0
     - _SunGlowPower: 4.27
-    - _SunGlowRadius: 0.02578125
+    - _SunGlowRadius: 0.039
     - _Surface: 0
     - _WorkflowMode: 1
     - _XRMotionVectorsPass: 1
@@ -160,18 +160,18 @@ Material:
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _CirrusColor: {r: 0.93, g: 0.96, b: 1, a: 1}
-    - _CloudColor: {r: 1, g: 1, b: 1, a: 1}
-    - _CloudColorNight: {r: 0.1, g: 0.12, b: 0.25, a: 1}
+    - _CloudColor: {r: 1, g: 0.815, b: 0.64, a: 1}
+    - _CloudColorNight: {r: 0.14, g: 0.11, b: 0.16499999, a: 1}
     - _CloudRimColor: {r: 1.1, g: 1, b: 0.85, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _FogColor: {r: 0.5, g: 0.6, b: 0.8, a: 1}
-    - _HorizonColor: {r: 0.5765625, g: 0.69875, b: 0.8909375, a: 1}
+    - _HorizonColor: {r: 0.825, g: 0.58, b: 0.5, a: 1}
     - _NightSkyTint: {r: 0.02, g: 0.02, b: 0.05, a: 1}
-    - _SkyTint: {r: 0.19875, g: 0.401875, b: 0.7703125, a: 1}
+    - _SkyTint: {r: 0.35999998, g: 0.37, b: 0.5, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
     - _StarRotationMatrix: {r: 1, g: 0, b: 0, a: 0}
-    - _SunGlowColor: {r: 1, g: 0.9390625, b: 0.76875, a: 1}
+    - _SunGlowColor: {r: 1, g: 0.7, b: 0.375, a: 1}
     - _SunriseColor: {r: 0.8, g: 0.5, b: 0.3, a: 1}
     - _SunsetColor: {r: 1, g: 0.4, b: 0.2, a: 1}
   m_BuildTextureStacks: []
