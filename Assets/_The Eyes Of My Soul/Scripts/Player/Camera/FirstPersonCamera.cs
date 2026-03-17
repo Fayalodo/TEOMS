@@ -389,7 +389,8 @@ public class FirstPersonCamera : MonoBehaviour
         if (InputBlocked) return;
 
         // Escape — разблокировать курсор
-        if (Input.GetKeyDown(KeyCode.Escape) && cursorLocked)
+        if (Input.GetKeyDown(KeyCode.Escape) && cursorLocked
+            && !UIManager.Instance.IsAnyUIOpen)
             LockCursor(false);
 
         // Клик в FP режиме — заблокировать снова

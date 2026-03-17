@@ -94,13 +94,7 @@ public class DialogueUI : MonoBehaviour
     private void Update()
     {
         if (!dialoguePanel.activeSelf) return;
-
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            _runner.EndDialogue();
-            return;
-        }
-
+        
         if (_isTyping && (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.E)))
         {
             SkipTypewriter();
@@ -124,7 +118,7 @@ public class DialogueUI : MonoBehaviour
     private void ShowNode(DialogueNode node, List<(DialogueChoice choice, bool available)> choices)
     {
         if (!dialoguePanel.activeSelf)
-            UIManager.Instance?.RegisterOpen();
+            UIManager.Instance?.RegisterOpen(() => _runner.EndDialogue());
 
         dialoguePanel.SetActive(true);
         speakerNameText.text = node.speaker;

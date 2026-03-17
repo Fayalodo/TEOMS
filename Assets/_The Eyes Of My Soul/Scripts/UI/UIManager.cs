@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -8,14 +9,16 @@ using UnityEngine;
 /// и никто не трогал курсор. В итоге мышка пропадала, headbob трясся в диалоге.
 ///
 /// КАК РАБОТАЕТ:
-/// Любой UI вызывает UIManager.Instance.RegisterOpen("ключ") при открытии
-/// и UIManager.Instance.RegisterClose("ключ") при закрытии.
+/// Любой UI вызывает UIManager.Instance.RegisterOpen(() => Close()) при открытии
+/// и UIManager.Instance.RegisterClose() при закрытии.
 /// Пока хоть одно окно открыто — курсор виден, камера заблокирована.
 /// Когда все закрыты — курсор убирается обратно (если FP режим).
+/// ESC всегда закрывает только верхнее окно — через стек.
 ///
 /// НАСТРОЙКА:
 /// Положи этот скрипт на любой GameObject на сцене (например UIManager).
 /// Назначь FirstPersonCamera в инспекторе.
+/// Убери все Input.GetKeyDown(KeyCode.Escape) из UI скриптов — ESC теперь только здесь.
 /// </summary>
 public class UIManager : MonoBehaviour
 {
@@ -25,8 +28,8 @@ public class UIManager : MonoBehaviour
     [Tooltip("FirstPersonCamera игрока")]
     public FirstPersonCamera firstPersonCamera;
 
-    // Счётчик открытых окон
-    private int _openWindowCount = 0;
+    // Стек закрывающих действий — каждое окно кладёт свой Close()
+    private Stack<System.Action> _closeActions = new Stack<System.Action>();
 
     void Awake()
     {
@@ -38,41 +41,50 @@ public class UIManager : MonoBehaviour
         Instance = this;
     }
 
-    /// <summary>Вызвать когда UI-окно открывается.</summary>
-    public void RegisterOpen()
+    void Update()
     {
-        _openWindowCount++;
-        if (_openWindowCount == 1)
+        // ESC закрывает только верхнее окно — никакого конфликта между скриптами
+        if (Input.GetKeyDown(KeyCode.Escape) && _closeActions.Count > 0)
+            _closeActions.Pop()?.Invoke();
+    }
+
+    /// <summary>
+    /// Вызвать когда UI-окно открывается.
+    /// closeAction — метод закрытия этого окна, будет вызван при нажатии ESC.
+    /// Пример: UIManager.Instance.RegisterOpen(() => Close());
+    /// </summary>
+    public void RegisterOpen(System.Action closeAction)
+    {
+        _closeActions.Push(closeAction);
+        if (_closeActions.Count == 1)
             OnFirstWindowOpened();
     }
 
-    /// <summary>Вызвать когда UI-окно закрывается.</summary>
+    /// <summary>Вызвать когда UI-окно закрывается (кнопка, авто-закрытие и т.д.).</summary>
     public void RegisterClose()
     {
-        _openWindowCount = Mathf.Max(0, _openWindowCount - 1);
-        if (_openWindowCount == 0)
+        if (_closeActions.Count > 0)
+            _closeActions.Pop();
+        if (_closeActions.Count == 0)
             OnLastWindowClosed();
     }
 
     /// <summary>True если хоть одно окно открыто прямо сейчас.</summary>
-    public bool IsAnyUIOpen => _openWindowCount > 0;
+    public bool IsAnyUIOpen => _closeActions.Count > 0;
 
     // ─────────────────────────────────────────────────────────
 
     void OnFirstWindowOpened()
     {
-        // Показать курсор
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible   = true;
 
-        // Заблокировать ввод камеры и headbob
         if (firstPersonCamera != null)
             firstPersonCamera.InputBlocked = true;
     }
 
     void OnLastWindowClosed()
     {
-        // Вернуть курсор только если в режиме FP
         if (firstPersonCamera != null && firstPersonCamera.IsFirstPerson)
         {
             Cursor.lockState = CursorLockMode.Locked;

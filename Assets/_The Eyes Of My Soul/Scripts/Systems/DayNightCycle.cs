@@ -107,7 +107,7 @@ public class DayNightCycle : MonoBehaviour
 
     [Header("Moon Light")]
     public Color moonLightColor = new Color(0.38f, 0.44f, 0.70f);
-    [Range(0f, 1f)] public float moonMaxIntensity = 0.15f;
+    [Range(0f, 5f)] public float moonMaxIntensity = 2f;
 
     [Header("Horizon Fade")]
     [Tooltip("Солнце/луна плавно исчезают ниже горизонта. Угол в градусах.")]

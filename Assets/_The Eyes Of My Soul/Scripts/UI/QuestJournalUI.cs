@@ -96,8 +96,6 @@ public class QuestJournalUI : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.J))
             Toggle();
-        if (Input.GetKeyDown(KeyCode.Escape) && journalPanel.activeSelf)
-            Close();
     }
 
     // ── Открытие / закрытие ──────────────────────────────────────────────────
@@ -116,7 +114,7 @@ public class QuestJournalUI : MonoBehaviour
         Canvas.ForceUpdateCanvases();
 
         // Разблокировать курсор через UIManager
-        UIManager.Instance?.RegisterOpen();
+        UIManager.Instance?.RegisterOpen(() => Close());
 
         if (_selectedQuest == null && QuestManager.Instance != null)
         {

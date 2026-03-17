@@ -73,16 +73,6 @@ public class LootUI : MonoBehaviour
         btnClose?.onClick.AddListener(Close);
         panel?.SetActive(false);
     }
-
-    void Update()
-    {
-        if (_isDragging && _dragGhost != null)
-            _dragGhost.transform.position = Input.mousePosition;
-
-        if (panel != null && panel.activeSelf && Input.GetKeyDown(KeyCode.Escape))
-            Close();
-    }
-
     // ── Открытие ────────────────────────────────────────────
 
     /// <summary>Открыть для LootableCorpse (старый API сохранён).</summary>
@@ -114,7 +104,7 @@ public class LootUI : MonoBehaviour
 
         Refresh();
         panel?.SetActive(true);
-        UIManager.Instance?.RegisterOpen();
+        UIManager.Instance?.RegisterOpen(() => Close());
 
         if (scrollRect != null)
         {

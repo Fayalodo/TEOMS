@@ -18,24 +18,20 @@ public class InventoryToggle : MonoBehaviour
         isOpen = false;
     }
 
-    void Update()
+void Update()
+{
+    if (Input.GetKeyDown(toggleKey))
     {
-        if (Input.GetKeyDown(toggleKey))
-        {
-            if (isOpen) Close();
-            else        Open();
-        }
-        else if (isOpen && Input.GetKeyDown(KeyCode.Escape))
-        {
-            Close();
-        }
+        if (isOpen) Close();
+        else        Open();
     }
+}
 
     void Open()
     {
         isOpen = true;
         inventoryPanel.SetActive(true);
-        UIManager.Instance?.RegisterOpen();
+        UIManager.Instance?.RegisterOpen(() => Close());
     }
 
     void Close()

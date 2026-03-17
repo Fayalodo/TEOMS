@@ -57,7 +57,7 @@ MonoBehaviour:
     entryEffects: []
     isEntryNode: 1
     portrait: {fileID: 0}
-    editorPosition: {x: 0, y: 0}
+    editorPosition: {x: 41, y: -169}
   - guid: db7bc31a-5522-4c99-9aab-8d66864f35df
     speaker: "\u0427\u0443\u0432\u0430\u043A"
     text: "\"\u0421\u043B\u0443\u0448\u0430\u0439, \u0442\u0443\u0442 \u0440\u0430\u0431\u043E\u0442\u043A\u0430
@@ -83,7 +83,7 @@ MonoBehaviour:
     entryEffects: []
     isEntryNode: 0
     portrait: {fileID: 0}
-    editorPosition: {x: 0, y: 0}
+    editorPosition: {x: 297, y: -258.63998}
   - guid: 9fcd9a8c-68f7-44bb-b24d-bc6ae95f4d7c
     speaker: "\u0427\u0443\u0432\u0430\u043A"
     text: "\u041E\u043D \u0440\u044F\u0434\u043E\u043C \u0442\u0443\u0442, \u0437\u0430
@@ -98,7 +98,7 @@ MonoBehaviour:
     entryEffects: []
     isEntryNode: 0
     portrait: {fileID: 0}
-    editorPosition: {x: 0, y: 0}
+    editorPosition: {x: 709, y: -258.63998}
   - guid: 07948623-7101-4c75-add8-2ba2325221c6
     speaker: "\u0427\u0443\u0432\u0430\u043A"
     text: "\u0423\u0431\u0438\u043B \u0443\u0436\u0435?"
@@ -132,7 +132,7 @@ MonoBehaviour:
     entryEffects: []
     isEntryNode: 0
     portrait: {fileID: 0}
-    editorPosition: {x: 0, y: 0}
+    editorPosition: {x: 328, y: -46}
   - guid: 270b26e8-e78f-4441-aca4-d5114af977e6
     speaker: "\u0427\u0443\u0432\u0430\u043A"
     text: "\u041D\u0435 \u0442\u0440\u0430\u0442\u044C \u043C\u043E\u0451 \u0432\u0440\u0435\u043C\u044F!"
@@ -146,7 +146,7 @@ MonoBehaviour:
     entryEffects: []
     isEntryNode: 0
     portrait: {fileID: 0}
-    editorPosition: {x: 0, y: 0}
+    editorPosition: {x: 640, y: -66}
   - guid: f3a98708-524a-4b45-a3b8-a9fab1f5157d
     speaker: "\u0427\u0443\u0432\u0430\u043A"
     text: "\u041C\u043E\u043B\u043E\u0434\u0435\u0446!"
@@ -160,4 +160,4 @@ MonoBehaviour:
     entryEffects: []
     isEntryNode: 0
     portrait: {fileID: 0}
-    editorPosition: {x: 0, y: 0}
+    editorPosition: {x: 504, y: -136}
