@@ -2,31 +2,26 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Центральный менеджер UI — управляет курсором и headbob камеры.
-///
-/// ЗАЧЕМ:
-/// Раньше каждый UI (инвентарь, лут, диалог, журнал) независимо делал SetActive
-/// и никто не трогал курсор. В итоге мышка пропадала, headbob трясся в диалоге.
+/// Центральный менеджер UI — управляет курсором и блокировкой ввода камеры.
 ///
 /// КАК РАБОТАЕТ:
 /// Любой UI вызывает UIManager.Instance.RegisterOpen(() => Close()) при открытии
 /// и UIManager.Instance.RegisterClose() при закрытии.
 /// Пока хоть одно окно открыто — курсор виден, камера заблокирована.
-/// Когда все закрыты — курсор убирается обратно (если FP режим).
-/// ESC всегда закрывает только верхнее окно — через стек.
+/// Когда все закрыты — курсор убирается (в BotW и FP курсор всегда скрыт).
+/// ESC всегда закрывает только верхнее окно через стек.
 ///
 /// НАСТРОЙКА:
-/// Положи этот скрипт на любой GameObject на сцене (например UIManager).
-/// Назначь FirstPersonCamera в инспекторе.
-/// Убери все Input.GetKeyDown(KeyCode.Escape) из UI скриптов — ESC теперь только здесь.
+/// Назначь PlayerCamera в инспекторе.
+/// Убери все Input.GetKeyDown(KeyCode.Escape) из UI скриптов — ESC только здесь.
 /// </summary>
 public class UIManager : MonoBehaviour
 {
     public static UIManager Instance { get; private set; }
 
     [Header("Ссылки")]
-    [Tooltip("FirstPersonCamera игрока")]
-    public FirstPersonCamera firstPersonCamera;
+    [Tooltip("PlayerCamera игрока")]
+    public PlayerCamera playerCamera;
 
     // Стек закрывающих действий — каждое окно кладёт свой Close()
     private Stack<System.Action> _closeActions = new Stack<System.Action>();
@@ -43,14 +38,14 @@ public class UIManager : MonoBehaviour
 
     void Update()
     {
-        // ESC закрывает только верхнее окно — никакого конфликта между скриптами
+        // ESC закрывает только верхнее окно
         if (Input.GetKeyDown(KeyCode.Escape) && _closeActions.Count > 0)
             _closeActions.Pop()?.Invoke();
     }
 
     /// <summary>
     /// Вызвать когда UI-окно открывается.
-    /// closeAction — метод закрытия этого окна, будет вызван при нажатии ESC.
+    /// closeAction — метод закрытия этого окна, будет вызван при ESC.
     /// Пример: UIManager.Instance.RegisterOpen(() => Close());
     /// </summary>
     public void RegisterOpen(System.Action closeAction)
@@ -76,27 +71,21 @@ public class UIManager : MonoBehaviour
 
     void OnFirstWindowOpened()
     {
+        // Показываем курсор и блокируем ввод камеры
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible   = true;
 
-        if (firstPersonCamera != null)
-            firstPersonCamera.InputBlocked = true;
+        if (playerCamera != null)
+            playerCamera.SetInputBlocked(true);
     }
 
     void OnLastWindowClosed()
     {
-        if (firstPersonCamera != null && firstPersonCamera.IsFirstPerson)
-        {
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible   = false;
-            firstPersonCamera.InputBlocked = false;
-        }
-        else
-        {
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible   = true;
-            if (firstPersonCamera != null)
-                firstPersonCamera.InputBlocked = false;
-        }
+        // В обоих режимах (BotW и FP) курсор всегда скрыт во время игры
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible   = false;
+
+        if (playerCamera != null)
+            playerCamera.SetInputBlocked(false);
     }
 }
