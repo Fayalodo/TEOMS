@@ -52,12 +52,8 @@ public class DayNightCycle : MonoBehaviour
         [Range(0f,0.5f)]   public float sunGlowSize    = 0.12f;
 
 
-        [Header("Clouds")]
-        [Range(0f,1f)]     public float cloudDensity   = 0.50f;
-        [ColorUsage(false,true)] public Color cloudColorDay   = Color.white;
-        [ColorUsage(false,true)] public Color cloudColorNight = new Color(0.08f,0.10f,0.22f);
-        [ColorUsage(false,true)] public Color cloudUnderlitColor = new Color(1f,0.45f,0.15f);
-        [Range(0f,2f)]     public float cloudUnderlitStrength = 0.7f;
+        // Облака удалены из LightPreset — теперь владеет WeatherState.
+        // DayNightCycle больше не трогает облака напрямую.
 
         [Header("Atmosphere Haze")]
         [ColorUsage(false,true)] public Color hazeColor  = new Color(0.62f,0.74f,0.92f);
@@ -90,12 +86,6 @@ public class DayNightCycle : MonoBehaviour
     [Range(0f, 3f)] public float moonMaxIntensity = 1.5f;
     [Tooltip("Сила лунного освещения облаков. 0=нет, 1=реалистично, 2=яркая луна.")]
     [Range(0f, 2f)] public float moonCloudStrength = 0.8f;
-
-    [Header("Global Cloud Override")]
-    [Tooltip("Глобальный множитель густоты облаков поверх пресетов.\n" +
-             "1.0 = как в пресетах. 0 = нет облаков. 2.0 = максимум.\n" +
-             "Меняй здесь — НЕ в материале напрямую.")]
-    [Range(0f, 2f)] public float cloudCoverageMultiplier = 1.0f;
 
     [Header("Horizon Fade")]
     public float horizonFadeAngle = 8f;
@@ -135,11 +125,16 @@ public class DayNightCycle : MonoBehaviour
     static readonly int ID_SunGlowColor      = Shader.PropertyToID("_SunGlowColor");
     static readonly int ID_SunGlowSize       = Shader.PropertyToID("_SunGlowSize");
     // ID_GodRayStrength/GodRayColor удалены — God Rays убраны из шейдера
-    static readonly int ID_CloudDensity      = Shader.PropertyToID("_CloudDensity");
-    static readonly int ID_CloudColor        = Shader.PropertyToID("_CloudColor");
-    static readonly int ID_CloudColorNight   = Shader.PropertyToID("_CloudColorNight");
-    static readonly int ID_CloudUnderlitColor   = Shader.PropertyToID("_CloudUnderlitColor");
-    static readonly int ID_CloudUnderlitStrength= Shader.PropertyToID("_CloudUnderlitStrength");
+    static readonly int ID_CloudDensityNear      = Shader.PropertyToID("_CloudDensityNear");
+    static readonly int ID_CloudDensityFar       = Shader.PropertyToID("_CloudDensityFar");
+    static readonly int ID_CloudSoftness         = Shader.PropertyToID("_CloudSoftness");
+    static readonly int ID_CloudSpeed            = Shader.PropertyToID("_CloudSpeed");
+    static readonly int ID_CloudColor            = Shader.PropertyToID("_CloudColorDay");
+    static readonly int ID_CloudColorNight       = Shader.PropertyToID("_CloudColorNight");
+    static readonly int ID_CloudShadowStrength   = Shader.PropertyToID("_CloudShadowStrength");
+    static readonly int ID_CloudUnderlitColor    = Shader.PropertyToID("_CloudUnderlitColor");
+    static readonly int ID_CloudUnderlitStrength = Shader.PropertyToID("_CloudUnderlitStrength");
+    static readonly int ID_CloudAmbient          = Shader.PropertyToID("_CloudAmbient");
     static readonly int ID_AtmosphereHaze    = Shader.PropertyToID("_AtmosphereHaze");
     static readonly int ID_HazeStrength      = Shader.PropertyToID("_HazeStrength");
     static readonly int ID_StarMatrix        = Shader.PropertyToID("_StarMatrix");
@@ -149,8 +144,6 @@ public class DayNightCycle : MonoBehaviour
     static readonly int ID_MoonDir           = Shader.PropertyToID("_MoonDir");
     static readonly int ID_MoonPhase         = Shader.PropertyToID("_MoonPhase");
     static readonly int ID_MoonCloudStrength = Shader.PropertyToID("_MoonCloudStrength");
-    static readonly int ID_CloudCoverage     = Shader.PropertyToID("_CloudDensity");
-
     // ─────────────────────────────────────────────────────────────────────────
     //  Приватные поля
     // ─────────────────────────────────────────────────────────────────────────
@@ -161,6 +154,12 @@ public class DayNightCycle : MonoBehaviour
     float _lastGIExposure = -1f;
     float _lastGIUpdateTime = -999f;
     float _starRotationAngle = 0f;
+
+    // ── Погода ────────────────────────────────────────────────────────────────
+    // Текущее смешанное состояние погоды. Устанавливается WeatherManager-ом.
+    // Если _hasWeather == false — используются нейтральные значения (Neutral).
+    WeatherState _weatherState  = WeatherState.Neutral;
+    bool         _hasWeather    = false;
 
     // ─────────────────────────────────────────────────────────────────────────
     //  Unity lifecycle
@@ -213,6 +212,30 @@ public class DayNightCycle : MonoBehaviour
         ApplyLerp(from, to, t);
         UpdateCelestialBodies();
         UpdateStarRotation();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Погода — публичный API для WeatherManager
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Вызывается WeatherManager каждый кадр во время перехода,
+    /// и один раз после его завершения.
+    ///
+    /// DayNightCycle остаётся единственным писателем в skyboxMaterial —
+    /// WeatherManager только передаёт сюда данные, сам материал не трогает.
+    /// </summary>
+    public void SetWeatherState(in WeatherState state)
+    {
+        _weatherState = state;
+        _hasWeather   = true;
+    }
+
+    /// <summary>Сбросить погоду к нейтральному состоянию (Neutral).</summary>
+    public void ClearWeatherState()
+    {
+        _weatherState = WeatherState.Neutral;
+        _hasWeather   = false;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -450,7 +473,7 @@ public class DayNightCycle : MonoBehaviour
     {
         float st = t * t * (3f - 2f * t); // smoothstep
 
-        // Directional Light
+        // ── Directional Light (только время суток) ────────────────────────────
         if (sunLight != null)
         {
             sunLight.color     = Color.Lerp(from.sunColor,     to.sunColor,     st);
@@ -458,42 +481,78 @@ public class DayNightCycle : MonoBehaviour
             sunLight.transform.rotation = GetSunRotation();
         }
 
-        // Ambient
+        // ── Ambient (только время суток) ──────────────────────────────────────
         RenderSettings.ambientSkyColor     = Color.Lerp(from.ambientSkyColor,     to.ambientSkyColor,     st);
         RenderSettings.ambientEquatorColor = Color.Lerp(from.ambientEquatorColor, to.ambientEquatorColor, st);
         RenderSettings.ambientGroundColor  = Color.Lerp(from.ambientGroundColor,  to.ambientGroundColor,  st);
 
-        // Fog
-        RenderSettings.fogColor   = Color.Lerp(from.fogColor,   to.fogColor,   st);
-        RenderSettings.fogDensity = Mathf.Lerp(from.fogDensity, to.fogDensity, st);
+        // ── Fog: база из DNC, погода накладывает множитель и тинт ─────────────
+        float baseFogDensity = Mathf.Lerp(from.fogDensity, to.fogDensity, st);
+        Color baseFogColor   = Color.Lerp(from.fogColor,   to.fogColor,   st);
 
-        // Skybox
+        WeatherState ws = _hasWeather ? _weatherState : WeatherState.Neutral;
+
+        RenderSettings.fogDensity = baseFogDensity * ws.fogDensityMultiplier;
+        RenderSettings.fogColor   = Color.Lerp(baseFogColor, ws.fogColorTint, ws.fogColorBlend);
+
+        // ── Skybox ────────────────────────────────────────────────────────────
         if (skyboxMaterial != null)
         {
-            skyboxMaterial.SetColor(ID_DaySkyColor,      Color.Lerp(from.daySkyColor,      to.daySkyColor,      st));
-            skyboxMaterial.SetColor(ID_DayHorizonColor,  Color.Lerp(from.dayHorizonColor,  to.dayHorizonColor,  st));
-            skyboxMaterial.SetColor(ID_HorizonColor,     Color.Lerp(from.horizonTint,      to.horizonTint,      st));
-            skyboxMaterial.SetFloat(ID_HorizonWidth,     Mathf.Lerp(from.horizonWidth,     to.horizonWidth,     st));
-            skyboxMaterial.SetFloat(ID_Exposure,         Mathf.Lerp(from.exposure,         to.exposure,         st));
-            skyboxMaterial.SetColor(ID_SunGlowColor,     Color.Lerp(from.sunGlowColor,     to.sunGlowColor,     st));
-            skyboxMaterial.SetFloat(ID_SunGlowSize,      Mathf.Lerp(from.sunGlowSize,      to.sunGlowSize,      st));
-            skyboxMaterial.SetFloat(ID_CloudDensity,     Mathf.Lerp(from.cloudDensity,     to.cloudDensity,     st) * cloudCoverageMultiplier);
-            skyboxMaterial.SetColor(ID_CloudColor,       Color.Lerp(from.cloudColorDay,    to.cloudColorDay,    st));
-            skyboxMaterial.SetColor(ID_CloudColorNight,  Color.Lerp(from.cloudColorNight,  to.cloudColorNight,  st));
-            skyboxMaterial.SetColor(ID_CloudUnderlitColor,    Color.Lerp(from.cloudUnderlitColor,    to.cloudUnderlitColor,    st));
-            skyboxMaterial.SetFloat(ID_CloudUnderlitStrength, Mathf.Lerp(from.cloudUnderlitStrength, to.cloudUnderlitStrength, st));
-            skyboxMaterial.SetColor(ID_AtmosphereHaze,   Color.Lerp(from.hazeColor,        to.hazeColor,        st));
-            skyboxMaterial.SetFloat(ID_HazeStrength,     Mathf.Lerp(from.hazeStrength,     to.hazeStrength,     st));
+            // Небо и горизонт — только время суток
+            skyboxMaterial.SetColor(ID_DaySkyColor,     Color.Lerp(from.daySkyColor,     to.daySkyColor,     st));
+            skyboxMaterial.SetColor(ID_DayHorizonColor, Color.Lerp(from.dayHorizonColor, to.dayHorizonColor, st));
+            skyboxMaterial.SetColor(ID_HorizonColor,    Color.Lerp(from.horizonTint,     to.horizonTint,     st));
+            skyboxMaterial.SetFloat(ID_HorizonWidth,    Mathf.Lerp(from.horizonWidth,    to.horizonWidth,    st));
+            skyboxMaterial.SetFloat(ID_Exposure,        Mathf.Lerp(from.exposure,        to.exposure,        st));
 
+            // Солнце — только время суток
+            skyboxMaterial.SetColor(ID_SunGlowColor, Color.Lerp(from.sunGlowColor, to.sunGlowColor, st));
+            skyboxMaterial.SetFloat(ID_SunGlowSize,  Mathf.Lerp(from.sunGlowSize,  to.sunGlowSize,  st));
+
+            // Звёзды — фиксированные пороги
             skyboxMaterial.SetFloat(ID_StarFadeStart, 0.18f);
             skyboxMaterial.SetFloat(ID_StarFadeEnd,   0.50f);
 
-            float curExp = Mathf.Lerp(from.exposure, to.exposure, st);
+            // ── Облака — цвет зависит от времени суток через EvaluateCloudColor ──
+            // Если пресет имеет cloudColorByTime — используем градиент по времени.
+            // Иначе — старое поведение: cloudColorDay / cloudColorNight.
+            Color cloudCol, underlitCol;
+            float underlitStr;
+            if (ws.sourcePreset != null)
+            {
+                (cloudCol, underlitCol, underlitStr) =
+                    ws.sourcePreset.EvaluateCloudColor(_currentMinutes,
+                        Mathf.Lerp(from.exposure, to.exposure, st));
+            }
+            else
+            {
+                cloudCol    = ws.cloudColorDay;
+                underlitCol = ws.cloudUnderlitColor;
+                underlitStr = ws.cloudUnderlitStrength;
+            }
+
+            skyboxMaterial.SetFloat(ID_CloudDensityNear,      ws.cloudDensityNear);
+            skyboxMaterial.SetFloat(ID_CloudDensityFar,       ws.cloudDensityFar);
+            skyboxMaterial.SetFloat(ID_CloudSoftness,         ws.cloudSoftness);
+            skyboxMaterial.SetFloat(ID_CloudSpeed,            ws.cloudSpeed);
+            skyboxMaterial.SetColor(ID_CloudColor,            cloudCol);
+            skyboxMaterial.SetColor(ID_CloudColorNight,       ws.cloudColorNight);
+            skyboxMaterial.SetFloat(ID_CloudShadowStrength,   ws.cloudShadowStrength);
+            skyboxMaterial.SetFloat(ID_CloudUnderlitStrength, underlitStr);
+            skyboxMaterial.SetColor(ID_CloudUnderlitColor,    underlitCol);
+
+            // ── Дымка: база DNC × множитель погоды ──────────────────────────
+            float baseHaze = Mathf.Lerp(from.hazeStrength, to.hazeStrength, st);
+            skyboxMaterial.SetColor(ID_AtmosphereHaze, Color.Lerp(from.hazeColor, to.hazeColor, st));
+            skyboxMaterial.SetFloat(ID_HazeStrength,   baseHaze * ws.hazeStrengthMultiplier);
+
+            // ── DynamicGI — не чаще чем раз в 3 сек ────────────────────────
+            float curExp      = Mathf.Lerp(from.exposure, to.exposure, st);
             float timeSinceGI = Application.isPlaying ? Time.time - _lastGIUpdateTime : float.MaxValue;
             if (Mathf.Abs(curExp - _lastGIExposure) > 0.02f || timeSinceGI > 3f)
             {
                 DynamicGI.UpdateEnvironment();
-                _lastGIExposure = curExp;
+                _lastGIExposure   = curExp;
                 _lastGIUpdateTime = Application.isPlaying ? Time.time : 0f;
             }
         }
@@ -522,11 +581,6 @@ public class DayNightCycle : MonoBehaviour
             exposure             = 0.12f,
             sunGlowColor         = new Color(0.20f, 0.28f, 0.60f),
             sunGlowSize          = 0.0f,
-            cloudDensity         = 0.65f,
-            cloudColorDay        = new Color(0.55f, 0.60f, 0.78f),
-            cloudColorNight      = new Color(0.06f, 0.07f, 0.18f),
-            cloudUnderlitColor   = new Color(0.1f,  0.1f,  0.2f),
-            cloudUnderlitStrength= 0.0f,
             hazeColor            = new Color(0.04f, 0.05f, 0.16f),
             hazeStrength         = 0.15f,
         },
@@ -548,11 +602,6 @@ public class DayNightCycle : MonoBehaviour
             exposure             = 0.42f,
             sunGlowColor         = new Color(1.0f,  0.58f, 0.18f),
             sunGlowSize          = 0.18f,
-            cloudDensity         = 0.62f,
-            cloudColorDay        = new Color(1.0f,  0.78f, 0.55f),
-            cloudColorNight      = new Color(0.14f, 0.10f, 0.08f),
-            cloudUnderlitColor   = new Color(1.0f,  0.42f, 0.12f),
-            cloudUnderlitStrength= 1.1f,
             hazeColor            = new Color(0.82f, 0.58f, 0.38f),
             hazeStrength         = 0.55f,
         },
@@ -574,11 +623,6 @@ public class DayNightCycle : MonoBehaviour
             exposure             = 0.65f,
             sunGlowColor         = new Color(1.0f,  0.72f, 0.28f),
             sunGlowSize          = 0.14f,
-            cloudDensity         = 0.70f,
-            cloudColorDay        = new Color(1.0f,  0.90f, 0.70f),
-            cloudColorNight      = new Color(0.12f, 0.10f, 0.08f),
-            cloudUnderlitColor   = new Color(1.0f,  0.55f, 0.20f),
-            cloudUnderlitStrength= 0.6f,
             hazeColor            = new Color(0.75f, 0.72f, 0.88f),
             hazeStrength         = 0.40f,
         },
@@ -600,11 +644,6 @@ public class DayNightCycle : MonoBehaviour
             exposure             = 0.95f,
             sunGlowColor         = new Color(1.0f,  0.96f, 0.82f),
             sunGlowSize          = 0.09f,
-            cloudDensity         = 0.60f,
-            cloudColorDay        = new Color(1.0f,  1.0f,  1.0f),
-            cloudColorNight      = new Color(0.10f, 0.12f, 0.25f),
-            cloudUnderlitColor   = new Color(0.8f,  0.8f,  0.9f),
-            cloudUnderlitStrength= 0.1f,
             hazeColor            = new Color(0.55f, 0.70f, 0.95f),
             hazeStrength         = 0.22f,
         },
@@ -626,11 +665,6 @@ public class DayNightCycle : MonoBehaviour
             exposure             = 0.78f,
             sunGlowColor         = new Color(1.0f,  0.62f, 0.18f),
             sunGlowSize          = 0.16f,
-            cloudDensity         = 0.62f,
-            cloudColorDay        = new Color(1.0f,  0.85f, 0.55f),
-            cloudColorNight      = new Color(0.12f, 0.10f, 0.08f),
-            cloudUnderlitColor   = new Color(1.0f,  0.40f, 0.10f),
-            cloudUnderlitStrength= 0.90f,
             hazeColor            = new Color(0.88f, 0.65f, 0.38f),
             hazeStrength         = 0.48f,
         },
@@ -652,11 +686,6 @@ public class DayNightCycle : MonoBehaviour
             exposure             = 0.62f,
             sunGlowColor         = new Color(1.0f,  0.42f, 0.08f),
             sunGlowSize          = 0.22f,
-            cloudDensity         = 0.68f,
-            cloudColorDay        = new Color(1.0f,  0.62f, 0.30f),
-            cloudColorNight      = new Color(0.18f, 0.10f, 0.07f),
-            cloudUnderlitColor   = new Color(1.0f,  0.28f, 0.05f),
-            cloudUnderlitStrength= 1.4f,
             hazeColor            = new Color(0.92f, 0.48f, 0.22f),
             hazeStrength         = 0.62f,
         },
@@ -678,11 +707,6 @@ public class DayNightCycle : MonoBehaviour
             exposure             = 0.13f,
             sunGlowColor         = new Color(0.24f, 0.28f, 0.62f),
             sunGlowSize          = 0.0f,
-            cloudDensity         = 0.68f,
-            cloudColorDay        = new Color(0.52f, 0.56f, 0.74f),
-            cloudColorNight      = new Color(0.06f, 0.07f, 0.17f),
-            cloudUnderlitColor   = new Color(0.08f, 0.08f, 0.18f),
-            cloudUnderlitStrength= 0.0f,
             hazeColor            = new Color(0.04f, 0.05f, 0.18f),
             hazeStrength         = 0.18f,
         },

@@ -14,15 +14,15 @@ OcclusionCullingSettings:
 RenderSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 10
-  m_Fog: 0
-  m_FogColor: {r: 0.73087996, g: 0.64, b: 0.48576, a: 1}
+  m_Fog: 1
+  m_FogColor: {r: 0.74122, g: 0.65878, b: 0.52138, a: 1}
   m_FogMode: 3
-  m_FogDensity: 0.016336
+  m_FogDensity: 0.00064000004
   m_LinearFogStart: 0
   m_LinearFogEnd: 300
-  m_AmbientSkyColor: {r: 0.36752, g: 0.5096, b: 0.77375996, a: 1}
-  m_AmbientEquatorColor: {r: 0.39712, g: 0.39168, b: 0.30704, a: 1}
-  m_AmbientGroundColor: {r: 0.12584, g: 0.10208, b: 0.06312, a: 1}
+  m_AmbientSkyColor: {r: 0.38, g: 0.52, b: 0.78, a: 1}
+  m_AmbientEquatorColor: {r: 0.42, g: 0.4, b: 0.28, a: 1}
+  m_AmbientGroundColor: {r: 0.13, g: 0.1, b: 0.06, a: 1}
   m_AmbientIntensity: 0.7
   m_AmbientMode: 1
   m_SubtractiveShadowColor: {r: 0.41960785, g: 0.478, b: 0.627, a: 1}
@@ -585,11 +585,10 @@ MonoBehaviour:
   moonLightColor: {r: 0.38, g: 0.44, b: 0.7, a: 1}
   moonMaxIntensity: 1.5
   moonCloudStrength: 0.8
-  cloudCoverageMultiplier: 1
   horizonFadeAngle: 8
   sunriseAzimuth: 270
   orbitTilt: 20
-  enableFog: 0
+  enableFog: 1
   moonPhase: 0.5
   sunHorizonSizeBoost: 1.4
   latitude: 60
@@ -611,11 +610,6 @@ MonoBehaviour:
     exposure: 0.12
     sunGlowColor: {r: 0.2, g: 0.28, b: 0.6, a: 1}
     sunGlowSize: 0
-    cloudDensity: 0.65
-    cloudColorDay: {r: 0.55, g: 0.6, b: 0.78, a: 1}
-    cloudColorNight: {r: 0.06, g: 0.07, b: 0.18, a: 1}
-    cloudUnderlitColor: {r: 0.1, g: 0.1, b: 0.2, a: 1}
-    cloudUnderlitStrength: 0
     hazeColor: {r: 0.04, g: 0.05, b: 0.16, a: 1}
     hazeStrength: 0.15
   - hour: 5
@@ -626,7 +620,7 @@ MonoBehaviour:
     ambientEquatorColor: {r: 0.4, g: 0.26, b: 0.16, a: 1}
     ambientGroundColor: {r: 0.1, g: 0.07, b: 0.04, a: 1}
     fogColor: {r: 0.7, g: 0.5, b: 0.3, a: 1}
-    fogDensity: 0.025
+    fogDensity: 0.001
     daySkyColor: {r: 0.42, g: 0.3, b: 0.22, a: 1}
     dayHorizonColor: {r: 0.88, g: 0.62, b: 0.3, a: 1}
     horizonTint: {r: 1, g: 0.52, b: 0.16, a: 1}
@@ -634,11 +628,6 @@ MonoBehaviour:
     exposure: 0.42
     sunGlowColor: {r: 1, g: 0.58, b: 0.18, a: 1}
     sunGlowSize: 0.18
-    cloudDensity: 0.62
-    cloudColorDay: {r: 1, g: 0.78, b: 0.55, a: 1}
-    cloudColorNight: {r: 0.14, g: 0.1, b: 0.08, a: 1}
-    cloudUnderlitColor: {r: 1, g: 0.42, b: 0.12, a: 1}
-    cloudUnderlitStrength: 1.1
     hazeColor: {r: 0.82, g: 0.58, b: 0.38, a: 1}
     hazeStrength: 0.55
   - hour: 7
@@ -649,7 +638,7 @@ MonoBehaviour:
     ambientEquatorColor: {r: 0.42, g: 0.4, b: 0.28, a: 1}
     ambientGroundColor: {r: 0.13, g: 0.1, b: 0.06, a: 1}
     fogColor: {r: 0.76, g: 0.64, b: 0.44, a: 1}
-    fogDensity: 0.018
+    fogDensity: 0.001
     daySkyColor: {r: 0.28, g: 0.44, b: 0.8, a: 1}
     dayHorizonColor: {r: 0.72, g: 0.78, b: 0.95, a: 1}
     horizonTint: {r: 0.95, g: 0.65, b: 0.28, a: 1}
@@ -657,11 +646,6 @@ MonoBehaviour:
     exposure: 0.65
     sunGlowColor: {r: 1, g: 0.72, b: 0.28, a: 1}
     sunGlowSize: 0.14
-    cloudDensity: 0.7
-    cloudColorDay: {r: 1, g: 0.9, b: 0.7, a: 1}
-    cloudColorNight: {r: 0.12, g: 0.1, b: 0.08, a: 1}
-    cloudUnderlitColor: {r: 1, g: 0.55, b: 0.2, a: 1}
-    cloudUnderlitStrength: 0.6
     hazeColor: {r: 0.75, g: 0.72, b: 0.88, a: 1}
     hazeStrength: 0.4
   - hour: 12
@@ -672,7 +656,7 @@ MonoBehaviour:
     ambientEquatorColor: {r: 0.2, g: 0.32, b: 0.54, a: 1}
     ambientGroundColor: {r: 0.09, g: 0.12, b: 0.09, a: 1}
     fogColor: {r: 0.48, g: 0.64, b: 0.88, a: 1}
-    fogDensity: 0.002
+    fogDensity: 0.001
     daySkyColor: {r: 0.12, g: 0.32, b: 0.8, a: 1}
     dayHorizonColor: {r: 0.48, g: 0.66, b: 0.96, a: 1}
     horizonTint: {r: 0.58, g: 0.74, b: 0.98, a: 1}
@@ -680,11 +664,6 @@ MonoBehaviour:
     exposure: 0.95
     sunGlowColor: {r: 1, g: 0.96, b: 0.82, a: 1}
     sunGlowSize: 0.09
-    cloudDensity: 0.6
-    cloudColorDay: {r: 1, g: 1, b: 1, a: 1}
-    cloudColorNight: {r: 0.1, g: 0.12, b: 0.25, a: 1}
-    cloudUnderlitColor: {r: 0.8, g: 0.8, b: 0.9, a: 1}
-    cloudUnderlitStrength: 0.1
     hazeColor: {r: 0.55, g: 0.7, b: 0.95, a: 1}
     hazeStrength: 0.22
   - hour: 16
@@ -695,7 +674,7 @@ MonoBehaviour:
     ambientEquatorColor: {r: 0.48, g: 0.34, b: 0.16, a: 1}
     ambientGroundColor: {r: 0.15, g: 0.11, b: 0.05, a: 1}
     fogColor: {r: 0.78, g: 0.58, b: 0.32, a: 1}
-    fogDensity: 0.007
+    fogDensity: 0.006
     daySkyColor: {r: 0.32, g: 0.44, b: 0.72, a: 1}
     dayHorizonColor: {r: 0.85, g: 0.68, b: 0.38, a: 1}
     horizonTint: {r: 0.95, g: 0.55, b: 0.18, a: 1}
@@ -703,11 +682,6 @@ MonoBehaviour:
     exposure: 0.78
     sunGlowColor: {r: 1, g: 0.62, b: 0.18, a: 1}
     sunGlowSize: 0.16
-    cloudDensity: 0.62
-    cloudColorDay: {r: 1, g: 0.85, b: 0.55, a: 1}
-    cloudColorNight: {r: 0.12, g: 0.1, b: 0.08, a: 1}
-    cloudUnderlitColor: {r: 1, g: 0.4, b: 0.1, a: 1}
-    cloudUnderlitStrength: 0.9
     hazeColor: {r: 0.88, g: 0.65, b: 0.38, a: 1}
     hazeStrength: 0.48
   - hour: 18
@@ -718,7 +692,7 @@ MonoBehaviour:
     ambientEquatorColor: {r: 0.44, g: 0.26, b: 0.14, a: 1}
     ambientGroundColor: {r: 0.14, g: 0.08, b: 0.05, a: 1}
     fogColor: {r: 0.72, g: 0.4, b: 0.2, a: 1}
-    fogDensity: 0.011
+    fogDensity: 0.004
     daySkyColor: {r: 0.48, g: 0.28, b: 0.2, a: 1}
     dayHorizonColor: {r: 0.95, g: 0.5, b: 0.18, a: 1}
     horizonTint: {r: 1, g: 0.35, b: 0.06, a: 1}
@@ -726,11 +700,6 @@ MonoBehaviour:
     exposure: 0.62
     sunGlowColor: {r: 1, g: 0.42, b: 0.08, a: 1}
     sunGlowSize: 0.22
-    cloudDensity: 0.68
-    cloudColorDay: {r: 1, g: 0.62, b: 0.3, a: 1}
-    cloudColorNight: {r: 0.18, g: 0.1, b: 0.07, a: 1}
-    cloudUnderlitColor: {r: 1, g: 0.28, b: 0.05, a: 1}
-    cloudUnderlitStrength: 1.4
     hazeColor: {r: 0.92, g: 0.48, b: 0.22, a: 1}
     hazeStrength: 0.62
   - hour: 21
@@ -741,7 +710,7 @@ MonoBehaviour:
     ambientEquatorColor: {r: 0.04, g: 0.05, b: 0.11, a: 1}
     ambientGroundColor: {r: 0.01, g: 0.01, b: 0.04, a: 1}
     fogColor: {r: 0.04, g: 0.05, b: 0.13, a: 1}
-    fogDensity: 0.011
+    fogDensity: 0.008
     daySkyColor: {r: 0.03, g: 0.04, b: 0.12, a: 1}
     dayHorizonColor: {r: 0.05, g: 0.06, b: 0.18, a: 1}
     horizonTint: {r: 0.06, g: 0.07, b: 0.22, a: 1}
@@ -749,11 +718,6 @@ MonoBehaviour:
     exposure: 0.13
     sunGlowColor: {r: 0.24, g: 0.28, b: 0.62, a: 1}
     sunGlowSize: 0
-    cloudDensity: 0.68
-    cloudColorDay: {r: 0.52, g: 0.56, b: 0.74, a: 1}
-    cloudColorNight: {r: 0.06, g: 0.07, b: 0.17, a: 1}
-    cloudUnderlitColor: {r: 0.08, g: 0.08, b: 0.18, a: 1}
-    cloudUnderlitStrength: 0
     hazeColor: {r: 0.04, g: 0.05, b: 0.18, a: 1}
     hazeStrength: 0.18
 --- !u!4 &66419298
@@ -1262,62 +1226,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: -20, y: -20}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!21 &126827397
-Material:
-  serializedVersion: 8
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: Universal Render Pipeline/Unlit
-  m_Shader: {fileID: 4800000, guid: 650dd9526735d5b46b79224bc6e94025, type: 3}
-  m_Parent: {fileID: 0}
-  m_ModifiedSerializedProperties: 0
-  m_ValidKeywords: []
-  m_InvalidKeywords: []
-  m_LightmapFlags: 4
-  m_EnableInstancingVariants: 0
-  m_DoubleSidedGI: 0
-  m_CustomRenderQueue: -1
-  stringTagMap:
-    RenderType: Opaque
-  disabledShaderPasses:
-  - MOTIONVECTORS
-  m_LockedProperties: 
-  m_SavedProperties:
-    serializedVersion: 3
-    m_TexEnvs:
-    - _BaseMap:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _MainTex:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    m_Ints: []
-    m_Floats:
-    - _AddPrecomputedVelocity: 0
-    - _AlphaClip: 0
-    - _AlphaToMask: 0
-    - _Blend: 0
-    - _BlendOp: 0
-    - _Cull: 2
-    - _Cutoff: 0.5
-    - _DstBlend: 0
-    - _DstBlendAlpha: 0
-    - _QueueOffset: 0
-    - _SampleGI: 0
-    - _SrcBlend: 1
-    - _SrcBlendAlpha: 1
-    - _Surface: 0
-    - _XRMotionVectorsPass: 1
-    - _ZWrite: 1
-    m_Colors:
-    - _BaseColor: {r: 0.92, g: 0.94, b: 1, a: 1}
-    - _Color: {r: 0.92, g: 0.94, b: 1, a: 1}
-  m_BuildTextureStacks: []
-  m_AllowLocking: 1
 --- !u!1 &132585159
 GameObject:
   m_ObjectHideFlags: 0
@@ -7683,8 +7591,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 331325278}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.25881904, y: 0.00000008409568, z: 0.000000022533369, w: 0.9659259}
-  m_LocalPosition: {x: 36.923065, y: -1256.1439, z: -2143.8528}
+  m_LocalRotation: {x: -0.13052616, y: 0.00000008658495, z: 0.000000011399122, w: 0.9914449}
+  m_LocalPosition: {x: 36.92302, y: -639.9264, z: -2399.0981}
   m_LocalScale: {x: 55, y: 55, z: 55}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -7943,62 +7851,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 347748947}
   m_CullTransparentMesh: 1
---- !u!21 &357454719
-Material:
-  serializedVersion: 8
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: Universal Render Pipeline/Unlit
-  m_Shader: {fileID: 4800000, guid: 650dd9526735d5b46b79224bc6e94025, type: 3}
-  m_Parent: {fileID: 0}
-  m_ModifiedSerializedProperties: 0
-  m_ValidKeywords: []
-  m_InvalidKeywords: []
-  m_LightmapFlags: 4
-  m_EnableInstancingVariants: 0
-  m_DoubleSidedGI: 0
-  m_CustomRenderQueue: -1
-  stringTagMap:
-    RenderType: Opaque
-  disabledShaderPasses:
-  - MOTIONVECTORS
-  m_LockedProperties: 
-  m_SavedProperties:
-    serializedVersion: 3
-    m_TexEnvs:
-    - _BaseMap:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _MainTex:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    m_Ints: []
-    m_Floats:
-    - _AddPrecomputedVelocity: 0
-    - _AlphaClip: 0
-    - _AlphaToMask: 0
-    - _Blend: 0
-    - _BlendOp: 0
-    - _Cull: 2
-    - _Cutoff: 0.5
-    - _DstBlend: 0
-    - _DstBlendAlpha: 0
-    - _QueueOffset: 0
-    - _SampleGI: 0
-    - _SrcBlend: 1
-    - _SrcBlendAlpha: 1
-    - _Surface: 0
-    - _XRMotionVectorsPass: 1
-    - _ZWrite: 1
-    m_Colors:
-    - _BaseColor: {r: 0.92, g: 0.94, b: 1, a: 1}
-    - _Color: {r: 0.92, g: 0.94, b: 1, a: 1}
-  m_BuildTextureStacks: []
-  m_AllowLocking: 1
 --- !u!1 &369907156
 GameObject:
   m_ObjectHideFlags: 0
@@ -9048,8 +8900,8 @@ Light:
   m_Enabled: 1
   serializedVersion: 12
   m_Type: 1
-  m_Color: {r: 1, g: 0.83664, b: 0.52576, a: 0}
-  m_Intensity: 1.0572
+  m_Color: {r: 1, g: 0.82, b: 0.48, a: 0}
+  m_Intensity: 1
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -9111,7 +8963,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 410087039}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.00000002262668, y: 0.9659259, z: -0.25881907, w: -0.00000008444392}
+  m_LocalRotation: {x: -0.000000011410964, y: 0.9914449, z: -0.1305262, w: -0.000000086674866}
   m_LocalPosition: {x: 9.805183, y: -483.2167, z: -8.1805935}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -13319,118 +13171,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.74, y: 0.87, z: 0.76}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!1 &793160350
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 793160354}
-  - component: {fileID: 793160353}
-  - component: {fileID: 793160352}
-  - component: {fileID: 793160351}
-  m_Layer: 0
-  m_Name: Moon Mesh
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!23 &793160351
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 793160350}
-  m_Enabled: 1
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RayTracingAccelStructBuildFlagsOverride: 0
-  m_RayTracingAccelStructBuildFlags: 1
-  m_SmallMeshCulling: 1
-  m_ForceMeshLod: -1
-  m_MeshLodSelectionBias: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 357454719}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 1
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_MaskInteraction: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!135 &793160352
-SphereCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 793160350}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Radius: 0.5
-  m_Center: {x: 0, y: 0, z: 0}
---- !u!33 &793160353
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 793160350}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
---- !u!4 &793160354
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 793160350}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0.000000033031988, y: 0.92387956, z: -0.3826834, w: -0.00000007974627}
-  m_LocalPosition: {x: 36.92351, y: 374.9095, z: 422.39566}
-  m_LocalScale: {x: 13, y: 13, z: 13}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &809501045
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -13864,118 +13604,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: af90fe2f0f252bf4b8c2ab79bcd41edf, type: 3}
---- !u!1 &843157550
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 843157554}
-  - component: {fileID: 843157553}
-  - component: {fileID: 843157552}
-  - component: {fileID: 843157551}
-  m_Layer: 0
-  m_Name: Sun Mesh
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!23 &843157551
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 843157550}
-  m_Enabled: 1
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RayTracingAccelStructBuildFlagsOverride: 0
-  m_RayTracingAccelStructBuildFlags: 1
-  m_SmallMeshCulling: 1
-  m_ForceMeshLod: -1
-  m_MeshLodSelectionBias: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 1278244683}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 1
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_MaskInteraction: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!135 &843157552
-SphereCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 843157550}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Radius: 0.5
-  m_Center: {x: 0, y: 0, z: 0}
---- !u!33 &843157553
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 843157550}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
---- !u!4 &843157554
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 843157550}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0.000000033031988, y: 0.92387956, z: -0.3826834, w: -0.00000007974627}
-  m_LocalPosition: {x: 36.92351, y: 374.9095, z: 422.39566}
-  m_LocalScale: {x: 20.703535, y: 20.703535, z: 20.703535}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &845074130
 GameObject:
   m_ObjectHideFlags: 0
@@ -14096,7 +13724,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 072a4b5469bcef243a01e3e6a48caee3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  hour: 8
+  hour: 7
   minute: 0
   day: 1
   realSecondsPerGameMinute: 1
@@ -16755,9 +16383,9 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1063860613}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.000000022533373, y: 0.9659259, z: -0.25881907, w: -0.000000084095696}
-  m_LocalPosition: {x: 36.923836, y: 1298.8561, z: 2281.537}
-  m_LocalScale: {x: 64.625, y: 64.625, z: 64.625}
+  m_LocalRotation: {x: -0.000000011399124, y: 0.9914449, z: -0.13052619, w: -0.00000008658495}
+  m_LocalPosition: {x: 36.92388, y: 682.6388, z: 2536.7827}
+  m_LocalScale: {x: 86.35187, y: 86.35187, z: 86.35187}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -18412,7 +18040,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1168621330}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.25881904, y: 0.00000008444392, z: 0.000000022626677, w: 0.9659259}
+  m_LocalRotation: {x: -0.13052617, y: 0.00000008667485, z: 0.000000011410959, w: 0.9914449}
   m_LocalPosition: {x: 9.8, y: 515.2252, z: -63.823654}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -18902,62 +18530,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1195122298}
   m_CullTransparentMesh: 1
---- !u!21 &1200674971
-Material:
-  serializedVersion: 8
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: Universal Render Pipeline/Unlit
-  m_Shader: {fileID: 4800000, guid: 650dd9526735d5b46b79224bc6e94025, type: 3}
-  m_Parent: {fileID: 0}
-  m_ModifiedSerializedProperties: 0
-  m_ValidKeywords: []
-  m_InvalidKeywords: []
-  m_LightmapFlags: 4
-  m_EnableInstancingVariants: 0
-  m_DoubleSidedGI: 0
-  m_CustomRenderQueue: -1
-  stringTagMap:
-    RenderType: Opaque
-  disabledShaderPasses:
-  - MOTIONVECTORS
-  m_LockedProperties: 
-  m_SavedProperties:
-    serializedVersion: 3
-    m_TexEnvs:
-    - _BaseMap:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _MainTex:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    m_Ints: []
-    m_Floats:
-    - _AddPrecomputedVelocity: 0
-    - _AlphaClip: 0
-    - _AlphaToMask: 0
-    - _Blend: 0
-    - _BlendOp: 0
-    - _Cull: 2
-    - _Cutoff: 0.5
-    - _DstBlend: 0
-    - _DstBlendAlpha: 0
-    - _QueueOffset: 0
-    - _SampleGI: 0
-    - _SrcBlend: 1
-    - _SrcBlendAlpha: 1
-    - _Surface: 0
-    - _XRMotionVectorsPass: 1
-    - _ZWrite: 1
-    m_Colors:
-    - _BaseColor: {r: 1, g: 0.95, b: 0.7, a: 1}
-    - _Color: {r: 1, g: 0.95, b: 0.7, a: 1}
-  m_BuildTextureStacks: []
-  m_AllowLocking: 1
 --- !u!1 &1245120253
 GameObject:
   m_ObjectHideFlags: 0
@@ -19199,62 +18771,6 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: -462981019419857548, guid: cc87c59135a1c3b448fb9b0b4414e440, type: 3}
---- !u!21 &1278244683
-Material:
-  serializedVersion: 8
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: Universal Render Pipeline/Unlit
-  m_Shader: {fileID: 4800000, guid: 650dd9526735d5b46b79224bc6e94025, type: 3}
-  m_Parent: {fileID: 0}
-  m_ModifiedSerializedProperties: 0
-  m_ValidKeywords: []
-  m_InvalidKeywords: []
-  m_LightmapFlags: 4
-  m_EnableInstancingVariants: 0
-  m_DoubleSidedGI: 0
-  m_CustomRenderQueue: -1
-  stringTagMap:
-    RenderType: Opaque
-  disabledShaderPasses:
-  - MOTIONVECTORS
-  m_LockedProperties: 
-  m_SavedProperties:
-    serializedVersion: 3
-    m_TexEnvs:
-    - _BaseMap:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _MainTex:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    m_Ints: []
-    m_Floats:
-    - _AddPrecomputedVelocity: 0
-    - _AlphaClip: 0
-    - _AlphaToMask: 0
-    - _Blend: 0
-    - _BlendOp: 0
-    - _Cull: 2
-    - _Cutoff: 0.5
-    - _DstBlend: 0
-    - _DstBlendAlpha: 0
-    - _QueueOffset: 0
-    - _SampleGI: 0
-    - _SrcBlend: 1
-    - _SrcBlendAlpha: 1
-    - _Surface: 0
-    - _XRMotionVectorsPass: 1
-    - _ZWrite: 1
-    m_Colors:
-    - _BaseColor: {r: 1, g: 0.95, b: 0.7, a: 1}
-    - _Color: {r: 1, g: 0.95, b: 0.7, a: 1}
-  m_BuildTextureStacks: []
-  m_AllowLocking: 1
 --- !u!1 &1283188293
 GameObject:
   m_ObjectHideFlags: 0
@@ -19367,6 +18883,60 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1283188293}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &1285029185
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1285029187}
+  - component: {fileID: 1285029188}
+  m_Layer: 0
+  m_Name: WeatherManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1285029187
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1285029185}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 40.2601, y: 27.54334, z: 104.76907}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1285029188
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1285029185}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5ed5afe841225b44698e13cee8715480, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WeatherManager
+  dayNightCycle: {fileID: 66419297}
+  startPreset: {fileID: 11400000, guid: e8d91ef51462d1b4aa3829f22ef9ad9d, type: 2}
+  defaultPresets:
+  - {fileID: 11400000, guid: 1c3b386e42e99814e8a0f21e62d0f8bb, type: 2}
+  - {fileID: 11400000, guid: e8d91ef51462d1b4aa3829f22ef9ad9d, type: 2}
+  checkIntervalMinutes: 30
+  autoSchedule: 1
+  debugLog: 1
+  livePreviewEnabled: 0
+  livePreviewTarget: {fileID: 11400000, guid: e8d91ef51462d1b4aa3829f22ef9ad9d, type: 2}
 --- !u!1 &1296577906 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: cc87c59135a1c3b448fb9b0b4414e440,
@@ -22936,118 +22506,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1662084782}
   m_CullTransparentMesh: 1
---- !u!1 &1662903618
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1662903622}
-  - component: {fileID: 1662903621}
-  - component: {fileID: 1662903620}
-  - component: {fileID: 1662903619}
-  m_Layer: 0
-  m_Name: Sun Mesh
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!23 &1662903619
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1662903618}
-  m_Enabled: 1
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RayTracingAccelStructBuildFlagsOverride: 0
-  m_RayTracingAccelStructBuildFlags: 1
-  m_SmallMeshCulling: 1
-  m_ForceMeshLod: -1
-  m_MeshLodSelectionBias: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 1200674971}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 1
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_MaskInteraction: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!135 &1662903620
-SphereCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1662903618}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Radius: 0.5
-  m_Center: {x: 0, y: 0, z: 0}
---- !u!33 &1662903621
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1662903618}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
---- !u!4 &1662903622
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1662903618}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0.3826834, y: 0.00000008095572, z: -0.000000033532952, w: 0.92387956}
-  m_LocalPosition: {x: 36.923134, y: 1828.0137, z: -1737.8157}
-  m_LocalScale: {x: 56.934723, y: 56.934723, z: 56.934723}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1665588178
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -26955,118 +26413,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1958103005}
   m_CullTransparentMesh: 1
---- !u!1 &1990810572
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1990810576}
-  - component: {fileID: 1990810575}
-  - component: {fileID: 1990810574}
-  - component: {fileID: 1990810573}
-  m_Layer: 0
-  m_Name: Moon Mesh
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!23 &1990810573
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1990810572}
-  m_Enabled: 1
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RayTracingAccelStructBuildFlagsOverride: 0
-  m_RayTracingAccelStructBuildFlags: 1
-  m_SmallMeshCulling: 1
-  m_ForceMeshLod: -1
-  m_MeshLodSelectionBias: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 126827397}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 1
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_MaskInteraction: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!135 &1990810574
-SphereCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1990810572}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Radius: 0.5
-  m_Center: {x: 0, y: 0, z: 0}
---- !u!33 &1990810575
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1990810572}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
---- !u!4 &1990810576
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1990810572}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0.3826834, y: 0.00000011961943, z: -0.00000004954798, w: 0.92387956}
-  m_LocalPosition: {x: 36.92336, y: 374.9095, z: -284.71115}
-  m_LocalScale: {x: 14, y: 14, z: 14}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1990838290
 GameObject:
   m_ObjectHideFlags: 0
@@ -29103,8 +28449,6 @@ SceneRoots:
   - {fileID: 2125980675}
   - {fileID: 532493286}
   - {fileID: 1052405333}
-  - {fileID: 843157554}
-  - {fileID: 1990810576}
   - {fileID: 842039439}
   - {fileID: 1665588178}
   - {fileID: 905842090}
@@ -29124,7 +28468,6 @@ SceneRoots:
   - {fileID: 1888042922}
   - {fileID: 1552527420}
   - {fileID: 2146047269}
-  - {fileID: 1662903622}
-  - {fileID: 793160354}
   - {fileID: 1063860617}
   - {fileID: 331325282}
+  - {fileID: 1285029187}

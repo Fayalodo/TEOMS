@@ -1,0 +1,67 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f5eee00c6b568264488736b5f8e12c85, type: 3}
+  m_Name: WP_Cloudy
+  m_EditorClassIdentifier: Assembly-CSharp::WeatherPresetSO
+  displayName: Cloudy
+  weight: 1
+  minDurationMinutes: 15
+  transitionDuration: 60
+  cloudDensityNear: 0.634
+  cloudDensityFar: 0.679
+  cloudSoftness: 0.15
+  cloudSpeed: 0.118
+  cloudColorDay: {r: 1, g: 1, b: 1, a: 1}
+  cloudColorNight: {r: 0.20291919, g: 0.24457099, b: 0.4528302, a: 1}
+  cloudColorByTime:
+  - hour: 0
+    minute: 0
+    cloudColor: {r: 0.013061765, g: 0.011213952, b: 0.11320752, a: 0}
+    underlitColor: {r: 0.028702382, g: 0.03330551, b: 0.14150941, a: 0}
+    underlitStrength: 0
+  - hour: 5
+    minute: 0
+    cloudColor: {r: 0.8301887, g: 0.5185681, b: 0.62352943, a: 0}
+    underlitColor: {r: 0.5283019, g: 0.22500677, b: 0.09718762, a: 0}
+    underlitStrength: 1.14
+  - hour: 7
+    minute: 0
+    cloudColor: {r: 0.9716981, g: 0.7031873, b: 0.56376827, a: 0}
+    underlitColor: {r: 1, g: 0.6928036, b: 0.23113209, a: 0}
+    underlitStrength: 0.46
+  - hour: 12
+    minute: 0
+    cloudColor: {r: 1, g: 1, b: 1, a: 0}
+    underlitColor: {r: 0.6320754, g: 0.6320754, b: 0.6320754, a: 0}
+    underlitStrength: 0
+  - hour: 18
+    minute: 30
+    cloudColor: {r: 0.9056604, g: 0.27238265, b: 0.18369527, a: 0}
+    underlitColor: {r: 0.3207547, g: 0.01966893, b: 0.042736284, a: 0}
+    underlitStrength: 1.8
+  - hour: 21
+    minute: 0
+    cloudColor: {r: 0.2503115, g: 0.2564986, b: 0.4245283, a: 0}
+    underlitColor: {r: 1, g: 1, b: 1, a: 0}
+    underlitStrength: 0
+  cloudShadowStrength: 0.191
+  cloudUnderlitStrength: 0.8
+  cloudUnderlitColor: {r: 1, g: 0.45, b: 0.15, a: 1}
+  fogDensityMultiplier: 0.64
+  fogColorTint: {r: 0.7, g: 0.7, b: 0.7, a: 1}
+  fogColorBlend: 0.313
+  hazeStrengthMultiplier: 1
+  precipitation: 0
+  precipitationIntensity: 0
+  windStrength: 0.1
+  windAngle: 0
+  audioSnapshotName: 

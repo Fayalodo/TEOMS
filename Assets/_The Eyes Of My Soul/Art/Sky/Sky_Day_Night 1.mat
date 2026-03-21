@@ -102,22 +102,26 @@ Material:
     - _BlendModePreserveSpecular: 1
     - _BumpScale: 1
     - _CirrusDensity: 0.25
+    - _CirrusHeight: 0.15
     - _CirrusScale: 2.5
     - _CirrusSpeed: 0.003
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
+    - _CloudAmbient: 0.35
     - _CloudCoverage: 0.4
-    - _CloudDensity: 0.6896
-    - _CloudHeightFade: 0
+    - _CloudDensity: 0.649
+    - _CloudDensityFar: 0.679
+    - _CloudDensityNear: 0.634
+    - _CloudHeightFade: 0.15
     - _CloudLayer2Density: 0.3
     - _CloudLayer2Speed: 0.001
     - _CloudRimWidth: 0.242
     - _CloudScale: 6.04
-    - _CloudShadowStrength: 0.55
-    - _CloudSoftness: 0.133
-    - _CloudSpeed: 0.0397
+    - _CloudShadowStrength: 0.191
+    - _CloudSoftness: 0.15
+    - _CloudSpeed: 0.118
     - _CloudSunStrength: 0.75
-    - _CloudUnderlitStrength: 0.54800004
+    - _CloudUnderlitStrength: 0.46
     - _Cull: 2
     - _Cutoff: 0.5
     - _DetailAlbedoMapScale: 1
@@ -125,7 +129,13 @@ Material:
     - _DstBlend: 0
     - _DstBlendAlpha: 0
     - _EnvironmentReflections: 1
-    - _Exposure: 0.68119997
+    - _Exposure: 0.65
+    - _FarCloudMaskHi: 0.4
+    - _FarCloudMaskHiEdge: 0.7
+    - _FarCloudMaskLo: 0.00001
+    - _FarCloudMaskLoEdge: 0.009
+    - _FarCloudSpeedMult: 1
+    - _FarCloudUVScale: 0.03
     - _FogDensity: 0.1
     - _GlossMapScale: 0
     - _Glossiness: 0
@@ -135,15 +145,15 @@ Material:
     - _GodRaySpread: 0.63
     - _GodRayStrength: 0.28736
     - _HazeFalloff: 8
-    - _HazeStrength: 0.38128
+    - _HazeStrength: 0.4
     - _HorizonBlend: 4
     - _HorizonSharpness: 6
-    - _HorizonWidth: 0.21272
+    - _HorizonWidth: 0.22
     - _Metallic: 0
     - _MieBeta: 0.1648
     - _MieG: 0.76
     - _MoonBrightness: 0.8
-    - _MoonGlowSize: 0.06
+    - _MoonGlowSize: 0.05
     - _MoonPhase: 0.5
     - _MoonSize: 0.1
     - _OcclusionStrength: 1
@@ -166,28 +176,28 @@ Material:
     - _StarTwinkleSpeed: 0
     - _SunGlowPower: 16
     - _SunGlowRadius: 0.028
-    - _SunGlowSize: 0.1348
+    - _SunGlowSize: 0.14
     - _SunSize: 0.0005
     - _Surface: 0
     - _WorkflowMode: 1
     - _XRMotionVectorsPass: 1
     - _ZWrite: 1
     m_Colors:
-    - _AtmosphereHaze: {r: 0.7292, g: 0.71792, b: 0.88728, a: 1}
+    - _AtmosphereHaze: {r: 0.75, g: 0.72, b: 0.88, a: 1}
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _CirrusColor: {r: 0.93, g: 0.96, b: 1, a: 1}
     - _CloudColor: {r: 1, g: 0.9104, b: 0.7312, a: 1}
-    - _CloudColorDay: {r: 1, g: 1, b: 1, a: 1}
-    - _CloudColorNight: {r: 0.11792, g: 0.10208, b: 0.09768, a: 1}
+    - _CloudColorDay: {r: 0.9716981, g: 0.7031873, b: 0.56376827, a: 0}
+    - _CloudColorNight: {r: 0.20291919, g: 0.24457099, b: 0.4528302, a: 1}
     - _CloudRimColor: {r: 1.1, g: 1, b: 0.85, a: 1}
-    - _CloudUnderlitColor: {r: 0.9792, g: 0.57600003, b: 0.2728, a: 1}
+    - _CloudUnderlitColor: {r: 1, g: 0.6928036, b: 0.23113209, a: 0}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
-    - _DayHorizonColor: {r: 0.69504005, g: 0.76751995, b: 0.95103997, a: 1}
-    - _DaySkyColor: {r: 0.26336, g: 0.42752, b: 0.8, a: 1}
+    - _DayHorizonColor: {r: 0.72, g: 0.78, b: 0.95, a: 1}
+    - _DaySkyColor: {r: 0.28, g: 0.44, b: 0.8, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _FogColor: {r: 0.5, g: 0.6, b: 0.8, a: 1}
     - _GodRayColor: {r: 1, g: 0.84335995, b: 0.54544, a: 1}
-    - _HorizonColor: {r: 0.91152, g: 0.65936, b: 0.3528, a: 1}
+    - _HorizonColor: {r: 0.95, g: 0.65, b: 0.28, a: 1}
     - _MoonGlowColor: {r: 0.55, g: 0.65, b: 1, a: 1}
     - _NightHorizonColor: {r: 0.03, g: 0.04, b: 0.12, a: 1}
     - _NightSkyColor: {r: 0.01, g: 0.01, b: 0.06, a: 1}
@@ -196,7 +206,7 @@ Material:
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
     - _StarRotationMatrix: {r: 1, g: 0, b: 0, a: 0}
     - _SunColor: {r: 1.2, g: 1.1, b: 0.9, a: 1}
-    - _SunGlowColor: {r: 1, g: 0.74496, b: 0.33616, a: 1}
+    - _SunGlowColor: {r: 1, g: 0.72, b: 0.28, a: 1}
     - _SunriseColor: {r: 0.8, g: 0.5, b: 0.3, a: 1}
     - _SunsetColor: {r: 1, g: 0.4, b: 0.2, a: 1}
   m_BuildTextureStacks: []

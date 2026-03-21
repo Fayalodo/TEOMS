@@ -35,18 +35,28 @@ Shader "Custom/SkyboxPBR"
 
         // ── Облака ───────────────────────────────────────────────────────────
         _CloudScale               ("Cloud Scale",          Range(0.5, 8)) = 1.4
-        _CloudSpeed               ("Cloud Speed",          Range(0, 0.05))= 0.006
-        _CloudDensity             ("Cloud Coverage",       Range(0, 1))   = 0.55
+        _CloudSpeed               ("Cloud Speed",          Range(0, 0.20))= 0.006
+        _CloudDensityNear         ("Cloud Coverage Near",  Range(0, 1))   = 0.55
+        _CloudDensityFar          ("Cloud Coverage Far",   Range(0, 1))   = 0.45
         _CloudSoftness            ("Cloud Softness",       Range(0.01,0.6))= 0.18
         [HDR] _CloudColorDay      ("Cloud Color Day",      Color) = (1, 1, 1, 1)
         [HDR] _CloudColorNight    ("Cloud Color Night",    Color) = (0.08, 0.10, 0.22, 1)
         _CloudHeightFade          ("Cloud Height Fade",    Range(0, 1))   = 0.10
         _CloudSunStrength         ("Cloud Sun Strength",   Range(0, 3))   = 1.2
+        _CloudAmbient             ("Cloud Ambient Light",  Range(0, 1))   = 0.35
         _CloudShadowStrength      ("Cloud Shadow",         Range(0, 1))   = 0.60
         _CloudRimWidth            ("Cloud Rim Width",      Range(0, 0.4)) = 0.10
         [HDR] _CloudRimColor      ("Cloud Rim Color",      Color) = (1.2, 1.0, 0.7, 1)
         _CloudUnderlitStrength    ("Cloud Underlit Strength", Range(0, 2)) = 0.8
         [HDR] _CloudUnderlitColor ("Cloud Underlit Color",    Color) = (1.0, 0.45, 0.15, 1)
+
+        // ── Дальние облака (Far Layer) ────────────────────────────────────────
+        _FarCloudUVScale          ("Far UV Scale",         Range(0.001, 0.03)) = 0.008
+        _FarCloudSpeedMult        ("Far Speed Multiplier", Range(0, 2))   = 0.6
+        _FarCloudMaskLo           ("Far Mask Bottom",      Range(0, 0.3)) = 0.08
+        _FarCloudMaskLoEdge       ("Far Mask Bottom Edge", Range(0, 0.4)) = 0.18
+        _FarCloudMaskHi           ("Far Mask Top",         Range(0.1, 1)) = 0.40
+        _FarCloudMaskHiEdge       ("Far Mask Top Edge",    Range(0.1, 1)) = 0.70
 
         // ── Туман / дымка ────────────────────────────────────────────────────
         [HDR] _AtmosphereHaze     ("Atmosphere Haze Color",Color) = (0.62, 0.74, 0.92, 1)
@@ -90,13 +100,17 @@ Shader "Custom/SkyboxPBR"
             float  _MoonPhase;
             float  _MoonCloudStrength;
 
-            float  _CloudScale, _CloudSpeed, _CloudDensity, _CloudSoftness;
+            float  _CloudScale, _CloudSpeed, _CloudDensityNear, _CloudDensityFar, _CloudSoftness;
             half4  _CloudColorDay, _CloudColorNight;
-            float  _CloudHeightFade, _CloudSunStrength, _CloudShadowStrength;
+            float  _CloudHeightFade, _CloudSunStrength, _CloudAmbient, _CloudShadowStrength;
             float  _CloudRimWidth;
             half4  _CloudRimColor;
             float  _CloudUnderlitStrength;
             half4  _CloudUnderlitColor;
+
+            float  _FarCloudUVScale, _FarCloudSpeedMult;
+            float  _FarCloudMaskLo, _FarCloudMaskLoEdge;
+            float  _FarCloudMaskHi, _FarCloudMaskHiEdge;
 
             half4  _AtmosphereHaze;
             float  _HazeStrength, _HazeFalloff;
@@ -197,41 +211,34 @@ Shader "Custom/SkyboxPBR"
                 // Объёмный контраст: усиливаем разницу тёмных/светлых зон
                 float cloudNear = pow(saturate(largeN * 0.65 + fineN * 0.35), 0.85);
 
-                // ── ДАЛЬНИЙ слой — сферическая проекция с domain warp ────────
-                // Ключевое изменение: оба слоя используют сферическую проекцию,
-                // дальний — другой масштаб и смещение чтобы выглядеть как второй план.
-                float3 pFar = dir * (_CloudScale * 0.55);
-                float3 d3 = float3(t * 0.48, 0.0, t * 0.32);
+                // ── ДАЛЬНИЙ слой — плоская проекция dir.xz/dir.y ─────────────
+                float safeY  = max(dir.y, _FarCloudMaskLo);
+                float2 uvFar = dir.xz / safeY;
+                float3 pFar  = float3(uvFar.x, 0.0, uvFar.y) * (_CloudScale * _FarCloudUVScale);
 
-                // Domain warp: шум смещает координаты → завихрения и "башни"
-                float warpX = vnoise(pFar * 0.85 + d3 + float3(1.7, 9.2, 3.4)) * 2.0 - 1.0;
-                float warpZ = vnoise(pFar * 0.85 + d3 + float3(8.3, 2.8, 5.1)) * 2.0 - 1.0;
-                float3 warp = float3(warpX, 0.0, warpZ) * 0.35;
+                float3 d3 = float3(t * _FarCloudSpeedMult, 0.0, t * _FarCloudSpeedMult * 0.67);
+                float largeFar  = fbm(pFar + d3 + float3(5.1, 0.0, 2.7));
+                float fineFar   = fbm(pFar * 1.8 + d3 + float3(8.3, 0.0, 4.2));
+                float cloudFar  = largeFar * 0.55 + fineFar * 0.45;
 
-                float largeFar = fbm(pFar + warp + d3 + float3(5.1, 2.7, 0.9));
-                float fineFar  = fbm(pFar * 2.1 + d3 * 0.5 + float3(8.3, 4.2, 1.5));
+                // Маска высоты — все 4 границы управляются из инспектора
+                float farMaskLo   = smoothstep(_FarCloudMaskLo, _FarCloudMaskLoEdge, dir.y);
+                float farMaskHi   = 1.0 - smoothstep(_FarCloudMaskHi, _FarCloudMaskHiEdge, dir.y);
+                float farPresence = farMaskLo * farMaskHi;
 
-                // Контраст дальних: резкие края вместо размытого тумана.
-                // pow < 1 растягивает яркие зоны, создавая пышные белые "башни"
-                float densityRaw = largeFar * 0.60 + fineFar * 0.40;
-                float densityFar = pow(saturate(densityRaw), 0.75);
+                // ── Пороги и альфа — раздельно для каждого слоя ────────────
+                float threshNear = 1.0 - _CloudDensityNear * 0.68 - 0.08;
+                float threshFar  = 1.0 - _CloudDensityFar  * 0.72 - 0.08;
 
-                // ── Высотная маска для дальних ──────────────────────────────
-                // Ограничиваем дальний слой — он должен быть только в средней зоне
-                // неба (не заполнять всё небо сверху донизу).
-                // smoothstep(min, max, x): 0 ниже min, 1 выше max
-                float farPresence = smoothstep(0.06, 0.28, dir.y)   // появляются от горизонта
-                                  * (1.0 - smoothstep(0.55, 0.80, dir.y)); // исчезают к зениту
+                float alphaNear = smoothstep(threshNear, threshNear + _CloudSoftness, cloudNear) * heightMask;
+                // farPresence применяем к альфе ПОСЛЕ smoothstep — шум не теряет силу
+                float alphaFar  = smoothstep(threshFar, threshFar + _CloudSoftness, cloudFar) * farPresence * heightMask;
 
-                // ── Итоговый шум: два слоя ─────────────────────────────────
-                // Ближний доминирует везде, дальний добавляет облака на горизонте
-                float blendFar = smoothstep(0.08, 0.45, dir.y);
-                float cloud    = max(cloudNear, densityFar * farPresence);
-                float large    = lerp(largeN, largeFar, blendFar);
-
-                // ── Порог и альфа ───────────────────────────────────────────
-                float threshold  = 1.0 - _CloudDensity * 0.68 - 0.08;
-                float cloudAlpha = smoothstep(threshold, threshold + _CloudSoftness, cloud) * heightMask;
+                // Ближние перекрывают дальние через alpha-over
+                float cloudAlpha = alphaNear + alphaFar * (1.0 - alphaNear);
+                float blendFar   = smoothstep(0.10, 0.50, dir.y);
+                float large      = lerp(largeN, largeFar, blendFar);
+                float cloud      = lerp(cloudFar, cloudNear, alphaNear / max(cloudAlpha, 0.001));
                 if (cloudAlpha < 0.001) return r;
 
                 half3 cloudBase  = lerp(_CloudColorNight.rgb, _CloudColorDay.rgb, saturate(exposure * 0.95));
@@ -242,7 +249,8 @@ Shader "Custom/SkyboxPBR"
                 float sunLit     = pow(sunAngle, 3.0) * _CloudSunStrength * saturate(sunHeight + 0.3);
                 half3 sunTint    = lerp(half3(1,1,1), _SunGlowColor.rgb, saturate(1.0 - sunHeight * 2.5));
 
-                float edgeFactor = 1.0 - smoothstep(threshold, threshold + _CloudRimWidth, cloud);
+                // Rim только для ближних — дальние мягче по краям
+                float edgeFactor = 1.0 - smoothstep(threshNear, threshNear + _CloudRimWidth, cloud);
                 float rim        = edgeFactor * sunAngle * saturate(sunHeight + 0.2) * cloudAlpha;
 
                 float sunsetFactor = saturate(1.0 - sunHeight * 3.5) * saturate(exposure);
@@ -261,6 +269,10 @@ Shader "Custom/SkyboxPBR"
 
                 half3 cloudCol = cloudBase * shadowMask * sunsetTint * exposure;
                 cloudCol += sunTint * sunLit * 0.4 * exposure;
+                // Ambient — рассеянный свет неба, одинаковый со всех сторон.
+                // Не даёт облакам быть полностью чёрными когда смотришь от солнца.
+                half3 ambientSky = lerp(_DayHorizonColor.rgb, _DaySkyColor.rgb, 0.5);
+                cloudCol += ambientSky * _CloudAmbient * saturate(exposure) * cloudBase;
                 cloudCol += _CloudRimColor.rgb * rim * 0.65;
                 cloudCol += underlitCol;
                 cloudCol += _MoonGlowColor.rgb * moonLit * 0.18;
