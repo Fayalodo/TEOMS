@@ -643,7 +643,7 @@ MonoBehaviour:
     dayHorizonColor: {r: 0.72, g: 0.78, b: 0.95, a: 1}
     horizonTint: {r: 0.95, g: 0.65, b: 0.28, a: 1}
     horizonWidth: 0.22
-    exposure: 0.65
+    exposure: 0.5
     sunGlowColor: {r: 1, g: 0.72, b: 0.28, a: 1}
     sunGlowSize: 0.14
     hazeColor: {r: 0.75, g: 0.72, b: 0.88, a: 1}
@@ -661,7 +661,7 @@ MonoBehaviour:
     dayHorizonColor: {r: 0.48, g: 0.66, b: 0.96, a: 1}
     horizonTint: {r: 0.58, g: 0.74, b: 0.98, a: 1}
     horizonWidth: 0.15
-    exposure: 0.95
+    exposure: 0.7
     sunGlowColor: {r: 1, g: 0.96, b: 0.82, a: 1}
     sunGlowSize: 0.09
     hazeColor: {r: 0.55, g: 0.7, b: 0.95, a: 1}
@@ -679,9 +679,9 @@ MonoBehaviour:
     dayHorizonColor: {r: 0.85, g: 0.68, b: 0.38, a: 1}
     horizonTint: {r: 0.95, g: 0.55, b: 0.18, a: 1}
     horizonWidth: 0.26
-    exposure: 0.78
+    exposure: 0.59
     sunGlowColor: {r: 1, g: 0.62, b: 0.18, a: 1}
-    sunGlowSize: 0.16
+    sunGlowSize: 0.091
     hazeColor: {r: 0.88, g: 0.65, b: 0.38, a: 1}
     hazeStrength: 0.48
   - hour: 18
@@ -693,13 +693,13 @@ MonoBehaviour:
     ambientGroundColor: {r: 0.14, g: 0.08, b: 0.05, a: 1}
     fogColor: {r: 0.72, g: 0.4, b: 0.2, a: 1}
     fogDensity: 0.004
-    daySkyColor: {r: 0.48, g: 0.28, b: 0.2, a: 1}
-    dayHorizonColor: {r: 0.95, g: 0.5, b: 0.18, a: 1}
+    daySkyColor: {r: 0.47843137, g: 0.22154735, b: 0.20000002, a: 1}
+    dayHorizonColor: {r: 0.93, g: 0.4, b: 0.18, a: 1}
     horizonTint: {r: 1, g: 0.35, b: 0.06, a: 1}
     horizonWidth: 0.32
     exposure: 0.62
     sunGlowColor: {r: 1, g: 0.42, b: 0.08, a: 1}
-    sunGlowSize: 0.22
+    sunGlowSize: 0.141
     hazeColor: {r: 0.92, g: 0.48, b: 0.22, a: 1}
     hazeStrength: 0.62
   - hour: 21
@@ -7377,7 +7377,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 1107, y: -2.000061}
+  m_AnchoredPosition: {x: 1107, y: -2}
   m_SizeDelta: {x: 1101, y: -979.55066}
   m_Pivot: {x: 1, y: 1}
 --- !u!114 &267155780
@@ -18932,11 +18932,13 @@ MonoBehaviour:
   defaultPresets:
   - {fileID: 11400000, guid: 1c3b386e42e99814e8a0f21e62d0f8bb, type: 2}
   - {fileID: 11400000, guid: e8d91ef51462d1b4aa3829f22ef9ad9d, type: 2}
+  - {fileID: 11400000, guid: cd9efdcfde443b744b0a796a767c5140, type: 2}
+  - {fileID: 11400000, guid: ccbb9124f1ec2c54cb0a467609b8b5ae, type: 2}
   checkIntervalMinutes: 30
   autoSchedule: 1
   debugLog: 1
-  livePreviewEnabled: 0
-  livePreviewTarget: {fileID: 11400000, guid: e8d91ef51462d1b4aa3829f22ef9ad9d, type: 2}
+  livePreviewEnabled: 1
+  livePreviewTarget: {fileID: 11400000, guid: cd9efdcfde443b744b0a796a767c5140, type: 2}
 --- !u!1 &1296577906 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: cc87c59135a1c3b448fb9b0b4414e440,
@@ -28457,8 +28459,6 @@ SceneRoots:
   - {fileID: 556828452}
   - {fileID: 518691285}
   - {fileID: 1159328949}
-  - {fileID: 66419298}
-  - {fileID: 846915062}
   - {fileID: 747104320}
   - {fileID: 144780509}
   - {fileID: 1343004118}
@@ -28470,4 +28470,6 @@ SceneRoots:
   - {fileID: 2146047269}
   - {fileID: 1063860617}
   - {fileID: 331325282}
+  - {fileID: 66419298}
+  - {fileID: 846915062}
   - {fileID: 1285029187}

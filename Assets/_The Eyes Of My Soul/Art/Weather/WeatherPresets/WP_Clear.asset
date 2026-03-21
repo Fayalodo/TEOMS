@@ -19,7 +19,7 @@ MonoBehaviour:
   cloudDensityNear: 0.492
   cloudDensityFar: 0.305
   cloudSoftness: 0.15
-  cloudSpeed: 0.118
+  cloudSpeed: 0.015
   cloudColorDay: {r: 1, g: 1, b: 1, a: 1}
   cloudColorNight: {r: 0.20291919, g: 0.24457099, b: 0.4528302, a: 1}
   cloudColorByTime:

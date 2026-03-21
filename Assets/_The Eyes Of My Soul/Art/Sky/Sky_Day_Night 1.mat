@@ -64,6 +64,14 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _NoiseTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _NoiseTexFar:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _OcclusionMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -110,8 +118,8 @@ Material:
     - _CloudAmbient: 0.35
     - _CloudCoverage: 0.4
     - _CloudDensity: 0.649
-    - _CloudDensityFar: 0.679
-    - _CloudDensityNear: 0.634
+    - _CloudDensityFar: 0.864
+    - _CloudDensityNear: 0.881
     - _CloudHeightFade: 0.15
     - _CloudLayer2Density: 0.3
     - _CloudLayer2Speed: 0.001
@@ -119,8 +127,9 @@ Material:
     - _CloudScale: 6.04
     - _CloudShadowStrength: 0.191
     - _CloudSoftness: 0.15
-    - _CloudSpeed: 0.118
+    - _CloudSpeed: 0.015
     - _CloudSunStrength: 0.75
+    - _CloudTexScale: 0.18
     - _CloudUnderlitStrength: 0.46
     - _Cull: 2
     - _Cutoff: 0.5
@@ -129,7 +138,7 @@ Material:
     - _DstBlend: 0
     - _DstBlendAlpha: 0
     - _EnvironmentReflections: 1
-    - _Exposure: 0.65
+    - _Exposure: 0.5
     - _FarCloudMaskHi: 0.4
     - _FarCloudMaskHiEdge: 0.7
     - _FarCloudMaskLo: 0.00001
@@ -141,9 +150,12 @@ Material:
     - _Glossiness: 0
     - _GlossyReflections: 0
     - _GodRayCount: 4
+    - _GodRayDecay: 1
+    - _GodRayDensity: 0.92
     - _GodRayFalloff: 2.44
     - _GodRaySpread: 0.63
-    - _GodRayStrength: 0.28736
+    - _GodRaySteps: 15
+    - _GodRayStrength: 0.79
     - _HazeFalloff: 8
     - _HazeStrength: 0.4
     - _HorizonBlend: 4
@@ -153,6 +165,7 @@ Material:
     - _MieBeta: 0.1648
     - _MieG: 0.76
     - _MoonBrightness: 0.8
+    - _MoonCloudStrength: 0.8
     - _MoonGlowSize: 0.05
     - _MoonPhase: 0.5
     - _MoonSize: 0.1
@@ -198,6 +211,7 @@ Material:
     - _FogColor: {r: 0.5, g: 0.6, b: 0.8, a: 1}
     - _GodRayColor: {r: 1, g: 0.84335995, b: 0.54544, a: 1}
     - _HorizonColor: {r: 0.95, g: 0.65, b: 0.28, a: 1}
+    - _MoonDir: {r: -0.00000016888781, g: -0.25881898, b: -0.9659258, a: 0}
     - _MoonGlowColor: {r: 0.55, g: 0.65, b: 1, a: 1}
     - _NightHorizonColor: {r: 0.03, g: 0.04, b: 0.12, a: 1}
     - _NightSkyColor: {r: 0.01, g: 0.01, b: 0.06, a: 1}

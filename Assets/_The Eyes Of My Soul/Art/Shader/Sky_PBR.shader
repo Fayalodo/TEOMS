@@ -32,6 +32,9 @@ Shader "Custom/SkyboxPBR"
         // ── Луна ─────────────────────────────────────────────────────────────
         [HDR] _MoonGlowColor      ("Moon Glow Color",      Color) = (0.55, 0.65, 1.0, 1)
         _MoonGlowSize             ("Moon Glow Size",       Range(0, 0.3))  = 0.06
+        _MoonDir                  ("Moon Direction",       Vector) = (0.3, 0.7, 0.5, 0)
+        _MoonPhase                ("Moon Phase",           Range(0, 1))   = 1.0
+        _MoonCloudStrength        ("Moon Cloud Strength",  Range(0, 2))   = 0.4
 
         // ── Облака ───────────────────────────────────────────────────────────
         _CloudScale               ("Cloud Scale",          Range(0.5, 8)) = 1.4
@@ -212,7 +215,7 @@ Shader "Custom/SkyboxPBR"
                 float cloudNear = pow(saturate(largeN * 0.65 + fineN * 0.35), 0.85);
 
                 // ── ДАЛЬНИЙ слой — плоская проекция dir.xz/dir.y ─────────────
-                float safeY  = max(dir.y, _FarCloudMaskLo);
+                float safeY  = max(dir.y, max(_FarCloudMaskLo, 0.001));
                 float2 uvFar = dir.xz / safeY;
                 float3 pFar  = float3(uvFar.x, 0.0, uvFar.y) * (_CloudScale * _FarCloudUVScale);
 
@@ -246,7 +249,7 @@ Shader "Custom/SkyboxPBR"
                 float shadowMask = lerp(1.0 - _CloudShadowStrength, 1.0, cloudUp * (0.6 + large * 0.4));
 
                 float sunAngle   = saturate(dot(dir, sunDir));
-                float sunLit     = pow(sunAngle, 3.0) * _CloudSunStrength * saturate(sunHeight + 0.3);
+                float sunLit     = (sunAngle * sunAngle * sunAngle) * _CloudSunStrength * saturate(sunHeight + 0.3);
                 half3 sunTint    = lerp(half3(1,1,1), _SunGlowColor.rgb, saturate(1.0 - sunHeight * 2.5));
 
                 // Rim только для ближних — дальние мягче по краям
@@ -264,7 +267,7 @@ Shader "Custom/SkyboxPBR"
                 float moonH     = moonDir.y;
                 float moonAngle = saturate(dot(dir, moonDir));
                 float nightMult = (1.0 - saturate(exposure * 3.0)) * _MoonPhase;
-                float moonLit   = pow(moonAngle, 3.0) * _MoonCloudStrength * saturate(moonH + 0.2) * nightMult;
+                float moonLit   = (moonAngle * moonAngle * moonAngle) * _MoonCloudStrength * saturate(moonH + 0.2) * nightMult;
                 float moonRim   = edgeFactor * moonAngle * saturate(moonH + 0.15) * cloudAlpha * nightMult;
 
                 half3 cloudCol = cloudBase * shadowMask * sunsetTint * exposure;
@@ -307,14 +310,18 @@ Shader "Custom/SkyboxPBR"
                 float  cubeVal    = dot(cubeSample.rgb, half3(0.2126, 0.7152, 0.0722));
                 float  starVal    = lerp(proceduralStars(starDir), saturate(cubeVal), step(0.0001, cubeVal));
                 float twinklePhase = hash3(floor(normalize(starDir)*120)+float3(7.3,3.1,9.7));
-                float twinkle      = 1.0 + _StarTwinkleAmt * sin(_Time.y * _StarTwinkleSpeed * (0.5 + twinklePhase));
+                // sin пропускаем если twinkle выключен или звёзды не видны
+                float twinkle      = (nightFactor > 0.01 && _StarTwinkleAmt > 0.0)
+                    ? 1.0 + _StarTwinkleAmt * sin(_Time.y * _StarTwinkleSpeed * (0.5 + twinklePhase))
+                    : 1.0;
                 half3 starColor = starVal * _StarBrightness * nightFactor * twinkle * saturate(dir.y * 5.0);
                 sky += starColor;
 
                 // 4. Луна
                 float3 moonDir  = normalize(_MoonDir);
                 float  moonDot  = saturate(dot(dir, moonDir));
-                float  moonGlow = pow(saturate(1.0 - (1.0 - moonDot) / max(_MoonGlowSize, 0.0001)), 4.0);
+                float  _moonGlowBase = saturate(1.0 - (1.0 - moonDot) / max(_MoonGlowSize, 0.0001));
+                float  moonGlow = _moonGlowBase * _moonGlowBase * _moonGlowBase * _moonGlowBase;
                 float  moonVis  = nightFactor * _MoonPhase * saturate(moonDir.y * 4.0 + 0.5);
                 sky += _MoonGlowColor.rgb * moonGlow * moonVis * 0.55;
 

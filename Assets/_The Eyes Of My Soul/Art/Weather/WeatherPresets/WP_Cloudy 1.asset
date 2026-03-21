@@ -10,14 +10,14 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f5eee00c6b568264488736b5f8e12c85, type: 3}
-  m_Name: WP_Cloudy
+  m_Name: WP_Cloudy 1
   m_EditorClassIdentifier: Assembly-CSharp::WeatherPresetSO
-  displayName: Cloudy
+  displayName: Cloudy 1
   weight: 1
   minDurationMinutes: 15
   transitionDuration: 60
-  cloudDensityNear: 0.634
-  cloudDensityFar: 0.679
+  cloudDensityNear: 0.881
+  cloudDensityFar: 0.864
   cloudSoftness: 0.15
   cloudSpeed: 0.015
   cloudColorDay: {r: 1, g: 1, b: 1, a: 1}
