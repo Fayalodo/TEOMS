@@ -126,6 +126,7 @@ public class WeatherPresetSO : ScriptableObject
                 from = cloudColorByTime[i];
                 to   = cloudColorByTime[(i + 1) % n];
             }
+            else break; // список упорядочен по времени — дальше искать нет смысла
         }
 
         float fromMin = from.hour * 60f + from.minute;
@@ -330,8 +331,9 @@ public struct WeatherState
         r.windStrength = Mathf.Lerp(a.windStrength, b.windStrength, t);
         r.windAngle    = Mathf.LerpAngle(a.windAngle, b.windAngle, t);
 
-        // Пресет для цвета облаков: берём целевой (b) — он определяет градиент
-        r.sourcePreset = t < 0.5f ? a.sourcePreset : b.sourcePreset;
+        // Пресет для цвета облаков: всегда берём целевой (b) — он определяет градиент
+        // по времени суток с самого начала перехода, без скачка на полпути.
+        r.sourcePreset = b.sourcePreset;
 
         return r;
     }

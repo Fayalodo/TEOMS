@@ -22,7 +22,7 @@ using UnityEngine;
 ///   4. Заполнить defaultPresets (хотя бы одним).
 ///   5. Опционально: назначить startPreset для начального состояния.
 /// </summary>
-[ExecuteAlways]
+[ExecuteInEditMode]
 public class WeatherManager : MonoBehaviour
 {
     // ─────────────────────────────────────────────────────────────────────────
@@ -240,6 +240,11 @@ public class WeatherManager : MonoBehaviour
         _minutesUntilNextCheck -= 1f;
 
         if (!autoSchedule) return;
+
+        // Не трогаем планировщик пока идёт переход — иначе быстрое игровое время
+        // успевает сбросить таймер и запустить новый переход, прерывая текущий.
+        if (_transitionCoroutine != null) return;
+
         if (_minutesUntilNextCheck > 0f) return;
 
         // Минимальный возраст текущей погоды не выдержан — ждём ещё
@@ -300,7 +305,7 @@ public class WeatherManager : MonoBehaviour
         {
             if (p == null || p == exclude) continue;
             cumulative += Mathf.Max(0f, p.weight);
-            if (roll <= cumulative) return p;
+            if (roll < cumulative) return p;
         }
 
         // Floating point edge case — возвращаем последний валидный
