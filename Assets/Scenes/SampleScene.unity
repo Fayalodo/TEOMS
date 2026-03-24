@@ -14758,6 +14758,40 @@ CapsuleCollider:
   m_Height: 15
   m_Direction: 1
   m_Center: {x: 0, y: 5.75, z: 0}
+--- !u!114 &922872929
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 922872922}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e3e9bace855f7ce4c8b636d9429a08c6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DamageFeedback
+  spriteRenderer: {fileID: 0}
+  meshRenderer: {fileID: 0}
+  flashColor: {r: 1, g: 0, b: 0, a: 1}
+  flashDuration: 0.15
+  hitVfxPrefab: {fileID: 0}
+  vfxOffset: {x: 0, y: 0, z: 0}
+--- !u!114 &922872930
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 922872922}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25f7475a18beb6349a73a3fcc15f1bb5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Health
+  maxHealth: 100
+  currentHealth: 0
+  initializeHealthOnAwake: 1
+  faction: 0
 --- !u!1 &923871731
 GameObject:
   m_ObjectHideFlags: 0
@@ -16132,6 +16166,14 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 922872926}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 7c168f2be32c4594db4d035325b28746,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 922872930}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 7c168f2be32c4594db4d035325b28746,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 922872929}
   m_SourcePrefab: {fileID: 100100000, guid: 7c168f2be32c4594db4d035325b28746, type: 3}
 --- !u!1 &1023302331 stripped
 GameObject:
