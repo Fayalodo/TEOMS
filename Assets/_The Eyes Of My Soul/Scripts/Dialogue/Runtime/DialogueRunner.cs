@@ -40,9 +40,10 @@ public class DialogueRunner : MonoBehaviour
     public event System.Action<List<DialogueEffect>> OnEntryEffectsApplied;
     public event System.Action OnDialogueEnded;
 
-    private DialogueGraph _currentGraph;
-    private DialogueAgent _currentAgent;
-    private DialogueNode  _currentNode;
+    private DialogueGraph   _currentGraph;
+    private DialogueAgent   _currentAgent;
+    private DialogueNode    _currentNode;
+    private DialogueContext _currentContext; // FIX: создаём один контекст на сессию диалога
 
     private void Awake()
     {
@@ -54,16 +55,14 @@ public class DialogueRunner : MonoBehaviour
 
     public void StartDialogue(DialogueGraph graph, DialogueAgent agent)
     {
-        _currentGraph = graph;
-        _currentAgent = agent;
-        IsRunning     = true;
+        _currentGraph   = graph;
+        _currentAgent   = agent;
+        _currentContext = DialogueContext.FromSingletons(agent); // FIX: контекст из синглтонов
+        IsRunning       = true;
 
-        var player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null)
-        {
-            var pm = player.GetComponent<PlayerMovement>();
-            if (pm != null) pm.enabled = false;
-        }
+        // FIX: используем PlayerRef вместо FindGameObjectWithTag
+        if (PlayerRef.Instance != null)
+            PlayerRef.Instance.Movement.enabled = false;
 
         var entry = graph.GetEntryNode();
         if (entry == null)
@@ -86,7 +85,8 @@ public class DialogueRunner : MonoBehaviour
         var (choice, available) = visible[visibleIndex];
         if (!available) return;
 
-        choice.ApplyEffects(_currentAgent);
+        // FIX: новый API через DialogueContext вместо [Obsolete] overload
+        choice.ApplyEffects(_currentContext);
         QuestManager.Instance?.CheckAll();
 
         if (string.IsNullOrEmpty(choice.nextNodeGuid))
@@ -110,18 +110,16 @@ public class DialogueRunner : MonoBehaviour
     {
         IsRunning = false;
 
-        var player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null)
-        {
-            var pm = player.GetComponent<PlayerMovement>();
-            if (pm != null) pm.enabled = true;
-        }
+        // FIX: используем PlayerRef вместо FindGameObjectWithTag
+        if (PlayerRef.Instance != null)
+            PlayerRef.Instance.Movement.enabled = true;
 
         _currentAgent?.OnDialogueFinished();
 
-        _currentGraph = null;
-        _currentAgent = null;
-        _currentNode  = null;
+        _currentGraph   = null;
+        _currentAgent   = null;
+        _currentNode    = null;
+        _currentContext = null;
         OnDialogueEnded?.Invoke();
     }
 
@@ -132,8 +130,9 @@ public class DialogueRunner : MonoBehaviour
         _currentNode    = node;
         CurrentNodeText = node.GetText();
 
+        // FIX: новый API через DialogueContext вместо [Obsolete] overload
         foreach (var effect in node.entryEffects)
-            effect.Apply(_currentAgent);
+            effect.Apply(_currentContext);
 
         if (node.entryEffects.Count > 0)
             OnEntryEffectsApplied?.Invoke(node.entryEffects);
@@ -152,7 +151,8 @@ public class DialogueRunner : MonoBehaviour
         var result = new List<(DialogueChoice, bool)>();
         foreach (var choice in _currentNode.choices)
         {
-            bool available = choice.IsAvailable(_currentAgent);
+            // FIX: новый API через DialogueContext вместо [Obsolete] overload
+            bool available = choice.IsAvailable(_currentContext);
             if (available || choice.showIfFailed)
                 result.Add((choice, available));
         }
