@@ -5,7 +5,8 @@ using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// UI диалога. Анимация текста, портрет, закрытие по Escape, выбор цифрами.
+/// UI диалога. Анимация текста, портрет, выбор цифрами.
+/// Закрытие по Escape обрабатывается централизованно через UIManager (RegisterOpen/RegisterClose).
 /// + Режим подсказок: показывает недоступные варианты (по репутации) серыми с пояснением.
 /// + Предпросмотр эффектов: рядом с каждым вариантом показывается изменение репутации и предметы.
 /// + Corner Notifications при выборе варианта.
@@ -49,10 +50,6 @@ public class DialogueUI : MonoBehaviour
 
     [Tooltip("Цвет текста подсказки о требовании репутации")]
     [SerializeField] private Color hintRequirementColor = new Color(0.7f, 0.7f, 0.2f);
-
-    [Header("Камера (для блокировки ввода)")]
-    [Tooltip("Назначь FirstPersonCamera игрока")]
-    [SerializeField] private FirstPersonCamera firstPersonCamera;
 
     private DialogueRunner _runner;
     private List<Button> _choiceButtons = new List<Button>();
@@ -200,11 +197,17 @@ public class DialogueUI : MonoBehaviour
 
             if (mainLabel != null)
             {
-                string prefix = displayList.Count <= 9 && entry.isSelectable ? $"[{GetSelectableIndex(displayList, i) + 1}] " : "    ";
+                // FIX: используем entry.selectableIndex напрямую — он совпадает с индексом,
+                // который реально обрабатывает Update() и SelectAndNotify(). Раньше номер
+                // считался через GetSelectableIndex (пропускал недоступные варианты), из-за
+                // чего показанная цифра могла не совпадать с клавишей, которую нужно нажать.
+                string prefix = displayList.Count <= 9 && entry.isSelectable ? $"[{entry.selectableIndex + 1}] " : "    ";
                 string mainText = prefix + entry.choice.text;
 
-                // Если это подсказка по репутации
-                if (!entry.available && entry.isHint)
+                // Если вариант недоступен — показать пояснение (не только для
+                // авто-раскрытых hint-вариантов, но и для showIfFailed, которые
+                // раньше просто гасли серым без объяснения причины)
+                if (!entry.available && hintsEnabled)
                 {
                     string reqText = BuildHintText(entry.choice);
                     mainLabel.text = $"<color=#{ColorToHex(new Color(0.4f, 0.4f, 0.4f))}>{prefix}{entry.choice.text}</color>";
@@ -383,7 +386,7 @@ public class DialogueUI : MonoBehaviour
 
         foreach (var cond in choice.conditions)
         {
-            if (cond.Evaluate(_runner.CurrentAgent)) continue;
+            if (cond.Evaluate(_runner.CurrentContext)) continue;
 
             switch (cond.type)
             {
@@ -477,14 +480,6 @@ public class DialogueUI : MonoBehaviour
         }
 
         return result;
-    }
-
-    private int GetSelectableIndex(List<ChoiceDisplayEntry> list, int pos)
-    {
-        int count = 0;
-        for (int i = 0; i < pos; i++)
-            if (list[i].isSelectable && list[i].available) count++;
-        return count;
     }
 
     private void ClearChoiceButtons()

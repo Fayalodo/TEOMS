@@ -23,6 +23,9 @@ public class DialogueRunner : MonoBehaviour
     public bool IsRunning { get; private set; }
     public DialogueAgent CurrentAgent => _currentAgent;
 
+    /// <summary>Контекст текущей сессии диалога — для UI, чтобы не дёргать Obsolete-оверлоады через CurrentAgent.</summary>
+    public DialogueContext CurrentContext => _currentContext;
+
     /// <summary>Текущий узел диалога.</summary>
     public DialogueNode CurrentNode => _currentNode;
 
@@ -142,8 +145,13 @@ public class DialogueRunner : MonoBehaviour
         var visible = GetVisibleChoices();
         OnNodeEntered?.Invoke(node, visible);
 
-        if (visible.Count == 0)
-            EndDialogue();
+        // FIX: раньше здесь был EndDialogue() при visible.Count == 0 — но это
+        // закрывало диалог В ТОМ ЖЕ КАДРЕ, что и открытие панели (OnNodeEntered
+        // выше), из-за чего финальная реплика без вариантов ответа никогда не
+        // успевала отрисоваться — игрок её физически не видел.
+        // Теперь узел без вариантов просто остаётся на экране; игрок закрывает
+        // его сам через Escape (уже работает — DialogueUI регистрирует закрытие
+        // в UIManager при открытии панели).
     }
 
     private List<(DialogueChoice choice, bool available)> GetVisibleChoices()
