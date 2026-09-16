@@ -32,8 +32,8 @@ public class PlayerMovement : MonoBehaviour
     public bool cameraRelativeMovement = true;
     public Transform cameraTransform;
 
-    [Tooltip("Ссылка на FirstPersonCamera — движение в FP будет относительно взгляда игрока, а не TopDown камеры")]
-    public FirstPersonCamera firstPersonCamera;
+    [Tooltip("Ссылка на PlayerCamera — движение в FP будет относительно взгляда игрока, а не TopDown камеры")]
+    public PlayerCamera PlayerCamera;
 
     [Header("Визуал/поворот")]
     [Tooltip("Если true — поворачиваем только визуальный child (sprite/visual)")]
@@ -71,7 +71,7 @@ public class PlayerMovement : MonoBehaviour
         controller = GetComponent<CharacterController>();
         cachedJumpVelocity = Mathf.Sqrt(2f * gravity * Mathf.Max(0.001f, jumpHeight));
         if (cameraRelativeMovement && cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
-        if (firstPersonCamera == null) firstPersonCamera = GetComponent<FirstPersonCamera>();
+        if (PlayerCamera == null) PlayerCamera = GetComponent<PlayerCamera>();
         UpdateCameraCache();
         if (spriteRenderer == null) spriteRenderer = GetComponentInChildren<SpriteRenderer>();
         if (visualRoot == null && spriteRenderer != null) visualRoot = spriteRenderer.transform;
@@ -116,10 +116,10 @@ public class PlayerMovement : MonoBehaviour
         {
             // В режиме FP используем направление fpRoot (взгляд игрока), а не TopDown камеру.
             // Иначе "вперёд" TopDown камеры смотрит вниз на сцену и движение инвертируется.
-            if (firstPersonCamera != null && firstPersonCamera.IsFirstPerson && firstPersonCamera.FpRoot != null)
+            if (PlayerCamera != null && PlayerCamera.IsFirstPerson && PlayerCamera.FpRoot != null)
             {
-                Vector3 fpF = firstPersonCamera.FpRoot.forward; fpF.y = 0f; fpF.Normalize();
-                Vector3 fpR = firstPersonCamera.FpRoot.right;   fpR.y = 0f; fpR.Normalize();
+                Vector3 fpF = PlayerCamera.FpRoot.forward; fpF.y = 0f; fpF.Normalize();
+                Vector3 fpR = PlayerCamera.FpRoot.right;   fpR.y = 0f; fpR.Normalize();
                 targetDirection = fpR * input.x + fpF * input.z;
             }
             else
@@ -220,7 +220,7 @@ public class PlayerMovement : MonoBehaviour
     public bool IsSprinting => isSprinting;
     public bool IsWalkingSlow => isWalkingSlow;
 
-    /// <summary>Реальная горизонтальная скорость (м/с) — для headbob в FirstPersonCamera.</summary>
+    /// <summary>Реальная горизонтальная скорость (м/с) — для headbob в PlayerCamera.</summary>
     public float CurrentSpeed => horizontalVelocity.magnitude;
 
     /// <summary>True если персонаж стоит на земле — для отключения headbob в прыжке.</summary>

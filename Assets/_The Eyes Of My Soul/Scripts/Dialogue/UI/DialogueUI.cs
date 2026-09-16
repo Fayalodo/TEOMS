@@ -52,7 +52,7 @@ public class DialogueUI : MonoBehaviour
 
     [Header("Камера (для блокировки ввода)")]
     [Tooltip("Назначь FirstPersonCamera игрока")]
-    [SerializeField] private FirstPersonCamera firstPersonCamera;
+    [SerializeField] private PlayerCamera PlayerCamera;
 
     private DialogueRunner _runner;
     private List<Button> _choiceButtons = new List<Button>();

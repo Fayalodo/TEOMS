@@ -57,7 +57,7 @@ public class QuestJournalUI : MonoBehaviour
 
     [Header("Камера (для блокировки ввода)")]
     [Tooltip("Назначь FirstPersonCamera игрока")]
-    [SerializeField] private FirstPersonCamera firstPersonCamera;
+    [SerializeField] private PlayerCamera PlayerCamera;
 
     private enum Tab { Active, Completed, Failed }
     private Tab _currentTab = Tab.Active;
