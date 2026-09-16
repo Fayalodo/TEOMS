@@ -82,9 +82,9 @@ public class DialogueAgent : MonoBehaviour
         _movement?.StopMovement();
         if (_wander != null) _wander.enabled = false;
 
-        if (DialogueRunner.Instance.IsRunning &&
-            DialogueRunner.Instance.CurrentAgent == this)
-            DialogueRunner.Instance.EndDialogue();
+        var runner = DialogueRunner.Instance;
+        if (runner != null && runner.IsRunning && runner.CurrentAgent == this)
+            runner.EndDialogue();
     }
 
     private void Update()
@@ -114,12 +114,22 @@ public class DialogueAgent : MonoBehaviour
             return;
         }
 
-        if (DialogueRunner.Instance.IsRunning) return;
+        // FIX: раньше здесь было DialogueRunner.Instance.IsRunning — если на сцене
+        // нет активного DialogueRunner, Instance возвращает null и это падало
+        // с невнятным NullReferenceException при каждом нажатии E.
+        var runner = DialogueRunner.Instance;
+        if (runner == null)
+        {
+            Debug.LogError("[DialogueAgent] DialogueRunner не найден на сцене (или его GameObject неактивен). Диалог не может начаться.");
+            return;
+        }
+
+        if (runner.IsRunning) return;
         if (_health != null && !_health.IsAlive) return;
 
         PauseMovement();
         onDialogueStarted.Invoke();
-        DialogueRunner.Instance.StartDialogue(dialogueGraph, this);
+        runner.StartDialogue(dialogueGraph, this);
     }
 
     /// <summary>Вызывается из DialogueRunner когда диалог завершён.</summary>
