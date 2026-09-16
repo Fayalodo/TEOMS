@@ -55,10 +55,6 @@ public class QuestJournalUI : MonoBehaviour
     [SerializeField] private Color colorObjectivePending = new Color(0.75f, 0.75f, 0.75f);
     [SerializeField] private Color colorObjectiveFail    = new Color(0.85f, 0.35f, 0.35f);
 
-    [Header("Камера (для блокировки ввода)")]
-    [Tooltip("Назначь FirstPersonCamera игрока")]
-    [SerializeField] private PlayerCamera PlayerCamera;
-
     private enum Tab { Active, Completed, Failed }
     private Tab _currentTab = Tab.Active;
     private QuestDefinition _selectedQuest;

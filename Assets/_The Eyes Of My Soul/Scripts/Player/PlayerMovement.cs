@@ -33,7 +33,7 @@ public class PlayerMovement : MonoBehaviour
     public Transform cameraTransform;
 
     [Tooltip("Ссылка на PlayerCamera — движение в FP будет относительно взгляда игрока, а не TopDown камеры")]
-    public PlayerCamera PlayerCamera;
+    public PlayerCamera playerCamera;
 
     [Header("Визуал/поворот")]
     [Tooltip("Если true — поворачиваем только визуальный child (sprite/visual)")]
@@ -71,7 +71,7 @@ public class PlayerMovement : MonoBehaviour
         controller = GetComponent<CharacterController>();
         cachedJumpVelocity = Mathf.Sqrt(2f * gravity * Mathf.Max(0.001f, jumpHeight));
         if (cameraRelativeMovement && cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
-        if (PlayerCamera == null) PlayerCamera = GetComponent<PlayerCamera>();
+        if (playerCamera == null) playerCamera  = GetComponent<PlayerCamera>();
         UpdateCameraCache();
         if (spriteRenderer == null) spriteRenderer = GetComponentInChildren<SpriteRenderer>();
         if (visualRoot == null && spriteRenderer != null) visualRoot = spriteRenderer.transform;
@@ -116,10 +116,10 @@ public class PlayerMovement : MonoBehaviour
         {
             // В режиме FP используем направление fpRoot (взгляд игрока), а не TopDown камеру.
             // Иначе "вперёд" TopDown камеры смотрит вниз на сцену и движение инвертируется.
-            if (PlayerCamera != null && PlayerCamera.IsFirstPerson && PlayerCamera.FpRoot != null)
+            if (playerCamera != null && playerCamera.IsFirstPerson && playerCamera.FpRoot != null)
             {
-                Vector3 fpF = PlayerCamera.FpRoot.forward; fpF.y = 0f; fpF.Normalize();
-                Vector3 fpR = PlayerCamera.FpRoot.right;   fpR.y = 0f; fpR.Normalize();
+                Vector3 fpF = playerCamera.FpRoot.forward; fpF.y = 0f; fpF.Normalize();
+                Vector3 fpR = playerCamera.FpRoot.right;   fpR.y = 0f; fpR.Normalize();
                 targetDirection = fpR * input.x + fpF * input.z;
             }
             else
