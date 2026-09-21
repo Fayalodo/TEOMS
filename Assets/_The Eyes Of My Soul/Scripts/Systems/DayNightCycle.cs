@@ -2,13 +2,13 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 /// <summary>
-/// Визуальная система дня и ночи — версия 2.0 (PBR Sky)
-/// Работает с шейдером Custom/SkyboxPBR (Sky_PBR.shader)
+/// Визуальная система дня и ночи — версия 3.0 (Stylized Sky)
+/// Работает с шейдером Custom/SkyStylized (Sky_Stylized.shader)
 ///
 /// SETUP:
 /// 1. Добавить компонент на любой GameObject.
 /// 2. Назначить Directional Light (солнце) в SunLight.
-/// 3. Создать Material с шейдером Custom/SkyboxPBR, назначить в SkyboxMaterial.
+/// 3. Создать Material с шейдером Custom/SkyStylized, назначить в SkyboxMaterial.
 ///    Тот же материал → Window → Rendering → Lighting → Skybox.
 /// 4. В URP Renderer добавить Post Processing Volume с Bloom + Tonemapping (ACES).
 /// 5. На Sun Light добавить Lens Flare (SRP) компонент.
@@ -40,12 +40,17 @@ public class DayNightCycle : MonoBehaviour
         public Color fogColor    = Color.gray;
         [Range(0f, 0.1f)] public float fogDensity = 0.01f;
 
-        [Header("Sky — Custom/SkyboxPBR")]
+        [Header("Sky — Custom/SkyStylized")]
         [ColorUsage(false,true)] public Color daySkyColor      = new Color(0.10f, 0.22f, 0.55f);
         [ColorUsage(false,true)] public Color dayHorizonColor  = new Color(0.52f, 0.72f, 0.98f);
         [ColorUsage(false,true)] public Color horizonTint      = new Color(0.75f, 0.55f, 0.25f);
         [Range(0.01f,1f)]  public float horizonWidth    = 0.18f;
         [Range(0f,2f)]     public float exposure        = 1f;
+
+        [Header("Sky Middle (Custom/SkyStylized)")]
+        [Tooltip("Выкл — середина градиента считается автоматически (между верхом и горизонтом).")]
+        public bool useMiddleColor = false;
+        [ColorUsage(false,true)] public Color skyMiddleColor = new Color(0.30f, 0.50f, 0.85f);
 
         [Header("Sun")]
         [ColorUsage(false,true)] public Color sunGlowColor = new Color(1f,0.65f,0.25f);
@@ -98,7 +103,14 @@ public class DayNightCycle : MonoBehaviour
     public bool enableFog = true;
 
     [Header("Moon Phase")]
+    [Tooltip("Доля освещённого диска: 0 = новолуние, 1 = полнолуние. Также масштабирует свет луны.")]
     [Range(0f, 1f)] public float moonPhase = 0.5f;
+
+    [Header("Sky Shader (Custom/SkyStylized)")]
+    [Tooltip("Солнце и луну рисует шейдер. Sun Mesh / Moon Mesh будут выключены.")]
+    public bool drawCelestialsInShader = true;
+    [Tooltip("Затемнение неба для dark-fantasy. 0 = обычное, 1 = максимально мрачное.")]
+    [Range(0f, 1f)] public float darknessAmount = 0f;
 
     [Header("Sun Size Pulse")]
     [Range(0f, 3f)] public float sunHorizonSizeBoost = 1.4f;
@@ -116,34 +128,40 @@ public class DayNightCycle : MonoBehaviour
     //  Shader Property IDs
     // ─────────────────────────────────────────────────────────────────────────
 
-    static readonly int ID_DaySkyColor       = Shader.PropertyToID("_DaySkyColor");
-    static readonly int ID_DayHorizonColor   = Shader.PropertyToID("_DayHorizonColor");
-    static readonly int ID_HorizonColor      = Shader.PropertyToID("_HorizonColor");
+    // ── Небо ─────────────────────────────────────────────────────────────
+    static readonly int ID_SkyTopColor       = Shader.PropertyToID("_SkyTopColor");
+    static readonly int ID_SkyMiddleColor    = Shader.PropertyToID("_SkyMiddleColor");
+    static readonly int ID_SkyHorizonColor   = Shader.PropertyToID("_SkyHorizonColor");
+    static readonly int ID_HorizonGlowColor  = Shader.PropertyToID("_HorizonGlowColor");
     static readonly int ID_HorizonWidth      = Shader.PropertyToID("_HorizonWidth");
-    // ID_RayleighBeta / ID_MieBeta удалены — параметры вшиты в шейдер (ползунки не давали видимой разницы)
-    static readonly int ID_Exposure          = Shader.PropertyToID("_Exposure");
+    static readonly int ID_HazeColor         = Shader.PropertyToID("_HazeColor");
+    static readonly int ID_HazeStrength      = Shader.PropertyToID("_HazeStrength");
+    // ── Солнце / луна / звёзды ───────────────────────────────────────────
+    static readonly int ID_SunDir            = Shader.PropertyToID("_SunDir");
     static readonly int ID_SunGlowColor      = Shader.PropertyToID("_SunGlowColor");
     static readonly int ID_SunGlowSize       = Shader.PropertyToID("_SunGlowSize");
-    // ID_GodRayStrength/GodRayColor удалены — God Rays убраны из шейдера
-    static readonly int ID_CloudDensityNear      = Shader.PropertyToID("_CloudDensityNear");
-    static readonly int ID_CloudDensityFar       = Shader.PropertyToID("_CloudDensityFar");
+    static readonly int ID_MoonDir           = Shader.PropertyToID("_MoonDir");
+    static readonly int ID_MoonPhase         = Shader.PropertyToID("_MoonPhase");
+    static readonly int ID_MoonCloudStrength = Shader.PropertyToID("_MoonCloudStrength");
+    static readonly int ID_StarMatrix        = Shader.PropertyToID("_StarMatrix");
+    static readonly int ID_Color             = Shader.PropertyToID("_Color");   // для Sun/Moon Mesh
+    // ── Облака ───────────────────────────────────────────────────────────
+    static readonly int ID_CloudCoverage         = Shader.PropertyToID("_CloudCoverage");
+    static readonly int ID_CloudHighCoverage     = Shader.PropertyToID("_CloudHighCoverage");
     static readonly int ID_CloudSoftness         = Shader.PropertyToID("_CloudSoftness");
     static readonly int ID_CloudSpeed            = Shader.PropertyToID("_CloudSpeed");
+    // Форма облаков (шейдер: 6a. CLOUD SHAPE) — задаётся пресетом погоды
+    static readonly int ID_CloudBillow           = Shader.PropertyToID("_CloudBillow");
+    static readonly int ID_CloudErosion          = Shader.PropertyToID("_CloudErosion");
+    static readonly int ID_CloudDetailScale      = Shader.PropertyToID("_CloudDetailScale");
+    static readonly int ID_CloudParallax         = Shader.PropertyToID("_CloudParallax");
     static readonly int ID_CloudColor            = Shader.PropertyToID("_CloudColorDay");
     static readonly int ID_CloudColorNight       = Shader.PropertyToID("_CloudColorNight");
     static readonly int ID_CloudShadowStrength   = Shader.PropertyToID("_CloudShadowStrength");
     static readonly int ID_CloudUnderlitColor    = Shader.PropertyToID("_CloudUnderlitColor");
     static readonly int ID_CloudUnderlitStrength = Shader.PropertyToID("_CloudUnderlitStrength");
-    static readonly int ID_CloudAmbient          = Shader.PropertyToID("_CloudAmbient");
-    static readonly int ID_AtmosphereHaze    = Shader.PropertyToID("_AtmosphereHaze");
-    static readonly int ID_HazeStrength      = Shader.PropertyToID("_HazeStrength");
-    static readonly int ID_StarMatrix        = Shader.PropertyToID("_StarMatrix");
-    static readonly int ID_StarFadeStart     = Shader.PropertyToID("_StarFadeStart");
-    static readonly int ID_StarFadeEnd       = Shader.PropertyToID("_StarFadeEnd");
-    static readonly int ID_Color             = Shader.PropertyToID("_Color");
-    static readonly int ID_MoonDir           = Shader.PropertyToID("_MoonDir");
-    static readonly int ID_MoonPhase         = Shader.PropertyToID("_MoonPhase");
-    static readonly int ID_MoonCloudStrength = Shader.PropertyToID("_MoonCloudStrength");
+    // ── Darkness ─────────────────────────────────────────────────────────
+    static readonly int ID_DarknessAmount    = Shader.PropertyToID("_DarknessAmount");
     // ─────────────────────────────────────────────────────────────────────────
     //  Приватные поля
     // ─────────────────────────────────────────────────────────────────────────
@@ -238,6 +256,13 @@ public class DayNightCycle : MonoBehaviour
         _hasWeather   = false;
     }
 
+    /// <summary>Затемнение неба (dark-fantasy): 0 = обычное, 1 = мрачное. Плавность — на стороне вызывающего.</summary>
+    public void SetDarkness(float amount) => darknessAmount = Mathf.Clamp01(amount);
+
+    // Середина градиента: явный цвет из пресета или авто (между верхом и горизонтом)
+    static Color GetSkyMiddle(LightPreset p) =>
+        p.useMiddleColor ? p.skyMiddleColor : Color.Lerp(p.daySkyColor, p.dayHorizonColor, 0.5f);
+
     // ─────────────────────────────────────────────────────────────────────────
     //  Автосоздание объектов
     // ─────────────────────────────────────────────────────────────────────────
@@ -265,6 +290,7 @@ public class DayNightCycle : MonoBehaviour
     void SetupSunVisual()
     {
         if (sunVisual != null) return;
+        if (drawCelestialsInShader) return;
         if (sunLight == null) return;
         var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         go.name = "Sun Mesh";
@@ -285,6 +311,7 @@ public class DayNightCycle : MonoBehaviour
     void SetupMoonVisual()
     {
         if (moonVisual != null) return;
+        if (drawCelestialsInShader) return;
         if (moonLight == null) return;
         var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         go.name = "Moon Mesh";
@@ -369,6 +396,9 @@ public class DayNightCycle : MonoBehaviour
     {
         Vector3 origin = Camera.main != null ? Camera.main.transform.position : Vector3.zero;
 
+        if (sunVisual  != null) sunVisual.enabled  = !drawCelestialsInShader;
+        if (moonVisual != null) moonVisual.enabled = !drawCelestialsInShader;
+
         // ── Солнце ────────────────────────────────────────────────────────────
         Quaternion sunRot  = GetSunRotation();
         Vector3    sunFwd  = sunRot * Vector3.down;
@@ -420,14 +450,15 @@ public class DayNightCycle : MonoBehaviour
             moonVisual.SetPropertyBlock(_moonPropBlock);
         }
 
-        // ── Передаём позицию луны и фазу в шейдер каждый кадр ───────────────
+        // ── Направления на солнце/луну, фаза и Darkness → в шейдер ───────────
+        // sunFwd/moonFwd = куда идёт свет; шейдеру нужен вектор ОТ земли К телу = -fwd
         if (skyboxMaterial != null)
         {
-            // moonFwd = направление "вниз" с позиции луны = откуда светит луна
-            // Для шейдера нам нужен вектор ОТ земли К луне = -moonFwd
+            skyboxMaterial.SetVector(ID_SunDir,  (Vector4)(-sunFwd));
             skyboxMaterial.SetVector(ID_MoonDir, (Vector4)(-moonFwd));
             skyboxMaterial.SetFloat(ID_MoonPhase, moonPhase);
             skyboxMaterial.SetFloat(ID_MoonCloudStrength, moonCloudStrength);
+            skyboxMaterial.SetFloat(ID_DarknessAmount, darknessAmount);
         }
     }
 
@@ -498,53 +529,67 @@ public class DayNightCycle : MonoBehaviour
         // ── Skybox ────────────────────────────────────────────────────────────
         if (skyboxMaterial != null)
         {
-            // Небо и горизонт — только время суток
-            skyboxMaterial.SetColor(ID_DaySkyColor,     Color.Lerp(from.daySkyColor,     to.daySkyColor,     st));
-            skyboxMaterial.SetColor(ID_DayHorizonColor, Color.Lerp(from.dayHorizonColor, to.dayHorizonColor, st));
-            skyboxMaterial.SetColor(ID_HorizonColor,    Color.Lerp(from.horizonTint,     to.horizonTint,     st));
-            skyboxMaterial.SetFloat(ID_HorizonWidth,    Mathf.Lerp(from.horizonWidth,    to.horizonWidth,    st));
-            skyboxMaterial.SetFloat(ID_Exposure,        Mathf.Lerp(from.exposure,        to.exposure,        st));
+            // ── Градиент неба: верх / середина / горизонт (из пресетов) ───────
+            skyboxMaterial.SetColor(ID_SkyTopColor,     Color.Lerp(from.daySkyColor,     to.daySkyColor,     st));
+            skyboxMaterial.SetColor(ID_SkyMiddleColor,  Color.Lerp(GetSkyMiddle(from),   GetSkyMiddle(to),   st));
+            skyboxMaterial.SetColor(ID_SkyHorizonColor, Color.Lerp(from.dayHorizonColor, to.dayHorizonColor, st));
 
-            // Солнце — только время суток
+            // ── Горизонт ──────────────────────────────────────────────────────
+            skyboxMaterial.SetColor(ID_HorizonGlowColor, Color.Lerp(from.horizonTint,  to.horizonTint,  st));
+            skyboxMaterial.SetFloat(ID_HorizonWidth,     Mathf.Lerp(from.horizonWidth, to.horizonWidth, st));
+
+            // ── Солнце — только время суток ───────────────────────────────────
             skyboxMaterial.SetColor(ID_SunGlowColor, Color.Lerp(from.sunGlowColor, to.sunGlowColor, st));
             skyboxMaterial.SetFloat(ID_SunGlowSize,  Mathf.Lerp(from.sunGlowSize,  to.sunGlowSize,  st));
 
-            // Звёзды — фиксированные пороги
-            skyboxMaterial.SetFloat(ID_StarFadeStart, 0.18f);
-            skyboxMaterial.SetFloat(ID_StarFadeEnd,   0.50f);
-
-            // ── Облака — цвет зависит от времени суток через EvaluateCloudColor ──
-            // Если пресет имеет cloudColorByTime — используем градиент по времени.
-            // Иначе — старое поведение: cloudColorDay / cloudColorNight.
-            Color cloudCol, underlitCol;
+            // ── Облака — цвет зависит от времени суток через EvaluateCloudColor ─
+            // Если пресет имеет cloudColorByTime — градиент по времени управляет цветом
+            // облаков ВЕСЬ день, включая ночь. Иначе — старое поведение:
+            // cloudColorDay / cloudColorNight (шейдер сам смешивает их по высоте солнца).
+            //
+            // Почему пишем один и тот же цвет в оба слота шейдера:
+            // шейдер считает baseCol = lerp(_CloudColorDay, _CloudColorNight, cloudNight),
+            // а cloudNight = 1 ночью. Раньше сюда всегда шёл ws.cloudColorNight, поэтому
+            // ночью ключи по времени полностью вытеснялись фиксированным ночным цветом.
+            Color cloudDayCol, cloudNightCol, underlitCol;
             float underlitStr;
             if (ws.sourcePreset != null)
             {
-                (cloudCol, underlitCol, underlitStr) =
-                    ws.sourcePreset.EvaluateCloudColor(_currentMinutes,
-                        Mathf.Lerp(from.exposure, to.exposure, st));
+                var eval = ws.sourcePreset.EvaluateCloudColor(_currentMinutes,
+                               Mathf.Lerp(from.exposure, to.exposure, st));
+                cloudDayCol   = eval.cloud;
+                underlitCol   = eval.underlit;
+                underlitStr   = eval.underlitStrength;
+                cloudNightCol = ws.sourcePreset.HasCloudColorKeys
+                    ? eval.cloud            // ключи по времени → и ночью тоже они
+                    : ws.cloudColorNight;   // ключей нет → классический Day/Night
             }
             else
             {
-                cloudCol    = ws.cloudColorDay;
-                underlitCol = ws.cloudUnderlitColor;
-                underlitStr = ws.cloudUnderlitStrength;
+                cloudDayCol   = ws.cloudColorDay;
+                cloudNightCol = ws.cloudColorNight;
+                underlitCol   = ws.cloudUnderlitColor;
+                underlitStr   = ws.cloudUnderlitStrength;
             }
 
-            skyboxMaterial.SetFloat(ID_CloudDensityNear,      ws.cloudDensityNear);
-            skyboxMaterial.SetFloat(ID_CloudDensityFar,       ws.cloudDensityFar);
+            skyboxMaterial.SetFloat(ID_CloudCoverage,         ws.cloudDensityNear);
+            skyboxMaterial.SetFloat(ID_CloudHighCoverage,     ws.cloudDensityFar);
             skyboxMaterial.SetFloat(ID_CloudSoftness,         ws.cloudSoftness);
             skyboxMaterial.SetFloat(ID_CloudSpeed,            ws.cloudSpeed);
-            skyboxMaterial.SetColor(ID_CloudColor,            cloudCol);
-            skyboxMaterial.SetColor(ID_CloudColorNight,       ws.cloudColorNight);
+            skyboxMaterial.SetFloat(ID_CloudBillow,           ws.cloudBillow);
+            skyboxMaterial.SetFloat(ID_CloudErosion,          ws.cloudErosion);
+            skyboxMaterial.SetFloat(ID_CloudDetailScale,      ws.cloudDetailScale);
+            skyboxMaterial.SetFloat(ID_CloudParallax,         ws.cloudParallax);
+            skyboxMaterial.SetColor(ID_CloudColor,            cloudDayCol);
+            skyboxMaterial.SetColor(ID_CloudColorNight,       cloudNightCol);
             skyboxMaterial.SetFloat(ID_CloudShadowStrength,   ws.cloudShadowStrength);
             skyboxMaterial.SetFloat(ID_CloudUnderlitStrength, underlitStr);
             skyboxMaterial.SetColor(ID_CloudUnderlitColor,    underlitCol);
 
-            // ── Дымка: база DNC × множитель погоды ──────────────────────────
+            // ── Дымка: база DNC × множитель погоды ────────────────────────────
             float baseHaze = Mathf.Lerp(from.hazeStrength, to.hazeStrength, st);
-            skyboxMaterial.SetColor(ID_AtmosphereHaze, Color.Lerp(from.hazeColor, to.hazeColor, st));
-            skyboxMaterial.SetFloat(ID_HazeStrength,   baseHaze * ws.hazeStrengthMultiplier);
+            skyboxMaterial.SetColor(ID_HazeColor,    Color.Lerp(from.hazeColor, to.hazeColor, st));
+            skyboxMaterial.SetFloat(ID_HazeStrength, baseHaze * ws.hazeStrengthMultiplier);
 
             // ── DynamicGI — не чаще чем раз в 3 сек ────────────────────────
             float curExp      = Mathf.Lerp(from.exposure, to.exposure, st);

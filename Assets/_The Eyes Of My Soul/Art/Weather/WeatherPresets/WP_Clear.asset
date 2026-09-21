@@ -16,10 +16,14 @@ MonoBehaviour:
   weight: 1
   minDurationMinutes: 15
   transitionDuration: 60
-  cloudDensityNear: 0.492
-  cloudDensityFar: 0.305
+  cloudDensityNear: 0.31
+  cloudDensityFar: 0.47
   cloudSoftness: 0.15
-  cloudSpeed: 0.015
+  cloudSpeed: 0.129
+  cloudBillow: 0.7
+  cloudErosion: 0.55
+  cloudDetailScale: 3
+  cloudParallax: 0.55
   cloudColorDay: {r: 1, g: 1, b: 1, a: 1}
   cloudColorNight: {r: 0.20291919, g: 0.24457099, b: 0.4528302, a: 1}
   cloudColorByTime:

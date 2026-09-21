@@ -6,7 +6,8 @@ using UnityEngine;
 /// КОНТРАКТ — что этот SO ТРОГАЕТ, а что нет:
 ///
 ///   ВЛАДЕЕТ (перекрывает DayNightCycle):
-///     • Облака: density, softness, speed, color day/night, shadow, underlit
+///     • Облака: density, softness, speed, ФОРМА (billow/erosion/detail/parallax),
+///               цвет (day/night или ключи по времени), shadow, underlit
 ///     • Туман: fogDensityMultiplier (множитель поверх DNC), fogColorTint
 ///     • Атмосферная дымка: hazeStrengthMultiplier
 ///     • Осадки: тип + интенсивность (для ParticleWeather)
@@ -61,10 +62,37 @@ public class WeatherPresetSO : ScriptableObject
     [Tooltip("Скорость движения облаков.")]
     [Range(0f, 0.20f)] public float cloudSpeed = 0.006f;
 
-    [Tooltip("Цвет облаков днём.")]
+    // ── Форма облаков (шейдер: 6a. CLOUD SHAPE) ──────────────────────────────
+    [Header("Cloud Shape")]
+
+    [Tooltip("Кучевость (Billow).\n" +
+             "0 = плоские размытые пятна, 1 = пухлые «барашки».\n" +
+             "Ясно / кучевые: 0.7–0.9 — Слоистые / пасмурно: 0.2–0.4")]
+    [Range(0f, 1f)] public float cloudBillow = 0.70f;
+
+    [Tooltip("Эрозия краёв (Edge Erosion).\n" +
+             "0 = гладкие цельные края, 1 = рваные «выгрызенные» края.\n" +
+             "Ясно: 0.4–0.6 — Гроза / шторм: 0.7–0.9")]
+    [Range(0f, 1f)] public float cloudErosion = 0.55f;
+
+    [Tooltip("Масштаб детали эрозии (Detail Scale).\n" +
+             "Больше = мельче рваные детали по краям, меньше = крупные вырывы.")]
+    [Range(1f, 8f)] public float cloudDetailScale = 3.0f;
+
+    [Tooltip("Второй (дальний) слой облаков для глубины (Parallax).\n" +
+             "0 = только один слой, 1 = дальний слой в полную силу.")]
+    [Range(0f, 1f)] public float cloudParallax = 0.55f;
+
+    // ── Цвет облаков ─────────────────────────────────────────────────────────
+    [Header("Cloud Color")]
+
+    [Tooltip("Цвет облаков днём.\n" +
+             "Используется ТОЛЬКО если список «Cloud Color By Time» пуст.")]
     [ColorUsage(false, true)] public Color cloudColorDay = Color.white;
 
-    [Tooltip("Цвет облаков ночью.")]
+    [Tooltip("Цвет облаков ночью.\n" +
+             "Используется ТОЛЬКО если список «Cloud Color By Time» пуст.\n" +
+             "Если ключи по времени заданы — ночной цвет берётся из них.")]
     [ColorUsage(false, true)] public Color cloudColorNight = new Color(0.08f, 0.10f, 0.22f);
 
     // ── Цвет облаков по времени суток ────────────────────────────────────────
@@ -92,13 +120,22 @@ public class WeatherPresetSO : ScriptableObject
     }
 
     [Tooltip("Цвет облаков по времени суток. Если пусто — используются cloudColorDay/Night выше.\n" +
+             "Если ключи заданы — они управляют цветом облаков В ЛЮБОЕ время суток, включая ночь " +
+             "(cloudColorDay/Night в этом случае игнорируются).\n" +
              "Упорядочивай по времени! Пример: 00:00 ночной, 05:00 рассвет, 07:00 утро, " +
              "12:00 день, 18:30 закат, 21:00 сумерки.")]
     public CloudColorKeyframe[] cloudColorByTime;
 
+    /// <summary>true — цвет облаков задаётся ключами по времени (а не парой Day/Night).</summary>
+    public bool HasCloudColorKeys => cloudColorByTime != null && cloudColorByTime.Length > 0;
+
     /// <summary>
     /// Возвращает интерполированный цвет облаков для заданного времени (минуты с полуночи).
     /// Если cloudColorByTime пуст — возвращает cloudColorDay или cloudColorNight по exposure.
+    ///
+    /// ВАЖНО: если ключи есть (HasCloudColorKeys) — DayNightCycle записывает этот цвет
+    /// и в _CloudColorDay, и в _CloudColorNight шейдера. Иначе шейдер ночью смешивал бы
+    /// результат с фиксированным cloudColorNight и ключи по времени ночью не работали.
     /// </summary>
     public (Color cloud, Color underlit, float underlitStrength) EvaluateCloudColor(float currentMinutes, float exposure)
     {
@@ -230,6 +267,7 @@ public class WeatherPresetSO : ScriptableObject
         weight             = Mathf.Max(0f, weight);
         minDurationMinutes = Mathf.Max(1f, minDurationMinutes);
         transitionDuration = Mathf.Max(1f, transitionDuration);
+        cloudDetailScale   = Mathf.Clamp(cloudDetailScale, 1f, 8f);
     }
 #endif
 }
@@ -250,6 +288,10 @@ public struct WeatherState
     public float cloudDensityFar;
     public float cloudSoftness;
     public float cloudSpeed;
+    public float cloudBillow;
+    public float cloudErosion;
+    public float cloudDetailScale;
+    public float cloudParallax;
     public Color cloudColorDay;
     public Color cloudColorNight;
     public float cloudShadowStrength;
@@ -281,6 +323,10 @@ public struct WeatherState
         cloudDensityFar       = preset.cloudDensityFar;
         cloudSoftness         = preset.cloudSoftness;
         cloudSpeed            = preset.cloudSpeed;
+        cloudBillow           = preset.cloudBillow;
+        cloudErosion          = preset.cloudErosion;
+        cloudDetailScale      = preset.cloudDetailScale;
+        cloudParallax         = preset.cloudParallax;
         cloudColorDay         = preset.cloudColorDay;
         cloudColorNight       = preset.cloudColorNight;
         cloudShadowStrength   = preset.cloudShadowStrength;
@@ -309,6 +355,10 @@ public struct WeatherState
         r.cloudDensityFar       = Mathf.Lerp(a.cloudDensityFar,       b.cloudDensityFar,       t);
         r.cloudSoftness         = Mathf.Lerp(a.cloudSoftness,         b.cloudSoftness,         t);
         r.cloudSpeed            = Mathf.Lerp(a.cloudSpeed,            b.cloudSpeed,            t);
+        r.cloudBillow           = Mathf.Lerp(a.cloudBillow,           b.cloudBillow,           t);
+        r.cloudErosion          = Mathf.Lerp(a.cloudErosion,          b.cloudErosion,          t);
+        r.cloudDetailScale      = Mathf.Lerp(a.cloudDetailScale,      b.cloudDetailScale,      t);
+        r.cloudParallax         = Mathf.Lerp(a.cloudParallax,         b.cloudParallax,         t);
         r.cloudColorDay         = Color.Lerp(a.cloudColorDay,         b.cloudColorDay,         t);
         r.cloudColorNight       = Color.Lerp(a.cloudColorNight,       b.cloudColorNight,       t);
         r.cloudShadowStrength   = Mathf.Lerp(a.cloudShadowStrength,   b.cloudShadowStrength,   t);
@@ -346,6 +396,10 @@ public struct WeatherState
         cloudDensityFar       = 0.4f,
         cloudSoftness         = 0.18f,
         cloudSpeed            = 0.006f,
+        cloudBillow           = 0.70f,
+        cloudErosion          = 0.55f,
+        cloudDetailScale      = 3.0f,
+        cloudParallax         = 0.55f,
         cloudColorDay         = Color.white,
         cloudColorNight       = new Color(0.08f, 0.10f, 0.22f),
         cloudShadowStrength   = 0.6f,

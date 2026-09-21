@@ -16,12 +16,16 @@ MonoBehaviour:
   weight: 1
   minDurationMinutes: 15
   transitionDuration: 60
-  cloudDensityNear: 0.576
+  cloudDensityNear: 0.49
   cloudDensityFar: 0.864
   cloudSoftness: 0.15
-  cloudSpeed: 0.015
+  cloudSpeed: 0.129
+  cloudBillow: 0.7
+  cloudErosion: 0.55
+  cloudDetailScale: 3
+  cloudParallax: 0.55
   cloudColorDay: {r: 1, g: 1, b: 1, a: 1}
-  cloudColorNight: {r: 0.20291919, g: 0.24457099, b: 0.4528302, a: 1}
+  cloudColorNight: {r: 0.2029192, g: 0.244571, b: 0.4528302, a: 1}
   cloudColorByTime:
   - hour: 0
     minute: 0
@@ -50,15 +54,15 @@ MonoBehaviour:
     underlitStrength: 1.8
   - hour: 21
     minute: 0
-    cloudColor: {r: 0.2503115, g: 0.2564986, b: 0.4245283, a: 0}
+    cloudColor: {r: 0.12833749, g: 0.13063242, b: 0.26415092, a: 0}
     underlitColor: {r: 1, g: 1, b: 1, a: 0}
     underlitStrength: 0
   cloudShadowStrength: 0.191
   cloudUnderlitStrength: 0.8
   cloudUnderlitColor: {r: 1, g: 0.45, b: 0.15, a: 1}
-  fogDensityMultiplier: 0.64
+  fogDensityMultiplier: 0.3
   fogColorTint: {r: 0.7, g: 0.7, b: 0.7, a: 1}
-  fogColorBlend: 0.313
+  fogColorBlend: 0.24
   hazeStrengthMultiplier: 1
   precipitation: 0
   precipitationIntensity: 0
