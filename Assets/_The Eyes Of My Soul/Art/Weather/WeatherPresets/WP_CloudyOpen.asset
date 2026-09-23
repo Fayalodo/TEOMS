@@ -20,8 +20,8 @@ MonoBehaviour:
   cloudDensityFar: 0.864
   cloudSoftness: 0.15
   cloudSpeed: 0.129
-  cloudBillow: 0.7
-  cloudErosion: 0.55
+  cloudBillow: 0.16
+  cloudErosion: 0.39
   cloudDetailScale: 3
   cloudParallax: 0.55
   cloudColorDay: {r: 1, g: 1, b: 1, a: 1}

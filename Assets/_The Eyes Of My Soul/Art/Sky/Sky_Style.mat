@@ -97,14 +97,14 @@ Material:
     - _ClearCoatSmoothness: 0
     - _CloudAbsorption: 2.5
     - _CloudAmbient: 0.35
-    - _CloudBillow: 0.7
+    - _CloudBillow: 0.16
     - _CloudCoverage: 0.49
     - _CloudDarkness: 0
     - _CloudDensity: 1.6
     - _CloudDensityFar: 0.45
     - _CloudDensityNear: 0.55
     - _CloudDetailScale: 3
-    - _CloudErosion: 0.55
+    - _CloudErosion: 0.39
     - _CloudHeightFade: 0.1
     - _CloudHighCoverage: 0.864
     - _CloudHighOpacity: 0.5
@@ -123,7 +123,7 @@ Material:
     - _CloudSpeed: 0.129
     - _CloudSunStrength: 1.2
     - _CloudTravel: -1
-    - _CloudUnderlitStrength: 1.7696859
+    - _CloudUnderlitStrength: 0
     - _CloudWarp: 0.35
     - _Cull: 2
     - _Cutoff: 0.5
@@ -151,12 +151,12 @@ Material:
     - _GroundDarkness: 0.35
     - _HazeFalloff: 8
     - _HazeHeight: 0.35
-    - _HazeStrength: 0.60544
+    - _HazeStrength: 0.15777779
     - _HorizonBlend: 4
     - _HorizonFalloff: 2
     - _HorizonIntensity: 0.75
     - _HorizonSunBias: 0.6
-    - _HorizonWidth: 0.31375998
+    - _HorizonWidth: 0.21481481
     - _Metallic: 0
     - _MilkyWayIntensity: 0.45
     - _MilkyWayWidth: 0.22
@@ -202,7 +202,7 @@ Material:
     - _SunGlowFalloff: 3
     - _SunGlowIntensity: 0.18
     - _SunGlowPower: 5
-    - _SunGlowSize: 0.1358
+    - _SunGlowSize: 0
     - _SunHorizonBoost: 0.5
     - _SunIntensity: 3
     - _SunLimbDarkening: 0.45
@@ -218,33 +218,33 @@ Material:
     m_Colors:
     - _AtmosphereHaze: {r: 0.62, g: 0.74, b: 0.92, a: 1}
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
-    - _CloudColorDay: {r: 0.90724915, g: 0.2846366, b: 0.1974428, a: 0}
-    - _CloudColorNight: {r: 0.90724915, g: 0.2846366, b: 0.1974428, a: 0}
+    - _CloudColorDay: {r: 0.04294806, g: 0.04217429, b: 0.152341, a: 0}
+    - _CloudColorNight: {r: 0.04294806, g: 0.04217429, b: 0.152341, a: 0}
     - _CloudRimColor: {r: 1.2, g: 1, b: 0.7, a: 1}
-    - _CloudUnderlitColor: {r: 0.3259977, g: 0.029982572, b: 0.05266145, a: 0}
+    - _CloudUnderlitColor: {r: 0.28052026, g: 0.28392997, b: 0.36408103, a: 0}
     - _CloudWindDir: {r: 1, g: 0.3, b: 0, a: 0}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _DarknessTint: {r: 0.3, g: 0.32, b: 0.45, a: 1}
     - _DayHorizonColor: {r: 0.52, g: 0.72, b: 0.98, a: 1}
     - _DaySkyColor: {r: 0.1, g: 0.22, b: 0.55, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _HazeColor: {r: 0.91584, g: 0.49767998, b: 0.23663999, a: 1}
+    - _HazeColor: {r: 0.04, g: 0.05, b: 0.16518518, a: 1}
     - _HorizonColor: {r: 0.75, g: 0.55, b: 0.25, a: 1}
-    - _HorizonGlowColor: {r: 0.9948, g: 0.3708, b: 0.07247999, a: 1}
+    - _HorizonGlowColor: {r: 0.045185182, g: 0.055185184, b: 0.17555556, a: 1}
     - _MilkyWayColor: {r: 0.55, g: 0.62, b: 0.95, a: 1}
     - _MoonColor: {r: 0.92, g: 0.94, b: 1, a: 1}
-    - _MoonDir: {r: 0.00000017484554, g: 0.000000059604613, b: 0.99999994, a: 0}
+    - _MoonDir: {r: 0.00000004525336, g: 0.9659258, b: 0.25881907, a: 0}
     - _MoonGlowColor: {r: 0.55, g: 0.65, b: 1, a: 1}
     - _NightHorizonColor: {r: 0.03, g: 0.04, b: 0.12, a: 1}
     - _NightSkyColor: {r: 0.01, g: 0.01, b: 0.06, a: 1}
-    - _SkyHorizonColor: {r: 0.92168003, g: 0.42912, b: 0.2008, a: 1}
-    - _SkyMiddleColor: {r: 0.6918173, g: 0.3366932, b: 0.22744, a: 1}
-    - _SkyTopColor: {r: 0.4619545, g: 0.24426642, b: 0.25408, a: 1}
+    - _SkyHorizonColor: {r: 0.042592593, g: 0.052592594, b: 0.15037037, a: 1}
+    - _SkyMiddleColor: {r: 0.03259259, g: 0.042592593, b: 0.12777779, a: 1}
+    - _SkyTopColor: {r: 0.022592591, g: 0.03259259, b: 0.10518519, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
     - _StarTint: {r: 1, g: 1, b: 1, a: 1}
     - _SunColor: {r: 1.4, g: 1.25, b: 0.95, a: 1}
-    - _SunDir: {r: -0.00000017484554, g: 0.000000059604613, b: -0.99999994, a: 0}
-    - _SunGlowColor: {r: 1, g: 0.44079998, b: 0.090399995, a: 1}
+    - _SunDir: {r: -0.000000045253334, g: -0.96592593, b: -0.25881892, a: 0}
+    - _SunGlowColor: {r: 0.21037038, g: 0.28, b: 0.6051852, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
 --- !u!114 &8468707973155558325
