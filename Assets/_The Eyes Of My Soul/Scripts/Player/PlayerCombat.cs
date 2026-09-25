@@ -1,108 +1,102 @@
 ﻿using UnityEngine;
 using System.Collections;
 
+/// <summary>
+/// Ближний бой от первого лица.
+///
+/// Проверка попадания — SphereCast (по сути тонкая капсула/луч с толщиной) от камеры
+/// вдоль направления взгляда игрока: попадает точно туда, куда смотрит игрок,
+/// останавливается на первом препятствии (стена/враг), как в Skyrim/Chivalry —
+/// а не area-attack по плоскому кругу на земле под курсором мыши, как было раньше
+/// (та схема была рассчитана на top-down/BotW-камеру и не работала для FP,
+/// т.к. курсор в FP заблокирован по центру экрана).
+///
+/// Видимой модели оружия в руках нет — обратная связь даётся:
+///  - прицелом по центру экрана (подсвечивается, когда наведён на живую цель),
+///  - тряской камеры (PlayerCamera.Shake) при замахе и при попадании,
+///  - опциональным эффектом попадания (партиклы/звук в точке хита).
+/// </summary>
 [RequireComponent(typeof(Collider))]
 public class PlayerCombat : MonoBehaviour
 {
     [Header("Base Stats (without weapon)")]
-    [SerializeField] private float baseDamage = 25f;
-    [SerializeField] private float baseRange = 1.6f;
-    [SerializeField] private float baseCooldown = 0.6f;
-    [SerializeField] private float baseRadius = 0.8f;
+    private float baseDamage = 25f;
+    private float baseRange = 2.2f;
+    private float baseCooldown = 0.6f;
+    private float baseRadius = 0.35f;
 
     [Header("Attack")]
     public float attackDamage = 25f;
-    public float attackRange = 1.6f;
-    public float attackRadius = 0.8f;
+    [Tooltip("Дальность удара — длина луча от камеры")]
+    public float attackRange = 2.2f;
+    [Tooltip("Толщина луча (радиус SphereCast). Это НЕ area-attack радиус, а толщина капсулы удара.")]
+    public float attackRadius = 0.35f;
     public float attackCooldown = 0.6f;
 
-    [Header("Aiming")]
-    public float aimRotationSpeed = 720f;
-    public bool aimOnlyWhenIdle = true;
-    [Tooltip("Если true — поворачиваем только визуальный child (sprite/visual), а не корень")]
-    public bool rotateVisualOnly = true;
+    [Header("Тайминг удара")]
+    [Tooltip("Задержка между стартом атаки (клик) и моментом проверки попадания — для синхронизации с анимацией")]
+    public float attackWindup = 0.08f;
+    [Tooltip("Задержка после удара, прежде чем можно атаковать снова")]
+    public float attackRecovery = 0.05f;
 
-    [Header("Layers & Effects")]
+    [Header("Слои и анимация")]
     public LayerMask targetLayers = ~0;
     public string attackAnimatorTrigger = "Attack";
     public Animator animator;
 
-    [Header("Attack Indicator (Default)")]
-    public GameObject defaultAttackIndicatorPrefab; // Префаб индикатора по умолчанию
-    public bool defaultShowIndicatorAlways = false; // Показывать всегда или только при атаке
-    public float indicatorFadeInTime = 0.1f;
-    public float indicatorFadeOutTime = 0.2f;
-    [ColorUsage(true, true)]
-    public Color defaultIndicatorReadyColor = new Color(1f, 0f, 0f, 0.3f); // Цвет при готовности
-    [ColorUsage(true, true)]
-    public Color defaultIndicatorCooldownColor = new Color(0.5f, 0.5f, 0.5f, 0.2f); // Цвет на кулдауне
-
-    [Header("Блок (ПКМ)")]
-    [SerializeField] private float blockDamageReduction = 0.5f; // 50% снижение урона
-    [SerializeField] private float blockStaminaCost = 10f;       // стамина за блок в секунду (задел на будущее)
+    [Header("━━━ Блок (ПКМ) ━━━")]
+    [SerializeField] private float blockDamageReduction = 0.5f; // % снижения урона
+    [SerializeField] private float blockStaminaCost = 10f;      // задел на будущее (стамина)
     public bool IsBlocking { get; private set; }
 
-    [Header("Индикатор блока")]
-    [SerializeField] private GameObject blockIndicatorPrefab;
-    [ColorUsage(true, true)]
-    [SerializeField] private Color blockIndicatorColor = new Color(0f, 0.5f, 1f, 0.35f);
-    [SerializeField] private float blockIndicatorScale = 1.2f;
-
-    private GameObject _blockIndicator;
-    private SpriteRenderer _blockIndicatorRenderer;
-
-    [Header("Knockback (при атаке)")]
+    [Header("━━━ Knockback при попадании ━━━")]
     [SerializeField] private float knockbackForce = 4f;
-    [SerializeField] private float knockbackDuration = 0.15f;
+
+    [Header("━━━ Прицел (вместо видимого оружия в руках) ━━━")]
+    public bool showCrosshair = true;
+    public float crosshairSize = 5f;
+    public float crosshairGap = 6f;
+    public float crosshairThickness = 2f;
+    public Color crosshairColorNormal = new Color(1f, 1f, 1f, 0.85f);
+    public Color crosshairColorOnTarget = new Color(1f, 0.3f, 0.25f, 0.95f);
+
+    [Header("━━━ Обратная связь при ударе (без вьюмодели) ━━━")]
+    [Tooltip("Лёгкая тряска камеры при замахе (сразу, ещё до проверки попадания)")]
+    public float swingShakeIntensity = 0.015f;
+    public float swingShakeDuration = 0.08f;
+    [Tooltip("Более сильная тряска камеры при подтверждённом попадании")]
+    public float hitShakeIntensity = 0.06f;
+    public float hitShakeDuration = 0.14f;
+    [Tooltip("Опционально: партиклы в точке попадания")]
+    public GameObject hitEffectPrefab;
+    public float hitEffectLifetime = 1.5f;
+    public AudioClip hitSound;
+    public AudioClip missSound;
+    [Range(0f, 1f)] public float hitSoundVolume = 1f;
 
     [Header("Debug")]
     public bool showDebugGizmos = true;
 
     private float lastAttackTime = -999f;
     private Camera mainCamera;
-    private PlayerMovement movement;
     private bool isAttacking = false;
-    private SpriteRenderer spriteRenderer;
-
-    // Индикатор атаки
-    private GameObject currentIndicator; // Текущий индикатор
-    private SpriteRenderer indicatorRenderer; // Рендерер индикатора
-    private bool isIndicatorVisible = false;
-    private readonly Collider[] hitBuffer = new Collider[16]; // FIX: NonAlloc буфер — нет аллокаций каждую атаку
-
-    private Coroutine fadeCoroutine; // чтобы останавливать fade при смене оружия
-
-    // Текущие настройки индикатора
-    private GameObject currentIndicatorPrefab;
-    private Color currentReadyColor;
-    private Color currentCooldownColor;
-    private bool currentShowAlways;
+    private bool crosshairOnTarget = false;
+    private AudioSource audioSource;
 
     private Inventory playerInventory;
     private ItemDefinition currentWeapon; // Текущее активное оружие
-    private Health myHealth; // кешируем чтобы не вызывать GetComponent каждую атаку
-
-    // кеш для индикатора — не пересчитываем canAttack каждый кадр
-    private bool lastCanAttack = true;
+    private Health myHealth;              // кешируем чтобы не вызывать GetComponent каждую атаку
 
     void Awake()
     {
         mainCamera = Camera.main;
-        movement = GetComponent<PlayerMovement>();
         if (animator == null) animator = GetComponentInChildren<Animator>();
-        spriteRenderer = movement != null ? movement.spriteRenderer : GetComponentInChildren<SpriteRenderer>();
 
         // Сохраняем базовые значения из инспектора
         baseDamage = attackDamage;
         baseRange = attackRange;
         baseCooldown = attackCooldown;
         baseRadius = attackRadius;
-
-        // Устанавливаем настройки индикатора по умолчанию
-        currentIndicatorPrefab = defaultAttackIndicatorPrefab;
-        currentReadyColor = defaultIndicatorReadyColor;
-        currentCooldownColor = defaultIndicatorCooldownColor;
-        currentShowAlways = defaultShowIndicatorAlways;
 
         myHealth = GetComponent<Health>();
         if (myHealth != null)
@@ -120,51 +114,12 @@ public class PlayerCombat : MonoBehaviour
             UpdateWeaponStats(); // применяем, если уже есть активное оружие
         }
 
-        // Создаем индикатор атаки
-        CreateAttackIndicator();
-
-        // Создаем индикатор блока
-        CreateBlockIndicator();
-    }
-
-    void CreateAttackIndicator()
-    {
-        // Останавливаем fade перед уничтожением
-        if (fadeCoroutine != null) { StopCoroutine(fadeCoroutine); fadeCoroutine = null; }
-        isIndicatorVisible = false;
-
-        if (currentIndicator != null)
+        if (hitSound != null || missSound != null)
         {
-            Destroy(currentIndicator);
-            currentIndicator = null;
-            indicatorRenderer = null;
-        }
-
-        // Создаем новый индикатор если задан префаб
-        if (currentIndicatorPrefab != null)
-        {
-            currentIndicator = Instantiate(currentIndicatorPrefab, transform.position, Quaternion.identity);
-            currentIndicator.transform.SetParent(transform);
-            currentIndicator.transform.localPosition = Vector3.zero;
-            indicatorRenderer = currentIndicator.GetComponent<SpriteRenderer>();
-
-            if (indicatorRenderer != null)
-            {
-                if (currentShowAlways)
-                {
-                    indicatorRenderer.enabled = true;
-                    indicatorRenderer.color = currentReadyColor;
-                }
-                else
-                {
-                    // FIX: явно обнуляем альфу и скрываем при старте
-                    Color c = indicatorRenderer.color;
-                    c.a = 0f;
-                    indicatorRenderer.color = c;
-                    indicatorRenderer.enabled = false;
-                    isIndicatorVisible = false;
-                }
-            }
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.playOnAwake = false;
+            audioSource.spatialBlend = 0f; // 2D — это же сам игрок
         }
     }
 
@@ -178,12 +133,6 @@ public class PlayerCombat : MonoBehaviour
 
         if (myHealth != null)
             myHealth.OnDamageTaken -= OnDamageTaken_Block;
-
-        if (currentIndicator != null)
-            Destroy(currentIndicator);
-
-        if (_blockIndicator != null)
-            Destroy(_blockIndicator);
     }
 
     // Блок снижает входящий урон — лечим обратно часть снятого HP
@@ -228,34 +177,13 @@ public class PlayerCombat : MonoBehaviour
 
         if (currentWeapon != null)
         {
-            // Применяем характеристики оружия
             attackDamage = currentWeapon.weaponDamage;
             attackRange = currentWeapon.weaponRange;
             attackCooldown = currentWeapon.weaponCooldown;
+            // ВАЖНО: weaponRadius раньше был радиусом area-attack круга на земле (обычно 0.8+).
+            // Теперь это толщина луча удара — если удары ощущаются "слишком толстыми"/непромахиваемыми,
+            // уменьши weaponRadius в ItemDefinition для конкретных мечей (например, до 0.2-0.4).
             attackRadius = currentWeapon.weaponRadius;
-
-            // Применяем настройки индикатора от оружия
-            bool indicatorChanged = false;
-
-            if (currentWeapon.weaponAttackIndicatorPrefab != null)
-            {
-                currentIndicatorPrefab = currentWeapon.weaponAttackIndicatorPrefab;
-                indicatorChanged = true;
-            }
-            else
-            {
-                currentIndicatorPrefab = defaultAttackIndicatorPrefab;
-                indicatorChanged = true;
-            }
-
-            currentReadyColor = currentWeapon.weaponIndicatorReadyColor;
-            currentCooldownColor = currentWeapon.weaponIndicatorCooldownColor;
-            currentShowAlways = currentWeapon.weaponShowIndicatorAlways;
-
-            if (indicatorChanged)
-            {
-                CreateAttackIndicator();
-            }
         }
         else
         {
@@ -264,262 +192,163 @@ public class PlayerCombat : MonoBehaviour
             attackRange = baseRange;
             attackCooldown = baseCooldown;
             attackRadius = baseRadius;
-
-            // Сброс индикатора к настройкам по умолчанию
-            currentIndicatorPrefab = defaultAttackIndicatorPrefab;
-            currentReadyColor = defaultIndicatorReadyColor;
-            currentCooldownColor = defaultIndicatorCooldownColor;
-            currentShowAlways = defaultShowIndicatorAlways;
-
-            CreateAttackIndicator();
         }
     }
 
     void Update()
     {
-        // Не атаковать если мёртв или идёт диалог
+        // Не атаковать если мёртв, идёт диалог или открыт UI (инвентарь и т.п.)
         if (myHealth == null || !myHealth.IsAlive) return;
         if (DialogueRunner.Instance != null && DialogueRunner.Instance.IsRunning) return;
+        if (PlayerCamera.Instance != null && PlayerCamera.Instance.InputBlocked) return;
+
+        if (mainCamera == null) mainCamera = Camera.main;
+        if (mainCamera == null) return;
 
         // Блок — ПКМ зажата
         IsBlocking = Input.GetMouseButton(1);
-        UpdateBlockIndicator();
 
-        Vector3 mouseWorld;
-        if (!GetMouseWorldPosition(out mouseWorld)) return;
+        // Обновляем подсветку прицела — смотрим ли сейчас на живую цель
+        UpdateCrosshairPreview();
 
-        Vector3 aimDir = mouseWorld - transform.position;
-        aimDir.y = 0f;
-        if (aimDir.sqrMagnitude < 0.0001f) aimDir = transform.forward;
-
-        // Обновляем позицию и поворот индикатора
-        UpdateAttackIndicator(aimDir.normalized);
-
-        if (Input.GetMouseButtonDown(0) && Time.time - lastAttackTime >= attackCooldown)
+        if (!isAttacking && Input.GetMouseButtonDown(0) && Time.time - lastAttackTime >= attackCooldown)
         {
             lastAttackTime = Time.time;
-            StartCoroutine(DoAttack(aimDir.normalized));
+            StartCoroutine(DoAttack());
         }
-
-        bool shouldAim = !aimOnlyWhenIdle || (movement != null && movement.IsMoving == false);
-        if (shouldAim && !isAttacking)
-        {
-            UpdateSpriteFromDirection(aimDir.normalized);
-
-            if (!rotateVisualOnly)
-            {
-                Quaternion target = Quaternion.LookRotation(aimDir.normalized);
-                transform.rotation = Quaternion.RotateTowards(transform.rotation, target, aimRotationSpeed * Time.deltaTime);
-            }
-            else if (spriteRenderer != null && spriteRenderer.transform != transform)
-            {
-                Quaternion target = Quaternion.LookRotation(aimDir.normalized);
-                spriteRenderer.transform.rotation = Quaternion.RotateTowards(spriteRenderer.transform.rotation, target, aimRotationSpeed * Time.deltaTime);
-            }
-        }
-
-        // Обновляем цвет индикатора в зависимости от кулдауна
-        UpdateIndicatorColor();
     }
 
-    void UpdateAttackIndicator(Vector3 direction)
+    void UpdateCrosshairPreview()
     {
-        if (currentIndicator == null || indicatorRenderer == null) return;
+        crosshairOnTarget = false;
+        if (!showCrosshair) return;
 
-        // Позиция индикатора - впереди на расстоянии атаки
-        Vector3 indicatorPos = transform.position + direction.normalized * attackRange;
-        indicatorPos.y = transform.position.y + 0.01f; // Немного выше земли чтобы не z-fighting
+        Vector3 origin = mainCamera.transform.position;
+        Vector3 dir = mainCamera.transform.forward;
 
-        currentIndicator.transform.position = indicatorPos;
-
-        // Поворачиваем индикатор в сторону направления атаки
-        if (direction.sqrMagnitude > 0.001f)
+        if (Physics.SphereCast(origin, attackRadius, dir, out RaycastHit hit, attackRange, targetLayers, QueryTriggerInteraction.Ignore))
         {
-            Quaternion targetRotation = Quaternion.LookRotation(direction);
-            currentIndicator.transform.rotation = targetRotation;
+            var h = hit.collider.GetComponentInParent<Health>();
+            if (h != null && h.IsAlive && h.gameObject != gameObject)
+                crosshairOnTarget = true;
         }
-
-        // Масштабируем под радиус атаки
-        float scale = attackRadius * 2f; // Диаметр
-        currentIndicator.transform.localScale = new Vector3(scale, scale, 1f);
     }
 
-    void UpdateIndicatorColor()
-    {
-        if (indicatorRenderer == null || !indicatorRenderer.enabled) return;
-
-        // FIX: пересчитываем только при смене состояния кулдауна, не каждый кадр
-        bool canAttack = Time.time - lastAttackTime >= attackCooldown;
-        if (canAttack == lastCanAttack) return;
-        lastCanAttack = canAttack;
-        indicatorRenderer.color = canAttack ? currentReadyColor : currentCooldownColor;
-    }
-
-    IEnumerator DoAttack(Vector3 direction)
+    IEnumerator DoAttack()
     {
         isAttacking = true;
-
-        // Анимация индикатора перед атакой
-        if (indicatorRenderer != null && !currentShowAlways)
-        {
-            if (fadeCoroutine != null) StopCoroutine(fadeCoroutine);
-            fadeCoroutine = StartCoroutine(FadeIndicator(true));
-            yield return fadeCoroutine;
-        }
-
-        UpdateSpriteFromDirection(direction);
 
         if (animator != null && !string.IsNullOrEmpty(attackAnimatorTrigger))
             animator.SetTrigger(attackAnimatorTrigger);
 
-        yield return new WaitForSeconds(0.05f);
+        // Тряска-"замах" сразу, ещё до подтверждения попадания — даёт ощущение удара без видимой руки
+        if (swingShakeIntensity > 0f)
+            PlayerCamera.Instance?.Shake(swingShakeIntensity, swingShakeDuration);
 
-        Vector3 fwd = direction;
-        fwd.y = 0f;
-        if (fwd.sqrMagnitude < 0.001f) fwd = transform.forward;
-        Vector3 center = transform.position + fwd.normalized * attackRange;
+        if (attackWindup > 0f)
+            yield return new WaitForSeconds(attackWindup);
 
-        int hitCount = Physics.OverlapSphereNonAlloc(center, attackRadius, hitBuffer, targetLayers, QueryTriggerInteraction.Ignore);
-        for (int i = 0; i < hitCount; i++)
-        {
-            var h = hitBuffer[i].GetComponent<Health>();
-            if (h != null && h.IsAlive && h.gameObject != gameObject)
-            {
-                h.TakeDamage(attackDamage, myHealth);
+        ResolveHit();
 
-                // Knockback в сторону от игрока
-                Vector3 kbDir = (hitBuffer[i].transform.position - transform.position);
-                kbDir.y = 0f;
-                h.ApplyKnockback(kbDir, knockbackForce);
+        if (attackRecovery > 0f)
+            yield return new WaitForSeconds(attackRecovery);
 
-                if (showDebugGizmos) Debug.Log($"Player attacked {h.gameObject.name} for {attackDamage}");
-            }
-        }
-
-        // Анимация индикатора после атаки
-        if (indicatorRenderer != null && !currentShowAlways)
-        {
-            if (fadeCoroutine != null) StopCoroutine(fadeCoroutine);
-            fadeCoroutine = StartCoroutine(FadeIndicator(false));
-            yield return fadeCoroutine;
-        }
-
-        yield return new WaitForSeconds(0.02f);
         isAttacking = false;
     }
 
-    IEnumerator FadeIndicator(bool fadeIn)
+    void ResolveHit()
     {
-        float timer = 0f;
-        float duration = fadeIn ? indicatorFadeInTime : indicatorFadeOutTime;
-        float startAlpha = indicatorRenderer.color.a;
-        float targetAlpha = fadeIn ? currentReadyColor.a : 0f;
+        if (mainCamera == null) return;
 
-        if (fadeIn && !isIndicatorVisible)
+        Vector3 origin = mainCamera.transform.position;
+        Vector3 dir = mainCamera.transform.forward;
+
+        bool didHit = Physics.SphereCast(origin, attackRadius, dir, out RaycastHit hit, attackRange, targetLayers, QueryTriggerInteraction.Ignore);
+
+        if (!didHit)
         {
-            indicatorRenderer.enabled = true;
-            isIndicatorVisible = true;
+            PlaySound(missSound);
+            if (showDebugGizmos) Debug.DrawRay(origin, dir * attackRange, Color.gray, 0.5f);
+            return;
         }
 
-        while (timer < duration)
+        // GetComponentInParent — на случай если коллайдер хитбокса висит на дочернем объекте, а Health на корне
+        var h = hit.collider.GetComponentInParent<Health>();
+        if (h == null || !h.IsAlive || h.gameObject == gameObject)
         {
-            timer += Time.deltaTime;
-            float t = Mathf.Clamp01(timer / duration);
-            Color currentColor = indicatorRenderer.color;
-            currentColor.a = Mathf.Lerp(startAlpha, targetAlpha, t);
-            indicatorRenderer.color = currentColor;
-            yield return null;
+            PlaySound(missSound);
+            if (showDebugGizmos) Debug.DrawRay(origin, dir * hit.distance, Color.yellow, 0.5f);
+            return;
         }
 
-        if (!fadeIn)
-        {
-            // явно обнуляем альфу чтобы не было артефактов при следующем показе
-            Color c = indicatorRenderer.color;
-            c.a = 0f;
-            indicatorRenderer.color = c;
-            indicatorRenderer.enabled = false;
-            isIndicatorVisible = false;
-        }
+        h.TakeDamage(attackDamage, myHealth);
 
-        fadeCoroutine = null;
+        // Knockback вперёд от игрока, по направлению взгляда
+        Vector3 kbDir = dir;
+        kbDir.y = 0f;
+        if (kbDir.sqrMagnitude < 0.0001f) kbDir = transform.forward;
+        h.ApplyKnockback(kbDir, knockbackForce);
+
+        PlayerCamera.Instance?.Shake(hitShakeIntensity, hitShakeDuration);
+        PlaySound(hitSound);
+        SpawnHitEffect(hit.point, hit.normal);
+
+        if (showDebugGizmos)
+        {
+            Debug.DrawRay(origin, dir * hit.distance, Color.red, 0.5f);
+            Debug.Log($"Player attacked {h.gameObject.name} for {attackDamage}");
+        }
     }
 
-    bool GetMouseWorldPosition(out Vector3 worldPos)
+    void PlaySound(AudioClip clip)
     {
-        worldPos = Vector3.zero;
-        if (mainCamera == null) return false;
-        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-        Plane plane = new Plane(Vector3.up, new Vector3(0f, transform.position.y, 0f));
-        float enter;
-        if (plane.Raycast(ray, out enter))
-        {
-            worldPos = ray.GetPoint(enter);
-            return true;
-        }
-        return false;
+        if (clip == null || audioSource == null) return;
+        audioSource.PlayOneShot(clip, hitSoundVolume);
     }
 
-    void UpdateSpriteFromDirection(Vector3 dir)
+    void SpawnHitEffect(Vector3 point, Vector3 normal)
     {
-        if (movement == null || spriteRenderer == null) return;
-
-        // FIX: используем SpriteDirectionHelper — без дубликации кода
-        var sprite = SpriteDirectionHelper.GetSpriteForDirection(
-            dir,
-            movement.spriteFacingRelativeToCamera, movement.cameraTransform,
-            movement.spriteForward, movement.spriteForwardRight, movement.spriteRight, movement.spriteBackRight,
-            movement.spriteBack,    movement.spriteBackLeft,    movement.spriteLeft,  movement.spriteForwardLeft,
-            movement.idleSprite);
-
-        if (sprite != null) spriteRenderer.sprite = sprite;
+        if (hitEffectPrefab == null) return;
+        var fx = Instantiate(hitEffectPrefab, point, Quaternion.LookRotation(normal));
+        Destroy(fx, hitEffectLifetime);
     }
 
-    void CreateBlockIndicator()
+    // ─────────────────────────────────────────────────────────────────
+    // ПРИЦЕЛ — простой крестик по центру экрана, заменяет видимое оружие в руках
+
+    void OnGUI()
     {
-        if (blockIndicatorPrefab == null) return;
+        if (!showCrosshair) return;
+        if (PlayerCamera.Instance != null && PlayerCamera.Instance.InputBlocked) return; // не рисуем прицел поверх инвентаря/диалога
 
-        _blockIndicator = Instantiate(blockIndicatorPrefab, transform.position, Quaternion.identity);
-        _blockIndicator.transform.SetParent(transform);
-        _blockIndicator.transform.localPosition = Vector3.zero;
-        _blockIndicatorRenderer = _blockIndicator.GetComponent<SpriteRenderer>();
+        float cx = Screen.width * 0.5f;
+        float cy = Screen.height * 0.5f;
 
-        if (_blockIndicatorRenderer != null)
-        {
-            _blockIndicatorRenderer.color = blockIndicatorColor;
-            float s = blockIndicatorScale * 2f;
-            _blockIndicator.transform.localScale = new Vector3(s, s, 1f);
-        }
+        Color prevColor = GUI.color;
+        GUI.color = crosshairOnTarget ? crosshairColorOnTarget : crosshairColorNormal;
 
-        _blockIndicator.SetActive(false);
+        // Четыре чёрточки с зазором в центре — классический FPS-прицел
+        DrawCrosshairRect(cx - crosshairGap - crosshairSize, cy - crosshairThickness * 0.5f, crosshairSize, crosshairThickness); // left
+        DrawCrosshairRect(cx + crosshairGap,                 cy - crosshairThickness * 0.5f, crosshairSize, crosshairThickness); // right
+        DrawCrosshairRect(cx - crosshairThickness * 0.5f, cy - crosshairGap - crosshairSize, crosshairThickness, crosshairSize); // top
+        DrawCrosshairRect(cx - crosshairThickness * 0.5f, cy + crosshairGap,                 crosshairThickness, crosshairSize); // bottom
+
+        GUI.color = prevColor;
     }
 
-    void UpdateBlockIndicator()
+    private void DrawCrosshairRect(float x, float y, float w, float h)
     {
-        if (_blockIndicator == null) return;
-
-        if (IsBlocking)
-        {
-            _blockIndicator.SetActive(true);
-            // Поворачиваем плашку горизонтально под персонажем
-            _blockIndicator.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
-        }
-        else
-        {
-            _blockIndicator.SetActive(false);
-        }
+        GUI.DrawTexture(new Rect(x, y, w, h), Texture2D.whiteTexture);
     }
 
     void OnDrawGizmosSelected()
     {
-        if (!showDebugGizmos) return;
+        if (!showDebugGizmos || !Application.isPlaying) return;
+        var cam = mainCamera != null ? mainCamera : Camera.main;
+        if (cam == null) return;
+
         Gizmos.color = Color.red;
-        Vector3 mouseWorld;
-        if (Application.isPlaying && Camera.main != null && GetMouseWorldPosition(out mouseWorld))
-        {
-            Vector3 aimDir = mouseWorld - transform.position; aimDir.y = 0f;
-            if (aimDir.sqrMagnitude < 0.001f) aimDir = transform.forward;
-            Vector3 center = transform.position + aimDir.normalized * attackRange;
-            Gizmos.DrawWireSphere(center, attackRadius);
-        }
+        Gizmos.DrawRay(cam.transform.position, cam.transform.forward * attackRange);
+        Gizmos.DrawWireSphere(cam.transform.position + cam.transform.forward * attackRange, attackRadius);
     }
 }
