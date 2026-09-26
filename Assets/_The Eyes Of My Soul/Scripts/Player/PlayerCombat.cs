@@ -15,6 +15,23 @@ using System.Collections;
 ///  - прицелом по центру экрана (подсвечивается, когда наведён на живую цель),
 ///  - тряской камеры (PlayerCamera.Shake) при замахе и при попадании,
 ///  - опциональным эффектом попадания (партиклы/звук в точке хита).
+///
+/// FIX (стабильность попадания в упор):
+///  1) Раньше ResolveHit() заново читал mainCamera.transform в момент проверки,
+///     т.е. ПОСЛЕ attackWindup. А тряска замаха (Shake) запускается сразу при клике
+///     и реально смещает позицию камеры (PlayerCamera.ApplyCameraLocalOffset).
+///     На дистанции в упор (attackRange ~2.2, attackRadius ~0.35) этого смещения
+///     хватало, чтобы SphereCast то цеплял врага, то нет — при том что в момент
+///     клика прицел мог честно показывать цель. Теперь origin/dir атаки фиксируются
+///     ОДИН РАЗ в момент клика (до срабатывания тряски) и используются и для
+///     windup-задержки, и для самого ResolveHit — тряска картинки больше не влияет
+///     на то, попал удар или нет.
+///  2) SphereCast сам по себе ненадёжен в кейсе "сфера уже пересекает коллайдер
+///     в стартовой точке" — это тот же класс проблемы, что ниже уже решён для
+///     собственного коллайдера игрока, но он может проявляться и для коллайдера
+///     врага, если игрок целится в упор. Добавлена страховочная OverlapSphere
+///     прямо в origin, независимая от направления свипа — она гарантированно
+///     ловит цель "в упор", даже если основной SphereCast её не увидел.
 /// </summary>
 [RequireComponent(typeof(Collider))]
 public class PlayerCombat : MonoBehaviour
@@ -87,8 +104,28 @@ public class PlayerCombat : MonoBehaviour
     private ItemDefinition currentWeapon; // Текущее активное оружие
     private Health myHealth;              // кешируем чтобы не вызывать GetComponent каждую атаку
 
-    // Буфер для SphereCastNonAlloc — без аллокаций на каждый кадр/удар.
+    /// <summary>Наведён ли прицел прямо сейчас на живую цель — для UI/индикаторов дальности.</summary>
+    public bool IsAimingAtLiveTarget => crosshairOnTarget;
+
+    /// <summary>Реальное расстояние до текущей цели под прицелом (в метрах), -1 если цели нет.</summary>
+    public float CurrentTargetDistance => crosshairTargetDistance;
+
+    /// <summary>Текущее активное оружие (null = голые руки) — для HUD со статами.</summary>
+    public ItemDefinition CurrentWeapon => currentWeapon;
+
+    // Буферы без аллокаций на каждый кадр/удар.
     private readonly RaycastHit[] meleeHitsBuffer = new RaycastHit[16];
+    private readonly Collider[] meleeOverlapBuffer = new Collider[16];
+
+    /// <summary>Результат TryMeleeCast — не привязан к RaycastHit, т.к. попадание "в упор"
+    /// формируется вручную через Collider.ClosestPoint, а не через сам физический свип.</summary>
+    private struct MeleeHitInfo
+    {
+        public Collider collider;
+        public Vector3 point;
+        public Vector3 normal;
+        public float distance;
+    }
 
     void Awake()
     {
@@ -217,58 +254,76 @@ public class PlayerCombat : MonoBehaviour
         if (!isAttacking && Input.GetMouseButtonDown(0) && Time.time - lastAttackTime >= attackCooldown)
         {
             lastAttackTime = Time.time;
-            StartCoroutine(DoAttack());
+
+            // FIX: фиксируем origin/dir атаки СЕЙЧАС, до того как DoAttack() запустит
+            // тряску замаха. Иначе ResolveHit() через attackWindup секунд заново
+            // прочитает mainCamera.transform — а он уже сдвинут тряской, и на
+            // дистанции в упор этого достаточно, чтобы удар не засчитался, хотя
+            // в момент клика прицел честно показывал цель.
+            Vector3 aimOrigin = mainCamera.transform.position;
+            Vector3 aimDir = mainCamera.transform.forward;
+            StartCoroutine(DoAttack(aimOrigin, aimDir));
         }
     }
 
     void UpdateCrosshairPreview()
     {
         crosshairOnTarget = false;
+        crosshairTargetDistance = -1f;
         if (!showCrosshair) return;
-
-        if (TryMeleeCast(out RaycastHit hit))
-        {
-            var h = hit.collider.GetComponentInParent<Health>();
-            if (h != null && h.IsAlive && h.gameObject != gameObject)
-                crosshairOnTarget = true;
-        }
-    }
-
-    /// <summary>
-    /// SphereCast от камеры вдоль взгляда, устойчивый к тому, что игрок сам себе коллайдер
-    /// (PlayerMovement требует CharacterController — тот является Collider'ом на этом же объекте,
-    /// а камера физически находится внутри него). Обычный однократный SphereCast иногда
-    /// "натыкается" на собственный CharacterController игрока прямо в точке старта — это
-    /// известная особенность физики при касте из точки, перекрывающей коллайдер, и ведёт себя
-    /// нестабильно в зависимости от угла (из-за этого удар периодически не засчитывался даже в упор).
-    /// Решение: берём ВСЕ пересечения на пути (SphereCastNonAlloc), сортируем по дистанции
-    /// и пропускаем любые коллайдеры, принадлежащие самому игроку, беря первое настоящее попадание.
-    /// </summary>
-    private bool TryMeleeCast(out RaycastHit result)
-    {
-        result = default;
-        if (mainCamera == null) return false;
 
         Vector3 origin = mainCamera.transform.position;
         Vector3 dir = mainCamera.transform.forward;
 
-        int count = Physics.SphereCastNonAlloc(origin, attackRadius, dir, meleeHitsBuffer, attackRange, targetLayers, QueryTriggerInteraction.Ignore);
-        if (count <= 0) return false;
-
-        // Сортировка вставками по дистанции — SphereCastNonAlloc не гарантирует порядок результатов,
-        // а попаданий обычно единицы, так что это дешевле любого Array.Sort с аллокацией компаратора.
-        for (int i = 1; i < count; i++)
+        if (TryMeleeCast(origin, dir, out MeleeHitInfo hit))
         {
-            RaycastHit cur = meleeHitsBuffer[i];
-            int j = i - 1;
-            while (j >= 0 && meleeHitsBuffer[j].distance > cur.distance)
+            var h = hit.collider.GetComponentInParent<Health>();
+            if (h != null && h.IsAlive && h.gameObject != gameObject)
             {
-                meleeHitsBuffer[j + 1] = meleeHitsBuffer[j];
-                j--;
+                crosshairOnTarget = true;
+                // Реальное расстояние до цели — для HUD ("Дальность: 2.5 м (1.3 м)").
+                // ВАЖНО: раньше тут было Vector3.Distance(origin, hit.point) — но hit.point
+                // это точка НА ПОВЕРХНОСТИ капсулы удара толщиной attackRadius, а не точка
+                // на самой прямой origin->dir. При попадании "в лоб" (перпендикулярно
+                // поверхности цели) эта точка лежит примерно на attackRadius метра ДАЛЬШЕ
+                // вдоль луча, чем реальная дистанция до цели — поэтому при attackRadius
+                // ~0.8 м честные 1.58 м показывались как ~2.37 м. hit.distance — это уже
+                // корректная дистанция вдоль луча (то же значение, что и в дебаг-подписи
+                // под прицелом), её и используем.
+                crosshairTargetDistance = hit.distance;
             }
-            meleeHitsBuffer[j + 1] = cur;
         }
+    }
 
+    private float crosshairTargetDistance = -1f;
+
+    /// <summary>
+    /// SphereCast от заданной точки вдоль заданного направления, устойчивый к тому, что
+    /// игрок сам себе коллайдер (PlayerMovement требует CharacterController — тот является
+    /// Collider'ом на этом же объекте, а камера физически находится внутри него). Обычный
+    /// однократный SphereCast иногда "натыкается" на собственный CharacterController игрока
+    /// прямо в точке старта — это известная особенность физики при касте из точки,
+    /// перекрывающей коллайдер, и ведёт себя нестабильно в зависимости от угла (из-за этого
+    /// удар периодически не засчитывался даже в упор). Решение: берём ВСЕ пересечения на
+    /// пути (SphereCastNonAlloc), сортируем по дистанции и пропускаем любые коллайдеры,
+    /// принадлежащие самому игроку, беря первое настоящее попадание.
+    ///
+    /// FIX: тот же самый "старт внутри коллайдера" эффект может происходить и с коллайдером
+    /// ВРАГА, когда игрок целится в упор — обычный свип в таком случае может вообще не
+    /// вернуть попадание в зависимости от направления взгляда (этим объясняется репортнутое
+    /// поведение: "стоишь впритык и целишься — не бьёт, а если посмотреть совсем в другую
+    /// сторону — вдруг бьёт", т.к. под другим углом свип цепляет цель уже не из вырожденной
+    /// стартовой точки). Поэтому дополнительно делаем OverlapSphere прямо в origin —
+    /// она не зависит от dir и гарантированно ловит цель "в упор".
+    /// </summary>
+    private bool TryMeleeCast(Vector3 origin, Vector3 dir, out MeleeHitInfo result)
+    {
+        result = default;
+        bool found = false;
+        float bestDist = float.MaxValue;
+
+        // 1) Обычный свип вдоль взгляда — основной случай, дальность/направление важны.
+        int count = Physics.SphereCastNonAlloc(origin, attackRadius, dir, meleeHitsBuffer, attackRange, targetLayers, QueryTriggerInteraction.Ignore);
         for (int i = 0; i < count; i++)
         {
             RaycastHit hit = meleeHitsBuffer[i];
@@ -277,28 +332,69 @@ public class PlayerCombat : MonoBehaviour
             // Пропускаем собственные коллайдеры игрока (CharacterController и любые дочерние).
             if (hit.collider.GetComponentInParent<PlayerCombat>() == this) continue;
 
-            result = hit;
-            return true;
+            if (hit.distance < bestDist)
+            {
+                bestDist = hit.distance;
+                result = new MeleeHitInfo
+                {
+                    collider = hit.collider,
+                    point = hit.point,
+                    normal = hit.normal,
+                    distance = hit.distance
+                };
+                found = true;
+            }
         }
 
-        return false;
+        // 2) Страховка "в упор": независимо от направления, проверяем прямое перекрытие
+        //    сферой радиуса attackRadius в самой точке origin. Если что-то нашлось —
+        //    это всегда как минимум не дальше свип-хита (дистанция 0), так что оно
+        //    приоритетнее любого более дальнего результата из шага 1.
+        int overlapCount = Physics.OverlapSphereNonAlloc(origin, attackRadius, meleeOverlapBuffer, targetLayers, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < overlapCount; i++)
+        {
+            Collider col = meleeOverlapBuffer[i];
+            if (col == null) continue;
+            if (col.GetComponentInParent<PlayerCombat>() == this) continue;
+
+            if (0f < bestDist)
+            {
+                Vector3 closest = col.ClosestPoint(origin);
+                Vector3 normal = origin - closest;
+                normal = normal.sqrMagnitude > 0.0001f ? normal.normalized : -dir;
+
+                bestDist = 0f;
+                result = new MeleeHitInfo
+                {
+                    collider = col,
+                    point = closest,
+                    normal = normal,
+                    distance = 0f
+                };
+                found = true;
+            }
+        }
+
+        return found;
     }
 
-    IEnumerator DoAttack()
+    IEnumerator DoAttack(Vector3 aimOrigin, Vector3 aimDir)
     {
         isAttacking = true;
 
         if (animator != null && !string.IsNullOrEmpty(attackAnimatorTrigger))
             animator.SetTrigger(attackAnimatorTrigger);
 
-        // Тряска-"замах" сразу, ещё до подтверждения попадания — даёт ощущение удара без видимой руки
+        // Тряска-"замах" сразу, ещё до подтверждения попадания — даёт ощущение удара без видимой руки.
+        // ВАЖНО: она смещает камеру, но больше не влияет на исход удара — ResolveHit ниже
+        // использует aimOrigin/aimDir, зафиксированные ДО этого вызова.
         if (swingShakeIntensity > 0f)
             PlayerCamera.Instance?.Shake(swingShakeIntensity, swingShakeDuration);
 
         if (attackWindup > 0f)
             yield return new WaitForSeconds(attackWindup);
 
-        ResolveHit();
+        ResolveHit(aimOrigin, aimDir);
 
         if (attackRecovery > 0f)
             yield return new WaitForSeconds(attackRecovery);
@@ -306,14 +402,9 @@ public class PlayerCombat : MonoBehaviour
         isAttacking = false;
     }
 
-    void ResolveHit()
+    void ResolveHit(Vector3 origin, Vector3 dir)
     {
-        if (mainCamera == null) return;
-
-        Vector3 origin = mainCamera.transform.position;
-        Vector3 dir = mainCamera.transform.forward;
-
-        bool didHit = TryMeleeCast(out RaycastHit hit);
+        bool didHit = TryMeleeCast(origin, dir, out MeleeHitInfo hit);
 
         if (!didHit)
         {
@@ -327,7 +418,7 @@ public class PlayerCombat : MonoBehaviour
         if (h == null || !h.IsAlive || h.gameObject == gameObject)
         {
             PlaySound(missSound);
-            if (showDebugGizmos) Debug.DrawRay(origin, dir * hit.distance, Color.yellow, 0.5f);
+            if (showDebugGizmos) Debug.DrawRay(origin, dir * Mathf.Max(hit.distance, 0.01f), Color.yellow, 0.5f);
             return;
         }
 
@@ -345,7 +436,7 @@ public class PlayerCombat : MonoBehaviour
 
         if (showDebugGizmos)
         {
-            Debug.DrawRay(origin, dir * hit.distance, Color.red, 0.5f);
+            Debug.DrawRay(origin, dir * Mathf.Max(hit.distance, 0.01f), Color.red, 0.5f);
             Debug.Log($"Player attacked {h.gameObject.name} for {attackDamage}");
         }
     }

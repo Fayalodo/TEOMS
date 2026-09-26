@@ -22,7 +22,7 @@ MonoBehaviour:
   cloudSpeed: 0.129
   cloudBillow: 0.16
   cloudErosion: 0.39
-  cloudDetailScale: 3
+  cloudDetailScale: 8
   cloudParallax: 0.55
   cloudColorDay: {r: 1, g: 1, b: 1, a: 1}
   cloudColorNight: {r: 0.2029192, g: 0.244571, b: 0.4528302, a: 1}
@@ -30,6 +30,11 @@ MonoBehaviour:
   - hour: 0
     minute: 0
     cloudColor: {r: 0.013061765, g: 0.011213952, b: 0.11320752, a: 0}
+    underlitColor: {r: 0.028702382, g: 0.03330551, b: 0.14150941, a: 0}
+    underlitStrength: 0
+  - hour: 3
+    minute: 0
+    cloudColor: {r: 0.030838378, g: 0.030838378, b: 0.1981132, a: 0}
     underlitColor: {r: 0.028702382, g: 0.03330551, b: 0.14150941, a: 0}
     underlitStrength: 0
   - hour: 5
@@ -54,7 +59,7 @@ MonoBehaviour:
     underlitStrength: 1.8
   - hour: 21
     minute: 0
-    cloudColor: {r: 0.12833749, g: 0.13063242, b: 0.26415092, a: 0}
+    cloudColor: {r: 0.10145959, g: 0.10145959, b: 0.2264151, a: 0}
     underlitColor: {r: 1, g: 1, b: 1, a: 0}
     underlitStrength: 0
   cloudShadowStrength: 0.191

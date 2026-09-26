@@ -26,9 +26,9 @@ MonoBehaviour:
   useEffect: 0
   effectValue: 0
   weaponDamage: 5
-  weaponRange: 3
+  weaponRange: 2
   weaponCooldown: 0.2
-  weaponRadius: 2
+  weaponRadius: 0.3
   weaponAttackIndicatorPrefab: {fileID: 3495619611197978865, guid: 669b27546208cf24c95b1300fbe63fcf,
     type: 3}
   weaponIndicatorReadyColor: {r: 1, g: 0, b: 0, a: 0.3}
