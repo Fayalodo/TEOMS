@@ -32,6 +32,14 @@ public class PlayerPickupController : MonoBehaviour
     [Tooltip("Радиус появления меток сундуков и НПЦ.")]
     public float labelRange = 4.0f;
 
+    [Header("Наведение на предметы (как прицел в бою)")]
+    [Tooltip("Предметы подсвечиваются и подбираются, только когда на них наведена камера (курсор в FP заблокирован по центру экрана — наведение = поворот камеры), а не просто по расстоянию.")]
+    public bool requireAimToTarget = true;
+    [Tooltip("Толщина луча наведения (SphereCast от камеры), аналогично attackRadius в PlayerCombat.")]
+    public float aimRadius = 0.35f;
+    [Tooltip("Слои, по которым бьёт луч наведения на предметы.")]
+    public LayerMask pickupAimLayers = ~0;
+
     [Header("Hold to Pickup")]
     public bool holdToPickup = false;
     public float holdDuration = 0.6f;
@@ -49,6 +57,10 @@ public class PlayerPickupController : MonoBehaviour
     private float holdTimer;
     private float searchTimer;
     private WorldPickupLabel currentWorldLabel;
+    private Camera mainCamera;
+
+    // Буфер для SphereCastNonAlloc — та же защита от самопересечения, что и в PlayerCombat.
+    private readonly RaycastHit[] aimHitsBuffer = new RaycastHit[16];
 
     // ── Сундуки / НПЦ ─────────────────────────────────────────
     private readonly Dictionary<LootableChest, WorldChestLabel> chestLabels = new();
@@ -65,6 +77,8 @@ public class PlayerPickupController : MonoBehaviour
 
         if (cornerNotificationUI == null)
             cornerNotificationUI = CornerNotificationUI.Instance;
+
+        mainCamera = Camera.main;
 
         RefreshSceneObjects();
     }
@@ -87,7 +101,7 @@ public class PlayerPickupController : MonoBehaviour
         if (searchTimer <= 0f)
         {
             searchTimer = searchInterval;
-            UpdateTarget(PickupManager.GetBestPickup(transform.position, interactRange));
+            UpdateTarget(requireAimToTarget ? GetAimedPickup() : PickupManager.GetBestPickup(transform.position, interactRange));
             UpdateChestLabels();
             UpdateNPCLabels();
         }
@@ -127,6 +141,62 @@ public class PlayerPickupController : MonoBehaviour
     // ─────────────────────────────────────────────────────────
     //  Предметы
     // ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Наведение камерой на предмет — как SphereCast-прицел в PlayerCombat, только вместо живых
+    /// целей ищем ItemPickup. Коллайдеры предметов — триггеры (см. ItemPickup.Awake), поэтому
+    /// QueryTriggerInteraction.Collide обязателен, иначе луч будет их игнорировать.
+    ///
+    /// Берём ВСЕ пересечения (SphereCastNonAlloc), а не первое попавшееся: игрок сам себе
+    /// коллайдер (CharacterController в PlayerMovement), и камера физически находится внутри
+    /// него — однократный SphereCast иногда "натыкается" на собственный коллайдер игрока прямо
+    /// в точке старта и дальше не идёт (та же проблема, что чинили в PlayerCombat.TryMeleeCast).
+    /// </summary>
+    private ItemPickup GetAimedPickup()
+    {
+        if (mainCamera == null) mainCamera = Camera.main;
+        if (mainCamera == null) return null;
+
+        Vector3 origin = mainCamera.transform.position;
+        Vector3 dir = mainCamera.transform.forward;
+
+        int count = Physics.SphereCastNonAlloc(origin, aimRadius, dir, aimHitsBuffer, interactRange, pickupAimLayers, QueryTriggerInteraction.Collide);
+        if (count <= 0) return null;
+
+        // Сортировка вставками по дистанции — дешевле, чем Array.Sort с компаратором, для малых N.
+        for (int i = 1; i < count; i++)
+        {
+            RaycastHit cur = aimHitsBuffer[i];
+            int j = i - 1;
+            while (j >= 0 && aimHitsBuffer[j].distance > cur.distance)
+            {
+                aimHitsBuffer[j + 1] = aimHitsBuffer[j];
+                j--;
+            }
+            aimHitsBuffer[j + 1] = cur;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = aimHitsBuffer[i];
+            if (hit.collider == null) continue;
+
+            // Пропускаем собственные коллайдеры игрока.
+            if (hit.collider.GetComponentInParent<PlayerPickupController>() == this) continue;
+
+            var pickup = hit.collider.GetComponentInParent<ItemPickup>();
+            if (pickup != null) return pickup;
+
+            // Не предмет: если это триггер (не физическая преграда — например, чужая
+            // квестовая/интерактивная зона), он не должен перекрывать обзор — идём дальше по лучу.
+            if (hit.collider.isTrigger) continue;
+
+            // Первая настоящая физическая преграда (стена и т.п.) — дальше по лучу цели не ищем.
+            return null;
+        }
+
+        return null;
+    }
 
     private void UpdateTarget(ItemPickup newTarget)
     {

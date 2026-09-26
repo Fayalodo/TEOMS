@@ -87,6 +87,9 @@ public class PlayerCombat : MonoBehaviour
     private ItemDefinition currentWeapon; // Текущее активное оружие
     private Health myHealth;              // кешируем чтобы не вызывать GetComponent каждую атаку
 
+    // Буфер для SphereCastNonAlloc — без аллокаций на каждый кадр/удар.
+    private readonly RaycastHit[] meleeHitsBuffer = new RaycastHit[16];
+
     void Awake()
     {
         mainCamera = Camera.main;
@@ -223,15 +226,62 @@ public class PlayerCombat : MonoBehaviour
         crosshairOnTarget = false;
         if (!showCrosshair) return;
 
-        Vector3 origin = mainCamera.transform.position;
-        Vector3 dir = mainCamera.transform.forward;
-
-        if (Physics.SphereCast(origin, attackRadius, dir, out RaycastHit hit, attackRange, targetLayers, QueryTriggerInteraction.Ignore))
+        if (TryMeleeCast(out RaycastHit hit))
         {
             var h = hit.collider.GetComponentInParent<Health>();
             if (h != null && h.IsAlive && h.gameObject != gameObject)
                 crosshairOnTarget = true;
         }
+    }
+
+    /// <summary>
+    /// SphereCast от камеры вдоль взгляда, устойчивый к тому, что игрок сам себе коллайдер
+    /// (PlayerMovement требует CharacterController — тот является Collider'ом на этом же объекте,
+    /// а камера физически находится внутри него). Обычный однократный SphereCast иногда
+    /// "натыкается" на собственный CharacterController игрока прямо в точке старта — это
+    /// известная особенность физики при касте из точки, перекрывающей коллайдер, и ведёт себя
+    /// нестабильно в зависимости от угла (из-за этого удар периодически не засчитывался даже в упор).
+    /// Решение: берём ВСЕ пересечения на пути (SphereCastNonAlloc), сортируем по дистанции
+    /// и пропускаем любые коллайдеры, принадлежащие самому игроку, беря первое настоящее попадание.
+    /// </summary>
+    private bool TryMeleeCast(out RaycastHit result)
+    {
+        result = default;
+        if (mainCamera == null) return false;
+
+        Vector3 origin = mainCamera.transform.position;
+        Vector3 dir = mainCamera.transform.forward;
+
+        int count = Physics.SphereCastNonAlloc(origin, attackRadius, dir, meleeHitsBuffer, attackRange, targetLayers, QueryTriggerInteraction.Ignore);
+        if (count <= 0) return false;
+
+        // Сортировка вставками по дистанции — SphereCastNonAlloc не гарантирует порядок результатов,
+        // а попаданий обычно единицы, так что это дешевле любого Array.Sort с аллокацией компаратора.
+        for (int i = 1; i < count; i++)
+        {
+            RaycastHit cur = meleeHitsBuffer[i];
+            int j = i - 1;
+            while (j >= 0 && meleeHitsBuffer[j].distance > cur.distance)
+            {
+                meleeHitsBuffer[j + 1] = meleeHitsBuffer[j];
+                j--;
+            }
+            meleeHitsBuffer[j + 1] = cur;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = meleeHitsBuffer[i];
+            if (hit.collider == null) continue;
+
+            // Пропускаем собственные коллайдеры игрока (CharacterController и любые дочерние).
+            if (hit.collider.GetComponentInParent<PlayerCombat>() == this) continue;
+
+            result = hit;
+            return true;
+        }
+
+        return false;
     }
 
     IEnumerator DoAttack()
@@ -263,7 +313,7 @@ public class PlayerCombat : MonoBehaviour
         Vector3 origin = mainCamera.transform.position;
         Vector3 dir = mainCamera.transform.forward;
 
-        bool didHit = Physics.SphereCast(origin, attackRadius, dir, out RaycastHit hit, attackRange, targetLayers, QueryTriggerInteraction.Ignore);
+        bool didHit = TryMeleeCast(out RaycastHit hit);
 
         if (!didHit)
         {
