@@ -33,6 +33,7 @@ public class DialogueAgent : MonoBehaviour
     [SerializeField] private int startingReputation = 0;
 
     [Header("Взаимодействие")]
+    [Tooltip("Дистанция до игрока, с которой можно начать разговор (считается по расстоянию, а не по триггер-коллайдеру).")]
     public float interactionRange = 4f;
 
     [Header("События")]
@@ -46,7 +47,8 @@ public class DialogueAgent : MonoBehaviour
     public string NPCName => string.IsNullOrWhiteSpace(displayName) ? gameObject.name : displayName;
 
     private int _reputation;
-    private bool _playerInRange;
+    private Transform _player;
+    private PlayerPickupController _pickupController;
 
     private MovementController _movement;
     private WanderBehavior _wander;
@@ -89,8 +91,37 @@ public class DialogueAgent : MonoBehaviour
 
     private void Update()
     {
-        if (_playerInRange && Input.GetKeyDown(KeyCode.E))
+        if (!Input.GetKeyDown(KeyCode.E)) return;
+
+        // Разговор — только если игрок в пределах interactionRange И камера наведена на НПЦ
+        // (если включён requireAimToTarget).
+        if (IsPlayerInRange() && IsAimedAt())
             TryStartDialogue();
+    }
+
+    /// <summary>Игрок ближе, чем interactionRange. Раньше дальность определялась радиусом триггера (≈1 м).</summary>
+    private bool IsPlayerInRange()
+    {
+        if (_player == null)
+        {
+            var p = GameObject.FindGameObjectWithTag("Player");
+            if (p != null) _player = p.transform;
+        }
+        if (_player == null) return false;
+
+        return (_player.position - transform.position).sqrMagnitude <= interactionRange * interactionRange;
+    }
+
+    /// <summary>true, если наведение не требуется или камера смотрит именно на этого НПЦ.</summary>
+    private bool IsAimedAt()
+    {
+        if (_pickupController == null)
+            _pickupController = Object.FindAnyObjectByType<PlayerPickupController>();
+
+        if (_pickupController == null || !_pickupController.requireAimToTarget)
+            return true;
+
+        return _pickupController.AimedAgent == this;
     }
 
     // ── Репутация ─────────────────────────────────────────────────────────────
@@ -160,20 +191,6 @@ public class DialogueAgent : MonoBehaviour
             _scheduler.ResumeFromDialogue();
         else
             _wander?.ResumeWandering();
-    }
-
-    // ── Триггеры ──────────────────────────────────────────────────────────────
-
-    private void OnTriggerEnter(Collider other)
-    {
-        if (other.CompareTag("Player"))
-            _playerInRange = true;
-    }
-
-    private void OnTriggerExit(Collider other)
-    {
-        if (other.CompareTag("Player"))
-            _playerInRange = false;
     }
 
     private void OnDrawGizmosSelected()

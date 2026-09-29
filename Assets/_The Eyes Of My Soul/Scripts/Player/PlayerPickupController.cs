@@ -40,6 +40,10 @@ public class PlayerPickupController : MonoBehaviour
     [Tooltip("Слои, по которым бьёт луч наведения на предметы.")]
     public LayerMask pickupAimLayers = ~0;
 
+    [Header("Наведение на сундуки, трупы и НПЦ")]
+    [Tooltip("Дальность луча наведения (от камеры) для сундуков, трупов и НПЦ. Должна быть не меньше lootRange у сундуков/трупов и радиуса триггера разговора у НПЦ. Включается тем же флагом requireAimToTarget.")]
+    public float lootAimRange = 3.0f;
+
     [Header("Hold to Pickup")]
     public bool holdToPickup = false;
     public float holdDuration = 0.6f;
@@ -62,11 +66,20 @@ public class PlayerPickupController : MonoBehaviour
     // Буфер для SphereCastNonAlloc — та же защита от самопересечения, что и в PlayerCombat.
     private readonly RaycastHit[] aimHitsBuffer = new RaycastHit[16];
 
+    // ── Сундук / труп под прицелом (обновляется по searchInterval) ──
+    /// <summary>Сундук, на который сейчас наведена камера (или null).</summary>
+    public LootableChest  AimedChest  { get; private set; }
+    /// <summary>Труп, на который сейчас наведена камера (или null).</summary>
+    public LootableCorpse AimedCorpse { get; private set; }
+    /// <summary>Живой НПЦ (DialogueAgent), на которого сейчас наведена камера (или null).</summary>
+    public DialogueAgent  AimedAgent  { get; private set; }
+
     // ── Сундуки / НПЦ ─────────────────────────────────────────
     private readonly Dictionary<LootableChest, WorldChestLabel> chestLabels = new();
     private readonly Dictionary<DialogueAgent, WorldNPCLabel>   npcLabels   = new();
     private readonly List<LootableChest> allChests = new();
     private readonly List<DialogueAgent> allAgents = new();
+    private float maxAgentRange; // наибольший interactionRange среди НПЦ сцены
 
     // ─────────────────────────────────────────────────────────
 
@@ -91,6 +104,10 @@ public class PlayerPickupController : MonoBehaviour
 
         allAgents.Clear();
         allAgents.AddRange(Object.FindObjectsByType<DialogueAgent>(FindObjectsSortMode.None));
+
+        maxAgentRange = 0f;
+        foreach (var a in allAgents)
+            if (a != null && a.interactionRange > maxAgentRange) maxAgentRange = a.interactionRange;
     }
 
     // ─────────────────────────────────────────────────────────
@@ -101,7 +118,7 @@ public class PlayerPickupController : MonoBehaviour
         if (searchTimer <= 0f)
         {
             searchTimer = searchInterval;
-            UpdateTarget(requireAimToTarget ? GetAimedPickup() : PickupManager.GetBestPickup(transform.position, interactRange));
+            ResolveAim();
             UpdateChestLabels();
             UpdateNPCLabels();
         }
@@ -143,27 +160,61 @@ public class PlayerPickupController : MonoBehaviour
     // ─────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Наведение камерой на предмет — как SphereCast-прицел в PlayerCombat, только вместо живых
-    /// целей ищем ItemPickup. Коллайдеры предметов — триггеры (см. ItemPickup.Awake), поэтому
-    /// QueryTriggerInteraction.Collide обязателен, иначе луч будет их игнорировать.
+    /// Единая точка наведения: за один проход решает, на ЧТО именно смотрит игрок —
+    /// предмет, сундук, труп или НПЦ. Цель всегда одна, поэтому E не может одновременно
+    /// подобрать бутылку и открыть мешок.
     ///
-    /// Берём ВСЕ пересечения (SphereCastNonAlloc), а не первое попавшееся: игрок сам себе
-    /// коллайдер (CharacterController в PlayerMovement), и камера физически находится внутри
-    /// него — однократный SphereCast иногда "натыкается" на собственный коллайдер игрока прямо
-    /// в точке старта и дальше не идёт (та же проблема, что чинили в PlayerCombat.TryMeleeCast).
+    /// Как выбирается цель:
+    ///  1) сначала тонкий луч (Raycast) — то, что ровно под прицелом;
+    ///  2) если он ничего не нашёл — SphereCast толщиной aimRadius (прощает неточный прицел);
+    ///  3) из всех целей перед первой физической преградой берётся та, чей центр ближе всего
+    ///     к линии прицела, а не та, что ближе к камере. Поэтому предмет, стоящий перед
+    ///     сундуком/мешком сбоку от прицела, его не «перехватывает».
+    ///
+    /// Твёрдые коллайдеры самих предметов, сундуков, НПЦ и трупов не считаются преградой.
     /// </summary>
-    private ItemPickup GetAimedPickup()
+    private void ResolveAim()
     {
+        AimedChest  = null;
+        AimedCorpse = null;
+        AimedAgent  = null;
+
+        if (!requireAimToTarget)
+        {
+            UpdateTarget(PickupManager.GetBestPickup(transform.position, interactRange));
+            return;
+        }
+
         if (mainCamera == null) mainCamera = Camera.main;
-        if (mainCamera == null) return null;
+        if (mainCamera == null) { UpdateTarget(null); return; }
 
         Vector3 origin = mainCamera.transform.position;
-        Vector3 dir = mainCamera.transform.forward;
+        Vector3 dir    = mainCamera.transform.forward;
 
-        int count = Physics.SphereCastNonAlloc(origin, aimRadius, dir, aimHitsBuffer, interactRange, pickupAimLayers, QueryTriggerInteraction.Collide);
-        if (count <= 0) return null;
+        // Луч должен доставать и до сундуков/трупов, и до самых дальних НПЦ (+1 м запас на высоту камеры).
+        float castRange = Mathf.Max(interactRange, Mathf.Max(lootAimRange, maxAgentRange + 1f));
 
-        // Сортировка вставками по дистанции — дешевле, чем Array.Sort с компаратором, для малых N.
+        ItemPickup item;
+        if (!ResolveAimCast(origin, dir, 0f, castRange, out item))
+            ResolveAimCast(origin, dir, aimRadius, castRange, out item);
+
+        UpdateTarget(item);
+    }
+
+    /// <summary>
+    /// Один бросок (radius = 0 → тонкий Raycast, иначе SphereCast). Заполняет AimedChest/AimedCorpse/AimedAgent
+    /// и возвращает предмет через out. Результат true, если найдена хоть какая-то цель.
+    /// </summary>
+    private bool ResolveAimCast(Vector3 origin, Vector3 dir, float radius, float castRange, out ItemPickup aimedItem)
+    {
+        aimedItem = null;
+
+        int count = radius > 0f
+            ? Physics.SphereCastNonAlloc(origin, radius, dir, aimHitsBuffer, castRange, pickupAimLayers, QueryTriggerInteraction.Collide)
+            : Physics.RaycastNonAlloc(origin, dir, aimHitsBuffer, castRange, pickupAimLayers, QueryTriggerInteraction.Collide);
+        if (count <= 0) return false;
+
+        // Сортировка вставками по дистанции.
         for (int i = 1; i < count; i++)
         {
             RaycastHit cur = aimHitsBuffer[i];
@@ -176,26 +227,90 @@ public class PlayerPickupController : MonoBehaviour
             aimHitsBuffer[j + 1] = cur;
         }
 
+        // 1) Первая настоящая физическая преграда (стена и т.п.).
+        float blockDistance = float.PositiveInfinity;
+        for (int i = 0; i < count; i++)
+        {
+            Collider col = aimHitsBuffer[i].collider;
+            if (col == null || col.GetComponentInParent<PlayerPickupController>() == this) continue;
+            if (col.isTrigger) continue;          // триггеры (зоны и т.п.) не мешают
+            if (IsAimPassThrough(col)) continue;  // тела предметов/сундуков/НПЦ не загораживают
+
+            blockDistance = aimHitsBuffer[i].distance;
+            break;
+        }
+
+        // 2) Лучший кандидат перед преградой — ближе всего к линии прицела.
+        ItemPickup     bestItem   = null;
+        LootableChest  bestChest  = null;
+        LootableCorpse bestCorpse = null;
+        DialogueAgent  bestAgent  = null;
+        float bestLateral = float.PositiveInfinity;
+
         for (int i = 0; i < count; i++)
         {
             RaycastHit hit = aimHitsBuffer[i];
-            if (hit.collider == null) continue;
+            if (hit.distance > blockDistance) break;
 
-            // Пропускаем собственные коллайдеры игрока.
-            if (hit.collider.GetComponentInParent<PlayerPickupController>() == this) continue;
+            Collider col = hit.collider;
+            if (col == null || col.GetComponentInParent<PlayerPickupController>() == this) continue;
 
-            var pickup = hit.collider.GetComponentInParent<ItemPickup>();
-            if (pickup != null) return pickup;
+            ItemPickup     cItem   = col.GetComponentInParent<ItemPickup>();
+            LootableChest  cChest  = null;
+            LootableCorpse cCorpse = null;
+            DialogueAgent  cAgent  = null;
 
-            // Не предмет: если это триггер (не физическая преграда — например, чужая
-            // квестовая/интерактивная зона), он не должен перекрывать обзор — идём дальше по лучу.
-            if (hit.collider.isTrigger) continue;
+            if (cItem != null)
+            {
+                if (hit.distance > interactRange) continue; // предмет дальше дистанции подбора
+            }
+            else
+            {
+                cChest = col.GetComponentInParent<LootableChest>();
+                if (cChest == null)
+                {
+                    var corpse = col.GetComponentInParent<LootableCorpse>();
+                    if (corpse != null && corpse.IsLootable) cCorpse = corpse;
+                    else
+                    {
+                        var agent = col.GetComponentInParent<DialogueAgent>();
+                        if (agent != null && IsAgentAlive(agent)) cAgent = agent;
+                    }
+                }
 
-            // Первая настоящая физическая преграда (стена и т.п.) — дальше по лучу цели не ищем.
-            return null;
+                if (cChest == null && cCorpse == null && cAgent == null) continue;
+            }
+
+            // Расстояние от центра коллайдера до линии прицела.
+            float lateral = Vector3.Cross(dir, col.bounds.center - origin).magnitude;
+            if (lateral >= bestLateral) continue;
+
+            bestLateral = lateral;
+            bestItem = cItem; bestChest = cChest; bestCorpse = cCorpse; bestAgent = cAgent;
         }
 
-        return null;
+        aimedItem   = bestItem;
+        AimedChest  = bestChest;
+        AimedCorpse = bestCorpse;
+        AimedAgent  = bestAgent;
+
+        return bestItem != null || bestChest != null || bestCorpse != null || bestAgent != null;
+    }
+
+    /// <summary>Коллайдер принадлежит интерактивному объекту (или мёртвому НПЦ) — луч через него проходит.</summary>
+    private static bool IsAimPassThrough(Collider col)
+    {
+        if (col.GetComponentInParent<ItemPickup>()     != null) return true;
+        if (col.GetComponentInParent<LootableChest>()  != null) return true;
+        if (col.GetComponentInParent<LootableCorpse>() != null) return true;
+        if (col.GetComponentInParent<DialogueAgent>()  != null) return true;
+        return false;
+    }
+
+    private static bool IsAgentAlive(DialogueAgent agent)
+    {
+        var health = agent.GetComponent<Health>();
+        return health == null || health.IsAlive;
     }
 
     private void UpdateTarget(ItemPickup newTarget)
@@ -345,6 +460,9 @@ public class PlayerPickupController : MonoBehaviour
     void OnDisable()
     {
         if (currentTarget != null) currentTarget.SetHighlight(false);
+        AimedChest  = null;
+        AimedCorpse = null;
+        AimedAgent  = null;
         DestroyWorldLabel();
         foreach (var kv in chestLabels) if (kv.Value != null) Destroy(kv.Value.gameObject);
         chestLabels.Clear();

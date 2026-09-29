@@ -63,6 +63,7 @@ public class LootableChest : MonoBehaviour
     Inventory   _inventory;
     Transform   _playerTransform;
     Inventory   _playerInventory;
+    PlayerPickupController _pickupController;
     AudioSource _audio;
     LootUI      _lootUI;
 
@@ -86,6 +87,8 @@ public class LootableChest : MonoBehaviour
             _playerTransform = player.transform;
             _playerInventory = player.GetComponent<Inventory>();
         }
+
+        _pickupController = Object.FindAnyObjectByType<PlayerPickupController>();
     }
 
     void Start()
@@ -144,8 +147,11 @@ public class LootableChest : MonoBehaviour
         float dist    = Vector3.Distance(transform.position, _playerTransform.position);
         bool  inRange = dist <= lootRange;
 
+        // Открывается только если камера наведена на сундук (если включён requireAimToTarget)
+        bool  active  = inRange && IsAimedAt();
+
         // Legacy подсказки
-        if (inRange)
+        if (active)
         {
             if (isLocked)
                 SetPrompts(false, true);
@@ -159,11 +165,21 @@ public class LootableChest : MonoBehaviour
             SetPrompts(false, false);
         }
 
-        if (inRange && Input.GetKeyDown(lootKey))
+        if (active && Input.GetKeyDown(lootKey))
         {
             if (isLocked) TryUnlock();
             else          OpenChest();
         }
+    }
+
+    // ─────────────────────────────────────────────────────────
+
+    /// <summary>true, если наведение не требуется или камера смотрит именно на этот сундук.</summary>
+    bool IsAimedAt()
+    {
+        if (_pickupController == null) _pickupController = Object.FindAnyObjectByType<PlayerPickupController>();
+        if (_pickupController == null || !_pickupController.requireAimToTarget) return true;
+        return _pickupController.AimedChest == this;
     }
 
     // ─────────────────────────────────────────────────────────

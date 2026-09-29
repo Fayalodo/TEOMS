@@ -26,9 +26,13 @@ public class LootableCorpse : MonoBehaviour
     Health    myHealth;
     Inventory myInventory;
     Transform playerTransform;
+    PlayerPickupController pickupController;
 
     bool isDead     = false;
     bool isLooted   = false; // уже обобрали
+
+    /// <summary>Можно ли сейчас обыскать (умер и ещё не обобран). Используется PlayerPickupController для наведения.</summary>
+    public bool IsLootable => isDead && !isLooted;
 
     LootUI lootUI; // FIX: не static — статик держал мёртвую ссылку после удаления объекта
 
@@ -45,6 +49,8 @@ public class LootableCorpse : MonoBehaviour
         // ищем игрока
         var player = GameObject.FindGameObjectWithTag("Player");
         if (player != null) playerTransform = player.transform;
+
+        pickupController = FindObjectOfType<PlayerPickupController>();
     }
 
     void OnEnable()
@@ -81,12 +87,23 @@ public class LootableCorpse : MonoBehaviour
         float dist = Vector3.Distance(transform.position, playerTransform.position);
         bool  inRange = dist <= lootRange;
 
-        // показываем/скрываем подсказку по дистанции
-        if (interactPrompt != null)
-            interactPrompt.SetActive(inRange && !myInventory.IsEmpty());
+        // обыск только по наведению камеры (если включён requireAimToTarget)
+        bool  active  = inRange && IsAimedAt();
 
-        if (inRange && Input.GetKeyDown(lootKey))
+        // показываем/скрываем подсказку по дистанции и наведению
+        if (interactPrompt != null)
+            interactPrompt.SetActive(active && !myInventory.IsEmpty());
+
+        if (active && Input.GetKeyDown(lootKey))
             OpenLoot();
+    }
+
+    /// <summary>true, если наведение не требуется или камера смотрит именно на этот труп.</summary>
+    bool IsAimedAt()
+    {
+        if (pickupController == null) pickupController = FindObjectOfType<PlayerPickupController>();
+        if (pickupController == null || !pickupController.requireAimToTarget) return true;
+        return pickupController.AimedCorpse == this;
     }
 
     void OpenLoot()
