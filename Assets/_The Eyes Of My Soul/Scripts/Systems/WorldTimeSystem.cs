@@ -27,7 +27,7 @@ public class WorldTimeSystem : MonoBehaviour
 
     [Header("Time Controls")]
     public bool isTimePaused = false;
-    [Range(0.1f, 10f)] public float timeScale = 1f;
+    [Range(0.1f, 50f)] public float timeScale = 1f;
 
     [Header("Time of Day Settings")]
     public TimeOfDaySettings[] timeOfDaySettings;
@@ -193,7 +193,7 @@ public class WorldTimeSystem : MonoBehaviour
 
     public void SetTimeScale(float scale)
     {
-        timeScale = Mathf.Clamp(scale, 0.1f, 10f);
+        timeScale = Mathf.Clamp(scale, 0.1f, 50f);
     }
 
     public TimeOfDaySettings GetCurrentTimeOfDaySettings()
@@ -262,7 +262,7 @@ public class WorldTimeSystem : MonoBehaviour
         hour   = Mathf.Clamp(hour, 0, 23);
         minute = Mathf.Clamp(minute, 0, 59);
         realSecondsPerGameMinute = Mathf.Max(0.1f, realSecondsPerGameMinute);
-        timeScale = Mathf.Clamp(timeScale, 0.1f, 10f);
+        timeScale = Mathf.Clamp(timeScale, 0.1f, 50f);
 
         // При изменении hour/minute в инспекторе — сразу обновляем небо в сцене.
         // delayCall нужен чтобы не вызывать во время сериализации Unity.

@@ -15,14 +15,14 @@ RenderSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 10
   m_Fog: 1
-  m_FogColor: {r: 0.7180269, g: 0.50676066, b: 0.36507374, a: 1}
+  m_FogColor: {r: 0.41102028, g: 0.3380884, b: 0.32533768, a: 1}
   m_FogMode: 3
-  m_FogDensity: 0.00269312
+  m_FogDensity: 0.00421888
   m_LinearFogStart: 0
   m_LinearFogEnd: 300
-  m_AmbientSkyColor: {r: 0.51168, g: 0.32624, b: 0.20624, a: 1}
-  m_AmbientEquatorColor: {r: 0.44415998, g: 0.26832, b: 0.14208, a: 1}
-  m_AmbientGroundColor: {r: 0.14104, g: 0.083119996, b: 0.05, a: 1}
+  m_AmbientSkyColor: {r: 0.21543996, g: 0.15151998, b: 0.1676, a: 1}
+  m_AmbientEquatorColor: {r: 0.18079998, g: 0.123919986, b: 0.12056, a: 1}
+  m_AmbientGroundColor: {r: 0.055759992, g: 0.034639996, b: 0.04352, a: 1}
   m_AmbientIntensity: 0.7
   m_AmbientMode: 1
   m_SubtractiveShadowColor: {r: 0.41960785, g: 0.478, b: 0.627, a: 1}
@@ -8844,8 +8844,8 @@ Light:
   m_Enabled: 1
   serializedVersion: 12
   m_Type: 1
-  m_Color: {r: 1, g: 0.50496, b: 0.13664, a: 0.4999998}
-  m_Intensity: 0.88640004
+  m_Color: {r: 0.45567995, g: 0.27263996, b: 0.28848, a: 1}
+  m_Intensity: 0.29919997
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -8907,8 +8907,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 410087039}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.000000029802308, y: 0.00000008742278, z: -2.6054005e-15,
-    w: 1}
+  m_LocalRotation: {x: -0.2588191, y: 0.00000008444391, z: 0.000000022626683, w: 0.9659258}
   m_LocalPosition: {x: -51.59482, y: -444.7167, z: -717.1806}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -13476,12 +13475,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 072a4b5469bcef243a01e3e6a48caee3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  hour: 18
+  hour: 20
   minute: 0
   day: 1
   realSecondsPerGameMinute: 1
-  isTimePaused: 0
-  timeScale: 10
+  isTimePaused: 1
+  timeScale: 50
   timeOfDaySettings:
   - name: Night
     startHour: 0
@@ -17724,7 +17723,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1168621330}
   serializedVersion: 2
-  m_LocalRotation: {x: -2.6054005e-15, y: 1, z: -0.000000029802308, w: -0.00000008742278}
+  m_LocalRotation: {x: -0.00000002262668, y: 0.9659259, z: -0.25881907, w: -0.00000008444392}
   m_LocalPosition: {x: -51.600002, y: 553.7252, z: -772.82367}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
