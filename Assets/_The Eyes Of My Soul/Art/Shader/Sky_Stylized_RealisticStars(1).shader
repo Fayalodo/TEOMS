@@ -56,6 +56,22 @@
 //     Tonemapping override, иначе будет двойной тонмап.
 //
 //  Все имена свойств сохранены → DayNightCycle.cs и материал менять НЕ нужно.
+//
+//  v3.1 (патч по скриншотам пресетов дня/заката/ночи):
+//   • Закат: двухдолевой «нагрев» (узкое ядро + широкая розово-пурпурная окраина)
+//   • Дымка: мягкий потолок _HazeMax вместо saturate → горизонт не «молочный»
+//   • Облака: тонирование освещённой стороны цветом светила (мультипликативно),
+//     самозатенение по толщине, внутренняя пухлость, глубокие холодные тени на закате
+//   • Амбиент облаков не берёт яркость диска солнца → нет выжженных облаков у солнца
+//
+//  v3.2:
+//   • Ореол солнца гаснет вместе с солнцем под горизонтом (раньше светил всегда → «мутное пятно»)
+//   • Тени облаков на рассвете/закате смещены в холодно-фиолетовый (тёплый свет / холодная тень)
+//
+//  v3.3:
+//   • _CloudSunTint — сила тонирования освещённой стороны облаков цветом светила.
+//     Если закат уже «запечён» в cloudColorByTime пресета погоды — ставьте 0.2–0.4,
+//     иначе цвет считается дважды (ключ пресета × тон светила) и облака уходят в красный.
 // ═════════════════════════════════════════════════════════════════════════════
 Shader "Custom/SkyStylized3"
 {
@@ -85,6 +101,7 @@ Shader "Custom/SkyStylized3"
         _HazeStrength           ("Haze Strength [DNC]",   Range(0, 1))       = 0.35
         _HazeHeight             ("Haze Height",           Range(0.05, 1))    = 0.35
         _FogInfluence           ("Scene Fog Influence (weather hook)", Range(0, 1)) = 0.5
+        _HazeMax                ("Haze Max Opacity",      Range(0.2, 1))     = 0.72
 
         // ── 3. Солнце ────────────────────────────────────────────────────────
         [Header(3. SUN)]
@@ -157,6 +174,7 @@ Shader "Custom/SkyStylized3"
         _CloudPowder            ("Powder (dark edges toward light)", Range(0, 1)) = 0.6
         _CloudSkyTint           ("Shadows Take Sky Color", Range(0, 1))      = 0.55
         _CloudSunStrength       ("Sunlight Strength",     Range(0, 3))       = 1.2
+        _CloudSunTint           ("Lit Side Tint by Sun (sunset)", Range(0, 1)) = 0.5
 
         // Пройденный облаками путь = ∫ speed dt, копится на CPU (см. патч DayNightCycle).
         // < 0 → запасной режим: _Time.y * _CloudSpeed (как раньше).
@@ -215,7 +233,7 @@ Shader "Custom/SkyStylized3"
             float4 _HorizonGlowColor;
             float  _HorizonWidth, _HorizonIntensity, _HorizonFalloff, _HorizonSunBias, _TwilightBelt;
             float4 _HazeColor;
-            float  _HazeStrength, _HazeHeight, _FogInfluence;
+            float  _HazeStrength, _HazeHeight, _FogInfluence, _HazeMax;
 
             float4 _SunDir, _SunColor, _SunGlowColor;
             float  _SunSize, _SunEdgeSoftness, _SunIntensity, _SunLimbDarkening, _SunHorizonBoost;
@@ -236,7 +254,7 @@ Shader "Custom/SkyStylized3"
             float4 _CloudWindDir;
             float  _CloudWarp, _CloudTravel;
             float  _CloudBillow, _CloudErosion, _CloudDetailScale, _CloudParallax;
-            float  _CloudAbsorption, _CloudPowder, _CloudSkyTint, _CloudSunStrength;
+            float  _CloudAbsorption, _CloudPowder, _CloudSkyTint, _CloudSunStrength, _CloudSunTint;
             float  _CloudHorizonFade, _CloudHorizonBlend;
             float4 _CloudColorDay, _CloudColorNight, _CloudUnderlitColor;
             float  _CloudShadowStrength, _CloudLightOffset, _CloudSilverLining, _CloudUnderlitStrength, _CloudDarkness;
@@ -593,6 +611,12 @@ Shader "Custom/SkyStylized3"
                 float powder  = 1.0 - exp(-density * 2.0 * _CloudPowder); // тёмная кромка со стороны света
                 float energy  = saturate(lightT * lerp(1.0, powder, 0.75));
 
+                // Самозатенение по толщине: плотные ядра темнее, тонкие края светлее (Beer–Lambert).
+                float thick = saturate(d * 1.25);
+                energy *= lerp(1.0, 0.62, thick * thick);
+                // Внутренняя «пухлость»: шум эрозии уже посчитан — используем его для лепки объёма.
+                energy = saturate(energy * lerp(0.80, 1.12, ero));
+
                 // ── Цвет ────────────────────────────────────────────────────
                 float3 baseCol = lerp(_CloudColorDay.rgb, _CloudColorNight.rgb, cloudNight);
 
@@ -601,9 +625,18 @@ Shader "Custom/SkyStylized3"
 
                 // Амбиент = реальное небо за облаком (+ немного зенита).
                 // Отсюда и берётся согласованность палитры.
-                float3 skyAmb  = lerp(skyBehind, _SkyMiddleColor.rgb, 0.25);
+                // min(): иначе диск/ореол солнца (HDR) в skyBehind выжигает облака рядом с ним.
+                float3 skyAmb  = lerp(min(skyBehind, 1.2), _SkyMiddleColor.rgb, 0.25);
                 float3 shadCol = lerp(baseCol * (1.0 - _CloudShadowStrength * 0.8), skyAmb, _CloudSkyTint);
-                float3 litCol  = baseCol;
+
+                // Закат: тени глубже и холоднее, освещённая сторона ТОНИРУЕТСЯ цветом светила.
+                // Раньше закат только ДОБАВЛЯЛ свет (underlit) → облака становились ярче и «молочнее»,
+                // но никогда не темнели. Контраст свет/тень — то, чего не хватало на скрине заката.
+                shadCol *= lerp(float3(1, 1, 1), float3(0.50, 0.52, 0.68), sunset);
+                // Тёплый свет → холодная тень: сдвигаем оттенок тени в фиолетовый (яркость сохраняется).
+                shadCol = lerp(shadCol, dot(shadCol, SKY_LUM) * float3(0.80, 0.66, 1.05), sunset * 0.55);
+                float3 sunTintN = sunRad / max(max(sunRad.r, max(sunRad.g, sunRad.b)), 1e-3);
+                float3 litCol   = baseCol * lerp(float3(1, 1, 1), sunTintN, sunset * _CloudSunTint);
 
                 float3 col = lerp(shadCol, litCol, energy);
 
@@ -683,8 +716,15 @@ Shader "Custom/SkyStylized3"
                 [branch]
                 if (_SkySunTint > 0.001)
                 {
-                    float wash = towardSun * towardSun * (1.0 - smoothstep(0.0, 0.55, y));
-                    sky += _SunGlowColor.rgb * wash * _SkySunTint * 0.22 * sunAbove;
+                    // Две доли: узкое ядро (цвет ореола) + широкая окраина, сдвинутая в розово-пурпурный.
+                    // Именно разница цветов ядра и окраины даёт «дорогой» закат вместо одной плоской заливки.
+                    float lowBand = 1.0 - smoothstep(0.0, 0.65, y);
+                    float core    = pow(s1, 6.0)  * lowBand;
+                    float wide    = pow(s1, 1.7)  * (1.0 - smoothstep(0.0, 0.90, y));
+                    float3 g      = _SunGlowColor.rgb;
+                    float3 fringe = float3(g.r, g.g * 0.45, g.b * 1.35 + 0.04);
+                    float  kSun   = _SkySunTint * sunAbove * (0.35 + 0.65 * sunset);
+                    sky += g * core * kSun * 0.9 + fringe * wide * kSun * 0.25;
                 }
 
                 // ── 2. Горизонт: мягкая полоса, у заката смещена в сторону солнца ─
@@ -712,7 +752,9 @@ Shader "Custom/SkyStylized3"
                 float  hazeMask = pow(1.0 - saturate(abs(y) / max(_HazeHeight, 0.02)), 2.0);
                 float3 hazeCol  = lerp(_HazeColor.rgb, unity_FogColor.rgb, _FogInfluence);
                 hazeCol += _SunGlowColor.rgb * s4 * 0.6 * sunAbove;
-                float hazeAmt = saturate((_HazeStrength + dark * 0.3 + _FogInfluence * 0.35) * hazeMask);
+                // Экспоненциальное насыщение + потолок: горизонт сохраняет градиент, а не заливается одним цветом.
+                float hazeRaw = (_HazeStrength + dark * 0.3 + _FogInfluence * 0.35) * hazeMask;
+                float hazeAmt = (1.0 - exp(-hazeRaw * 1.6)) * _HazeMax;
                 sky = lerp(sky, hazeCol, hazeAmt);
 
                 // Лёгкая ночная подсветка воздуха у горизонта — ночь не «чёрная дыра»
@@ -796,7 +838,9 @@ Shader "Custom/SkyStylized3"
                 // ── 6. Солнце: рассеяние + ореол + диск ─────────────────────────
                 float sunMul = 1.0 - dark * 0.85;
                 float glowT  = saturate(1.0 - (1.0 - sunDot) / max(_SunGlowSize, 0.0001));
-                float sunGlow = pow(glowT, _SunGlowFalloff) * _SunGlowIntensity * sunMul;
+                // Ореол затухает по мере ухода солнца под горизонт (остаточное сияние сумерек сохраняется до ~-13°)
+                float glowGate = smoothstep(-0.22, 0.02, sunDir.y);
+                float sunGlow = pow(glowT, _SunGlowFalloff) * _SunGlowIntensity * sunMul * glowGate;
                 sky += _SunGlowColor.rgb * sunGlow * horizonSoft;
 
                 // Широкий атмосферный «хвост» свечения (Хеньи–Гринстейн).
