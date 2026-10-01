@@ -18,7 +18,7 @@ MonoBehaviour:
   transitionDuration: 60
   cloudDensityNear: 0.49
   cloudDensityFar: 0.864
-  cloudSoftness: 0.15
+  cloudSoftness: 0.23
   cloudSpeed: 0.129
   cloudBillow: 0.16
   cloudErosion: 0.39
@@ -29,7 +29,7 @@ MonoBehaviour:
   cloudColorByTime:
   - hour: 0
     minute: 0
-    cloudColor: {r: 0.013061765, g: 0.011213952, b: 0.11320752, a: 0}
+    cloudColor: {r: 0.094339624, g: 0.094339624, b: 0.3773585, a: 0}
     underlitColor: {r: 0.028702382, g: 0.03330551, b: 0.14150941, a: 0}
     underlitStrength: 0
   - hour: 3
@@ -39,7 +39,7 @@ MonoBehaviour:
     underlitStrength: 0
   - hour: 5
     minute: 0
-    cloudColor: {r: 0.8301887, g: 0.5185681, b: 0.62352943, a: 0}
+    cloudColor: {r: 0.8584906, g: 0.44949272, b: 0.58752936, a: 0}
     underlitColor: {r: 0.5283019, g: 0.22500677, b: 0.09718762, a: 0}
     underlitStrength: 1.14
   - hour: 7
@@ -52,6 +52,11 @@ MonoBehaviour:
     cloudColor: {r: 1, g: 1, b: 1, a: 0}
     underlitColor: {r: 0.6320754, g: 0.6320754, b: 0.6320754, a: 0}
     underlitStrength: 0
+  - hour: 15
+    minute: 0
+    cloudColor: {r: 0.9056604, g: 0.27238265, b: 0.18369527, a: 0}
+    underlitColor: {r: 0.3207547, g: 0.01966893, b: 0.042736284, a: 0}
+    underlitStrength: 1.8
   - hour: 18
     minute: 30
     cloudColor: {r: 0.9056604, g: 0.27238265, b: 0.18369527, a: 0}
