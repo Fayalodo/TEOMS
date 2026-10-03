@@ -83,6 +83,28 @@
 //   • Тонкие края облаков теплее, плотные ядра и тени — холоднее и глубже.
 //   Всё включается только на рассвете/закате (множитель sunset), день и ночь не затронуты.
 // ═════════════════════════════════════════════════════════════════════════════
+//  v3.5 — ПАТЧ ПО СКРИНАМ 06:00 / 18:00 (обе стороны) + середина неба
+//   ПРОБЛЕМЫ НА СКРИНАХ → ЧТО СДЕЛАНО
+//   • «Блочные» зазубренные края облаков, зернистая каша (особенно у горизонта и при
+//     _CloudScale ≈ 5–6, _CloudDetailScale ≈ 5–6): value-noise с кубической интерполяцией +
+//     детальные октавы мельче пикселя. → квинтическая интерполяция + анти-алиасинг по размеру
+//     пикселя (fwidth): неразрешимые октавы плавно гасятся, а не мерцают. _CloudAA.
+//   • Зерно на теле облака: шум эрозии напрямую множил освещённость. → _CloudGrain (0..1).
+//   • _CloudDetailScale 1..8 раньше давал детали мельче пикселя; теперь отображается в 1.6..4.2.
+//   • Молочно-лавандовый горизонт и «белая каша» вокруг солнца: дымка и свечение брали
+//     лавандовый цвет пресета, а аддитивные слои складывались в белый. → на сумерках дымка,
+//     горизонт и свечение солнца берут цвет ПАЛИТРЫ (_HazePalette, _SunWarmLock),
+//     плюс мягкое плечо по яркому каналу перед диском (цвет не выгорает в белый).
+//   • Сторона, противоположная солнцу, была плоской серо-фиолетовой. → «пояс Венеры»
+//     (_TwiBelt, _TwiBeltStrength): розовая полоса у горизонта под тёмно-синим небом,
+//     розовый отсвет снизу на облаках.
+//   • Облака сливались с небом (одинаковый цвет, нет объёма). → свет на кромке,
+//     обращённой к солнцу (_CloudRim), вычисленный из уже имеющегося марша света (0 лишних сэмплов).
+//   • Середина неба/зенит: перистые были жёсткими «кистями» вдоль мировых осей. → полосы
+//     идут вдоль ветра, изгибаются (_CloudHighCurl), края мягче (_CloudHighSoftness).
+//   • Облака у горизонта: край теперь размывается с расстоянием, граница с землёй плавнее.
+//   Все прежние имена свойств сохранены → DayNightCycle / WeatherPresetSO менять НЕ нужно.
+// ═════════════════════════════════════════════════════════════════════════════
 Shader "Custom/SkyStylized3"
 {
     Properties
@@ -111,6 +133,13 @@ Shader "Custom/SkyStylized3"
         _TwiZenithMix           ("Zenith Mix",            Range(0, 1))       = 0.70
         _TwiDrift               ("Color Drift (shimmer)", Range(0, 0.4))     = 0.14
         _TwiBright              ("Palette Brightness",    Range(0, 3))       = 1.0
+
+        // ── 1d. v3.5: пояс Венеры и цвет свечения ────────────────────────────
+        [Header(1d. BELT OF VENUS and SUN COLOR  v3.5)]
+        [HDR] _TwiBelt         ("Belt of Venus (pink band opposite sun)", Color) = (0.95, 0.52, 0.60, 1)
+        _TwiBeltStrength        ("Belt Strength",          Range(0, 1))      = 0.6
+        _SunWarmLock            ("Sun Glow Keeps Palette Hue (twilight)", Range(0, 1)) = 0.85
+        _HazePalette            ("Horizon Haze Takes Palette (twilight)", Range(0, 1)) = 0.8
 
         // ── 2. Горизонт и дымка ──────────────────────────────────────────────
         [Header(2. HORIZON and HAZE)]
@@ -200,6 +229,9 @@ Shader "Custom/SkyStylized3"
         _CloudSunTint           ("Lit Side Tint by Sun (sunset)", Range(0, 1)) = 0.5
         _CloudPaletteBlend      ("Clouds Take Sunset Palette (v3.4)", Range(0, 1)) = 0.85
         _CloudPaletteGain       ("Palette Cloud Brightness (v3.4)",   Range(0.3, 3)) = 1.25
+        _CloudAA                ("Detail Anti-Alias (v3.5)",          Range(0, 2))   = 1.0
+        _CloudRim               ("Sun-facing Edge Light (v3.5)",      Range(0, 2))   = 0.9
+        _CloudGrain             ("Surface Grain (v3.5, lower = smoother)", Range(0, 1)) = 0.25
 
         // Пройденный облаками путь = ∫ speed dt, копится на CPU (см. патч DayNightCycle).
         // < 0 → запасной режим: _Time.y * _CloudSpeed (как раньше).
@@ -218,6 +250,8 @@ Shader "Custom/SkyStylized3"
         [Header(6c. HIGH CLOUDS thin streaks)]
         _CloudHighCoverage      ("Coverage [DNC]",        Range(0, 1))       = 0.30
         _CloudHighOpacity       ("Opacity",               Range(0, 1))       = 0.5
+        _CloudHighSoftness      ("Edge Softness (v3.5)",  Range(0.1, 0.8))   = 0.45
+        _CloudHighCurl          ("Curl: curved streaks (v3.5)", Range(0, 1)) = 0.5
 
         // ── 7. Darkness (точка расширения для dark-fantasy) ──────────────────
         [Header(7. DARKNESS)]
@@ -258,6 +292,9 @@ Shader "Custom/SkyStylized3"
             float4 _TwiCore, _TwiNear, _TwiMid, _TwiFar, _TwiAnti, _TwiZenith;
             float  _TwiStrength, _TwiZenithMix, _TwiDrift, _TwiBright;
             float  _CloudPaletteBlend, _CloudPaletteGain;
+            float4 _TwiBelt;
+            float  _TwiBeltStrength, _SunWarmLock, _HazePalette;
+            float  _CloudAA, _CloudRim, _CloudGrain, _CloudHighSoftness, _CloudHighCurl;
 
             float4 _HorizonGlowColor;
             float  _HorizonWidth, _HorizonIntensity, _HorizonFalloff, _HorizonSunBias, _TwilightBelt;
@@ -398,7 +435,7 @@ Shader "Custom/SkyStylized3"
             {
                 float2 i = floor(p);
                 float2 f = frac(p);
-                f = f * f * (3.0 - 2.0 * f);
+                f = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);   // v3.5: квинтика — без «ступенек» клеток
                 float a = SkyHash21(i);
                 float b = SkyHash21(i + float2(1, 0));
                 float c = SkyHash21(i + float2(0, 1));
@@ -442,6 +479,59 @@ Shader "Custom/SkyStylized3"
                 v      += 0.125  * SkyOctaveB(p, billow); p = mul(kOctave, p);
                 v      += 0.0625 * SkyOctaveB(p, billow);
                 return v / 0.9375;
+            }
+
+
+            // ── v3.5: анти-алиасинг октав ────────────────────────────────────
+            //  fw = размер пикселя в клетках ПЕРВОЙ октавы. Каждая следующая октава вдвое мельче,
+            //  поэтому её «след» вдвое больше. Октава, чей след > ~1 клетки, превращается в
+            //  мерцающий шум → плавно гасим её, а сумму нормируем по оставшимся весам
+            //  (средняя яркость не плывёт, уходит только контраст).
+            float SkyOctW(float fw)
+            {
+                return 1.0 - smoothstep(0.35, 0.95, fw);
+            }
+
+            float SkyFBM2AA(float2 p, float fw)
+            {
+                float v  = 0.5 * SkyNoise2D(p);
+                float w1 = SkyOctW(fw * 2.0);
+                float ws = 0.5;
+                [branch] if (w1 > 0.001)
+                {
+                    v  += 0.25 * w1 * SkyNoise2D(mul(kOctave, p));
+                    ws += 0.25 * w1;
+                }
+                return v / ws;
+            }
+
+            float SkyFBM3B_AA(float2 p, float billow, float fw)
+            {
+                float v  = 0.5 * SkyOctaveB(p, billow);
+                float ws = 0.5;
+                p = mul(kOctave, p);
+                float w1 = SkyOctW(fw * 2.0);
+                [branch] if (w1 > 0.001) { v += 0.25 * w1 * SkyOctaveB(p, billow); ws += 0.25 * w1; }
+                p = mul(kOctave, p);
+                float w2 = SkyOctW(fw * 4.0);
+                [branch] if (w2 > 0.001) { v += 0.125 * w2 * SkyOctaveB(p, billow); ws += 0.125 * w2; }
+                return v / ws;
+            }
+
+            float SkyFBM4B_AA(float2 p, float billow, float fw)
+            {
+                float v  = 0.5 * SkyOctaveB(p, billow);
+                float ws = 0.5;
+                p = mul(kOctave, p);
+                float w1 = SkyOctW(fw * 2.0);
+                [branch] if (w1 > 0.001) { v += 0.25 * w1 * SkyOctaveB(p, billow); ws += 0.25 * w1; }
+                p = mul(kOctave, p);
+                float w2 = SkyOctW(fw * 4.0);
+                [branch] if (w2 > 0.001) { v += 0.125 * w2 * SkyOctaveB(p, billow); ws += 0.125 * w2; }
+                p = mul(kOctave, p);
+                float w3 = SkyOctW(fw * 8.0);
+                [branch] if (w3 > 0.001) { v += 0.0625 * w3 * SkyOctaveB(p, billow); ws += 0.0625 * w3; }
+                return v / ws;
             }
 
             // Фазовая функция Хеньи–Гринстейна, нормирована на 1 при c = 1
@@ -542,6 +632,11 @@ Shader "Custom/SkyStylized3"
                 c = lerp(c, _TwiMid.rgb,  smoothstep(0.16, 0.46, u));
                 c = lerp(c, _TwiFar.rgb,  smoothstep(0.42, 0.74, u));
                 c = lerp(c, _TwiAnti.rgb, smoothstep(0.70, 1.00, u));
+                // v3.5: «пояс Венеры» — розовая полоса у горизонта напротив солнца.
+                // Над ней небо остаётся тёмно-синим → появляется вертикальная структура
+                // там, где раньше была плоская серо-фиолетовая заливка.
+                float belt = smoothstep(0.50, 0.82, u) * (1.0 - smoothstep(0.03, 0.30, h)) * _TwiBeltStrength;
+                c = lerp(c, _TwiBelt.rgb, belt);
                 float zen = smoothstep(0.20, 0.95, h) * _TwiZenithMix * smoothstep(0.05, 0.40, u);
                 return lerp(c, _TwiZenith.rgb, zen);
             }
@@ -549,8 +644,11 @@ Shader "Custom/SkyStylized3"
             // Яркость палитры: светлее у солнца и у горизонта, темнее напротив и к зениту
             float SkyPaletteBright(float u, float h)
             {
-                return lerp(1.0, 0.55, smoothstep(0.15, 1.0, u))
-                     * lerp(1.0, 0.80, smoothstep(0.10, 0.90, h)) * _TwiBright;
+                float b = lerp(1.0, 0.55, smoothstep(0.15, 1.0, u))
+                        * lerp(1.0, 0.80, smoothstep(0.10, 0.90, h));
+                // пояс Венеры светлее фона
+                b += 0.45 * smoothstep(0.50, 0.85, u) * (1.0 - smoothstep(0.03, 0.25, h)) * _TwiBeltStrength;
+                return b * _TwiBright;
             }
 
             // ═════════════════════════════════════════════════════════════════
@@ -559,17 +657,31 @@ Shader "Custom/SkyStylized3"
             // ═════════════════════════════════════════════════════════════════
             float4 SkyHighClouds(Varyings i, float3 dir, float uP)
             {
-                float fade = smoothstep(0.02, 0.25, dir.y);
-                if (fade <= 0.001 || _CloudHighCoverage <= 0.01) return 0;
+                if (_CloudHighCoverage <= 0.01) return 0;   // uniform → производные ниже безопасны
 
-                float2 huv = dir.xz / (dir.y + 0.6) * _CloudScale * float2(0.35, 1.2);
-                huv += _CloudWindDir.xy * (i.sky2.z * 0.6) + float2(31.7, 12.9);
+                // v3.5: координаты вдоль/поперёк ветра. Вытянутость идёт ПО ВЕТРУ,
+                // а не по мировым осям X/Z — полосы больше не выглядят «кистью».
+                float2 wd   = _CloudWindDir.xy * rsqrt(max(dot(_CloudWindDir.xy, _CloudWindDir.xy), 1e-5));
+                float2 base = dir.xz / (max(dir.y, 0.0) + 0.6) * _CloudScale;
+                float2 huv  = float2(dot(base, wd) * 0.38, dot(base, float2(-wd.y, wd.x)) * 1.35);
+                huv += float2(i.sky2.z * 0.6 + 31.7, 12.9);
+
+                float fw = max(length(ddx(huv)), length(ddy(huv))) * _CloudAA;
+
+                float fade = smoothstep(0.02, 0.30, dir.y);
+                if (fade <= 0.001) return 0;
+
+                // Изгиб полос: низкочастотный шум сдвигает поперечную координату
+                float2 cn = float2(SkyNoise2D(huv * float2(0.55, 0.22) + 5.3),
+                                   SkyNoise2D(huv * float2(0.55, 0.22) + 17.9)) - 0.5;
+                huv += float2(cn.y * 1.2, cn.x * 2.4) * _CloudHighCurl;
 
                 // Перистые — вытянутые и рваные: billow слабый, зато сильная эрозия.
-                float hn  = SkyFBM4B(huv * 1.4, _CloudBillow * 0.25);
+                float hn  = SkyFBM4B_AA(huv * 1.4, _CloudBillow * 0.25, fw * 1.4);
                 float th  = lerp(0.80, 0.35, saturate(_CloudHighCoverage));
-                float a0  = saturate((hn - th) / 0.30);
-                float ero = SkyFBM2(huv * 4.2 + 17.3);
+                float a0  = saturate((hn - th) / max(_CloudHighSoftness, 0.05));
+                a0 = a0 * a0 * (3.0 - 2.0 * a0);
+                float ero = SkyFBM2AA(huv * 4.2 + 17.3, fw * 4.2);
                 a0 = saturate(a0 - ero * _CloudErosion * (1.0 - a0) * 0.9);
 
                 float a = a0 * _CloudHighOpacity * fade;
@@ -602,7 +714,16 @@ Shader "Custom/SkyStylized3"
                                  float domeH, float scaleMul, float2 seed,
                                  float coverage, float layerOpacity, float uP)
             {
-                float fade = smoothstep(0.0, _CloudHorizonFade, dir.y);
+                // Проекция на купол: облака мельчают к горизонту (перспектива).
+                // max(y,0): под горизонтом uv не улетает в бесконечность (и нет NaN в ddx/ddy).
+                float2 wind = _CloudWindDir.xy * i.sky2.z;
+                float2 uv   = dir.xz / (max(dir.y, 0.0) + domeH) * (_CloudScale * scaleMul) + wind + seed;
+
+                // Размер пикселя в клетках шума → анти-алиасинг октав (см. SkyFBM*_AA).
+                // ВАЖНО: считается ДО любых return, иначе квады расходятся по производным.
+                float fwUV = max(length(ddx(uv)), length(ddy(uv))) * _CloudAA;
+
+                float fade = smoothstep(0.0, max(_CloudHorizonFade, 0.06), dir.y);
                 if (fade <= 0.001 || coverage <= 0.004 || layerOpacity <= 0.004) return 0;
 
                 float cloudNight = i.sky1.y;
@@ -610,9 +731,11 @@ Shader "Custom/SkyStylized3"
                 float sunAbove   = i.sky1.w;
                 float dark       = saturate(_CloudDarkness + _DarknessAmount * 0.6);
 
-                // Проекция на купол: облака мельчают к горизонту (перспектива)
-                float2 wind = _CloudWindDir.xy * i.sky2.z;
-                float2 uv   = dir.xz / (dir.y + domeH) * (_CloudScale * scaleMul) + wind + seed;
+                // 1 у горизонта → 0 выше (мягкий, не линейный)
+                float  lowSky  = pow(1.0 - smoothstep(0.0, 0.45, dir.y), 1.5);
+                float  low     = 1.0 - smoothstep(0.0, 0.6, dir.y);
+                // HDR диск/ореол солнца в skyBehind выжигает облака рядом с ним
+                float3 skySafe = min(skyBehind, 1.6);
 
                 // Domain warp: сдвигаем точку шума другим шумом → края закручиваются
                 [branch]
@@ -622,18 +745,21 @@ Shader "Custom/SkyStylized3"
                     uv += warp * (_CloudWarp * 1.4);
                 }
 
-                float cov  = lerp(0.88, 0.10, saturate(coverage));
-                float soft = max(_CloudSoftness, 0.02);
+                float cov = lerp(0.88, 0.10, saturate(coverage));
+                // Далёкие облака размыты сильнее — меньше «рваной бумаги» у горизонта
+                float soft = max(_CloudSoftness, 0.02) * lerp(1.0, 1.7, lowSky);
 
                 // ── Форма ───────────────────────────────────────────────────
-                float shape = SkyFBM4B(uv * 0.7, _CloudBillow);
-                float d0 = saturate((shape - cov) / soft);
+                float shape = SkyFBM4B_AA(uv * 0.7, _CloudBillow, fwUV * 0.7);
+                float d0raw = saturate((shape - cov) / soft);
+                // Smoothstep-профиль: чёткое ядро и мягкий край вместо линейного «тумана»
+                float d0 = lerp(d0raw, d0raw * d0raw * (3.0 - 2.0 * d0raw), 0.65);
                 if (d0 <= 0.0015) return 0;
 
                 // ── Эрозия: детальный шум ВЫГРЫЗАЕТ края, не трогая ядра ────
-                //  Это ключевое отличие от v2, где детали просто складывались
-                //  с формой (0.6/0.4) и давали «мраморные разводы».
-                float ero = SkyFBM2(uv * _CloudDetailScale + float2(7.3, 3.1) - wind * 0.55);
+                //  v3.5: _CloudDetailScale (1..8) отображается в 1.6..4.2 — выше уже мельче пикселя.
+                float dScale = lerp(1.6, 4.2, saturate((_CloudDetailScale - 1.0) / 7.0));
+                float ero = SkyFBM2AA(uv * dScale + float2(7.3, 3.1) - wind * 0.55, fwUV * dScale);
                 float d   = saturate(d0 - ero * _CloudErosion * (1.0 - d0) * 1.35);
                 if (d <= 0.0015) return 0;
 
@@ -653,13 +779,16 @@ Shader "Custom/SkyStylized3"
                 // Чем ниже светило, тем длиннее тень внутри слоя → закатная драма
                 float lightStep = _CloudLightOffset * lerp(2.4, 0.8, saturate(abs(i.sky2.w)));
 
-                float occ = 0.0;
+                float occ   = 0.0;
+                float dNear = d0raw;
                 [unroll]
                 for (int k = 1; k <= 3; k++)
                 {
                     float2 su = uv + toLight * (lightStep * (float)k);
-                    float  sn = SkyFBM3B(su * 0.7, _CloudBillow);
-                    occ += saturate((sn - cov) / soft) / (float)k;   // ближние сэмплы весомее
+                    float  sn = SkyFBM3B_AA(su * 0.7, _CloudBillow, fwUV * 0.7);
+                    float  sd = saturate((sn - cov) / soft);
+                    if (k == 1) dNear = sd;                 // плотность ближайшего шага к свету → кромка
+                    occ += sd / (float)k;                   // ближние сэмплы весомее
                 }
                 occ *= 0.55;
 
@@ -671,8 +800,8 @@ Shader "Custom/SkyStylized3"
                 // Самозатенение по толщине: плотные ядра темнее, тонкие края светлее (Beer–Lambert).
                 float thick = saturate(d * 1.25);
                 energy *= lerp(1.0, 0.62, thick * thick);
-                // Внутренняя «пухлость»: шум эрозии уже посчитан — используем его для лепки объёма.
-                energy = saturate(energy * lerp(0.80, 1.12, ero));
+                // v3.5: зерно эрозии — лишь слегка (_CloudGrain). Раньше шум множил свет напрямую → «песок».
+                energy = saturate(energy * lerp(0.90, 1.06, lerp(0.5, ero, _CloudGrain)));
 
                 // ── Цвет ────────────────────────────────────────────────────
                 float3 baseCol = lerp(_CloudColorDay.rgb, _CloudColorNight.rgb, cloudNight);
@@ -681,22 +810,17 @@ Shader "Custom/SkyStylized3"
                 float3 sunRad = lerp(_SunColor.rgb, _SunGlowColor.rgb, sunset);
 
                 // Амбиент = реальное небо за облаком (+ немного зенита).
-                // Отсюда и берётся согласованность палитры.
-                // min(): иначе диск/ореол солнца (HDR) в skyBehind выжигает облака рядом с ним.
-                float3 skyAmb  = lerp(min(skyBehind, 1.2), _SkyMiddleColor.rgb, 0.25);
+                float3 skyAmb  = lerp(skySafe, _SkyMiddleColor.rgb, 0.25);
                 float3 shadCol = lerp(baseCol * (1.0 - _CloudShadowStrength * 0.8), skyAmb, _CloudSkyTint);
 
                 // Закат: тени глубже и холоднее, освещённая сторона ТОНИРУЕТСЯ цветом светила.
-                // Раньше закат только ДОБАВЛЯЛ свет (underlit) → облака становились ярче и «молочнее»,
-                // но никогда не темнели. Контраст свет/тень — то, чего не хватало на скрине заката.
                 shadCol *= lerp(float3(1, 1, 1), float3(0.50, 0.52, 0.68), sunset);
                 // Тёплый свет → холодная тень: сдвигаем оттенок тени в фиолетовый (яркость сохраняется).
                 shadCol = lerp(shadCol, dot(shadCol, SKY_LUM) * float3(0.80, 0.66, 1.05), sunset * 0.55);
                 float3 sunTintN = sunRad / max(max(sunRad.r, max(sunRad.g, sunRad.b)), 1e-3);
                 float3 litCol   = baseCol * lerp(float3(1, 1, 1), sunTintN, sunset * _CloudSunTint);
 
-                // ── v3.4: цвет облака берётся из палитры заката по его положению на небе ──
-                //  Раньше все облака красились одним _CloudColorDay → небо выглядело одноцветным.
+                // v3.4: цвет облака берётся из палитры заката по его положению на небе.
                 //  Тонкие края (thick ↓) сдвигаются к тёплым цветам палитры, плотные ядра — к холодным.
                 float palK     = sunset * _CloudPaletteBlend * (1.0 - dark);
                 float uC       = saturate(uP + (thick - 0.45) * 0.14);
@@ -715,25 +839,30 @@ Shader "Custom/SkyStylized3"
                 col += sunRad * (s4 * 0.22) * energy * sunAbove * _CloudSunStrength * (1.0 - dark);
 
                 // «Серебряная кромка»: сильное прямое рассеяние на ТОНКИХ краях.
-                //  (1 - d0) — край; HG — узкий лепесток вперёд.
                 float forward = SkyHG(sunDot, 0.80) * (1.0 - d0);
                 col += sunRad * forward * _CloudSilverLining * sunAbove * (0.35 + 0.65 * energy) * (1.0 - dark);
 
+                // v3.5: свет на кромке, ОБРАЩЁННОЙ к солнцу. Плотность здесь выше, чем на шаг ближе к
+                //  солнцу → мы на лицевом краю облака. Даёт лепку и отделяет облако от неба того же цвета.
+                float3 rimCol = lerp(sunRad, _TwiCore.rgb * 1.25, saturate(sunset * _CloudPaletteBlend));
+                float  rim    = pow(saturate(d0raw - dNear), 0.8);
+                col += rimCol * rim * _CloudRim * sunAbove * (0.35 + 0.65 * s1) * (1.0 - dark) * (1.0 - d0 * 0.5);
+
                 // Закатное свечение «снизу» облаков (цвет и сила приходят из DNC)
-                float low = 1.0 - smoothstep(0.0, 0.6, dir.y);
                 col += _CloudUnderlitColor.rgb * _CloudUnderlitStrength * sunset
                        * lerp(0.35, 1.0, low) * (0.4 + 0.6 * s1) * (0.3 + 0.7 * energy)
                        * lerp(1.0, 0.35, palK);
 
+                // v3.5: розовый отсвет пояса Венеры на нижней стороне облаков НАПРОТИВ солнца
+                col += _TwiBelt.rgb * _TwiBeltStrength * palK * low * (1.0 - s1) * 0.30 * (1.0 - 0.5 * energy);
+
                 // Луна: заметно скромнее, чем в v2 — только кромка + лёгкий тон.
-                //  Раньше это и делало ночные облака «фиолетовой ватой».
                 float m1 = saturate(dot(dir, i.moonDir));
                 float mRim = SkyHG(m1, 0.72) * (1.0 - d0);
                 col += _MoonGlowColor.rgb * i.moonP.w * (mRim * 0.55 + m1 * m1 * 0.10 * energy);
 
                 // Далёкие облака (у горизонта) растворяются в цвете неба
-                float lowSky = 1.0 - smoothstep(0.0, 0.4, dir.y);
-                col = lerp(col, skyBehind, lowSky * _CloudHorizonBlend);
+                col = lerp(col, skySafe, lowSky * _CloudHorizonBlend);
 
                 // Погода/тьма: серее и темнее
                 float lum = dot(col, SKY_LUM);
@@ -786,12 +915,23 @@ Shader "Custom/SkyStylized3"
                 float  uP    = saturate(uBase + drift * _TwiDrift);
 
                 float palW = saturate(sunset * _TwiStrength) * (1.0 - dark);
+                float3 palHor = _HorizonGlowColor.rgb;          // цвет палитры на горизонте в этом направлении
                 [branch]
                 if (palW > 0.002)
                 {
                     float3 pal = SkyPalette(uP, y) * SkyPaletteBright(uP, y);
                     sky = lerp(sky, pal, palW);
+                    palHor = SkyPalette(uP, 0.0) * SkyPaletteBright(uP, 0.0);
                 }
+
+                // v3.5: цвет свечения солнца = ТОН палитры × ЯРКОСТЬ пресета.
+                //  Раньше брался лавандовый _SunGlowColor пресета → свечение + дымка + scatter
+                //  складывались в молочно-белое пятно.
+                float  sunWarm     = palW * _SunWarmLock;
+                float  gLum        = max(dot(_SunGlowColor.rgb, SKY_LUM), 0.35);
+                float3 sunGlowTint = lerp(_SunGlowColor.rgb,
+                                          _TwiCore.rgb * (gLum / max(dot(_TwiCore.rgb, SKY_LUM), 1e-3)),
+                                          sunWarm);
 
                 // ── 1b. Тёплый «нагрев» половины неба со стороны солнца ─────────
                 //  Небо не симметрично: сторона солнца всегда светлее и теплее.
@@ -804,7 +944,7 @@ Shader "Custom/SkyStylized3"
                     float lowBand = 1.0 - smoothstep(0.0, 0.65, y);
                     float core    = pow(s1, 6.0)  * lowBand;
                     float wide    = pow(s1, 1.7)  * (1.0 - smoothstep(0.0, 0.90, y));
-                    float3 g      = _SunGlowColor.rgb;
+                    float3 g      = sunGlowTint;
                     float3 fringe = float3(g.r, g.g * 0.45, g.b * 1.35 + 0.04);
                     float  kSun   = _SkySunTint * sunAbove * (0.35 + 0.65 * sunset) * (1.0 - palW * 0.65);
                     sky += g * core * kSun * 0.9 + fringe * wide * kSun * 0.25;
@@ -814,7 +954,9 @@ Shader "Custom/SkyStylized3"
                 float hw    = max(_HorizonWidth, 0.01);
                 float hBand = pow(1.0 - smoothstep(0.0, hw, abs(y)), _HorizonFalloff);
                 float sunSide = lerp(1.0, lerp(0.35, 1.0, towardSun * towardSun), _HorizonSunBias * sunset);
-                sky = lerp(sky, _HorizonGlowColor.rgb, saturate(hBand * _HorizonIntensity * sunSide));
+                // v3.5: на сумерках цвет полосы горизонта следует палитре (золото у солнца → роза/синий напротив)
+                float3 hgc = lerp(_HorizonGlowColor.rgb, palHor, palW * 0.8);
+                sky = lerp(sky, hgc, saturate(hBand * _HorizonIntensity * sunSide));
 
                 // ── 2b. Тень Земли + «пояс Венеры» (сумерки, напротив солнца) ────
                 float antiSun = saturate(-dot(hDir, sDir));
@@ -826,7 +968,7 @@ Shader "Custom/SkyStylized3"
                     float shadow = 1.0 - smoothstep(top * 0.5, top, y);
                     float belt   = smoothstep(top * 0.4, top, y) * (1.0 - smoothstep(top, top + 0.22, y));
                     float3 shadowCol = _SkyTopColor.rgb * 0.35 + float3(0.02, 0.03, 0.08);
-                    float3 beltCol   = lerp(_HorizonGlowColor.rgb, float3(1.0, 0.55, 0.60), 0.6);
+                    float3 beltCol   = lerp(_HorizonGlowColor.rgb, _TwiBelt.rgb, 0.6);
                     sky = lerp(sky, shadowCol, saturate(shadow * twi * 0.6));
                     sky += beltCol * belt * twi * 0.35;
                 }
@@ -834,7 +976,9 @@ Shader "Custom/SkyStylized3"
                 // ── 3. Атмосферная дымка + подстройка под цвет тумана сцены ─────
                 float  hazeMask = pow(1.0 - saturate(abs(y) / max(_HazeHeight, 0.02)), 2.0);
                 float3 hazeCol  = lerp(_HazeColor.rgb, unity_FogColor.rgb, _FogInfluence);
-                hazeCol += _SunGlowColor.rgb * s4 * 0.6 * sunAbove;
+                // v3.5: на сумерках дымка берёт цвет палитры (а не лавандовый цвет пресета)
+                hazeCol = lerp(hazeCol, palHor * 0.9, palW * _HazePalette);
+                hazeCol += sunGlowTint * s4 * 0.6 * sunAbove;
                 // Экспоненциальное насыщение + потолок: горизонт сохраняет градиент, а не заливается одним цветом.
                 float hazeRaw = (_HazeStrength + dark * 0.3 + _FogInfluence * 0.35) * hazeMask;
                 float hazeAmt = (1.0 - exp(-hazeRaw * 1.6)) * _HazeMax;
@@ -924,21 +1068,29 @@ Shader "Custom/SkyStylized3"
                 // Ореол затухает по мере ухода солнца под горизонт (остаточное сияние сумерек сохраняется до ~-13°)
                 float glowGate = smoothstep(-0.22, 0.02, sunDir.y);
                 float sunGlow = pow(glowT, _SunGlowFalloff) * _SunGlowIntensity * sunMul * glowGate;
-                sky += _SunGlowColor.rgb * sunGlow * horizonSoft;
+                sky += sunGlowTint * sunGlow * horizonSoft;
 
                 // Широкий атмосферный «хвост» свечения (Хеньи–Гринстейн).
                 // У горизонта воздуха больше → сильнее; на закате — ещё сильнее.
                 float phase   = SkyHG(sunDot, _SunScatterAnisotropy);
                 float airMass = lerp(1.0, 0.45, saturate(y * 2.0));
-                float3 scatCol = lerp(_SunGlowColor.rgb, _SunColor.rgb, 0.25);
+                float3 scatCol = lerp(sunGlowTint, _SunColor.rgb, 0.25);
                 sky += scatCol * phase * _SunScatterIntensity * airMass * (0.6 + 0.8 * sunset)
                        * sunMul * sunAbove * horizonSoft;
+
+                // v3.5: мягкое плечо по яркому каналу ПЕРЕД диском. Аддитивные слои (ореол + scatter + дымка)
+                //  иначе уходят в >1 по всем каналам сразу → белое пятно. Здесь оттенок сохраняется.
+                {
+                    float mx = max(sky.r, max(sky.g, sky.b));
+                    float kc = mx > 1.0 ? (1.0 + (mx - 1.0) * 0.5) / mx : 1.0;
+                    sky *= kc;
+                }
 
                 // Диск с потемнением к краю — не «плоская наклейка»
                 float disc = smoothstep(i.sunCos.x, i.sunCos.y, sunDot);
                 float rn   = saturate((1.0 - sunDot) / max(1.0 - i.sunCos.x, 1e-6));   // 0 в центре, 1 у края
                 float limbS = lerp(1.0, sqrt(saturate(1.0 - rn * rn)) * 0.55 + 0.45, _SunLimbDarkening);
-                float3 discCol = lerp(_SunColor.rgb, _SunGlowColor.rgb * 1.5, sunset * 0.6) * _SunIntensity * sunMul * limbS;
+                float3 discCol = lerp(_SunColor.rgb, sunGlowTint * 1.5, sunset * 0.6) * _SunIntensity * sunMul * limbS;
                 sky = lerp(sky, discCol, disc * aboveHorizon);
 
                 // ── 7. Облака: перистые → дальний слой → ближний слой ───────────

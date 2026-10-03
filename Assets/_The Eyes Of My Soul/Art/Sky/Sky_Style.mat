@@ -95,19 +95,23 @@ Material:
     - _BumpScale: 1
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
+    - _CloudAA: 1
     - _CloudAbsorption: 2.5
     - _CloudAmbient: 0.35
     - _CloudBillow: 0.16
-    - _CloudCoverage: 0.63
+    - _CloudCoverage: 0.49
     - _CloudDarkness: 0
     - _CloudDensity: 1.6
     - _CloudDensityFar: 0.45
     - _CloudDensityNear: 0.55
-    - _CloudDetailScale: 5.6
-    - _CloudErosion: 0.41
+    - _CloudDetailScale: 8
+    - _CloudErosion: 0.39
+    - _CloudGrain: 0.25
     - _CloudHeightFade: 0.1
-    - _CloudHighCoverage: 0.679
+    - _CloudHighCoverage: 0.864
+    - _CloudHighCurl: 0.5
     - _CloudHighOpacity: 0.5
+    - _CloudHighSoftness: 0.45
     - _CloudHorizonBlend: 0.33
     - _CloudHorizonFade: 0.04
     - _CloudLightOffset: 0.15
@@ -116,17 +120,18 @@ Material:
     - _CloudPaletteGain: 1.25
     - _CloudParallax: 0.55
     - _CloudPowder: 0.6
+    - _CloudRim: 0.9
     - _CloudRimWidth: 0.1
     - _CloudScale: 5.76
     - _CloudShadowStrength: 0.191
     - _CloudSilverLining: 0.8
     - _CloudSkyTint: 0.55
-    - _CloudSoftness: 0.43
+    - _CloudSoftness: 0.23
     - _CloudSpeed: 0.129
     - _CloudSunStrength: 1.2
     - _CloudSunTint: 0.5
     - _CloudTravel: -1
-    - _CloudUnderlitStrength: 0.6335999
+    - _CloudUnderlitStrength: 1.14
     - _CloudWarp: 0.35
     - _Cull: 2
     - _Cutoff: 0.5
@@ -155,12 +160,13 @@ Material:
     - _HazeFalloff: 8
     - _HazeHeight: 0.35
     - _HazeMax: 0.72
-    - _HazeStrength: 0.33487996
+    - _HazePalette: 0.8
+    - _HazeStrength: 0.55
     - _HorizonBlend: 4
     - _HorizonFalloff: 2
     - _HorizonIntensity: 0.75
     - _HorizonSunBias: 0.6
-    - _HorizonWidth: 0.24224
+    - _HorizonWidth: 0.39
     - _Metallic: 0
     - _MilkyWayIntensity: 0.45
     - _MilkyWayWidth: 0.22
@@ -206,15 +212,17 @@ Material:
     - _SunGlowFalloff: 3
     - _SunGlowIntensity: 0.18
     - _SunGlowPower: 5
-    - _SunGlowSize: 0.04963199
+    - _SunGlowSize: 0.18
     - _SunHorizonBoost: 0.5
     - _SunIntensity: 3
     - _SunLimbDarkening: 0.45
     - _SunScatterAnisotropy: 0.72
     - _SunScatterIntensity: 0.3
     - _SunSize: 2.2
+    - _SunWarmLock: 0.85
     - _Surface: 0
     - _Tonemap: 0
+    - _TwiBeltStrength: 0.6
     - _TwiBright: 1
     - _TwiDrift: 0.4
     - _TwiStrength: 0.85
@@ -226,34 +234,35 @@ Material:
     m_Colors:
     - _AtmosphereHaze: {r: 0.62, g: 0.74, b: 0.92, a: 1}
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
-    - _CloudColorDay: {r: 0.38453823, g: 0.16162449, b: 0.21137773, a: 0}
-    - _CloudColorNight: {r: 0.38453823, g: 0.16162449, b: 0.21137773, a: 0}
+    - _CloudColorDay: {r: 0.8584906, g: 0.44949272, b: 0.58752936, a: 0}
+    - _CloudColorNight: {r: 0.8584906, g: 0.44949272, b: 0.58752936, a: 0}
     - _CloudRimColor: {r: 1.2, g: 1, b: 0.7, a: 1}
-    - _CloudUnderlitColor: {r: 0.7609057, g: 0.6549235, b: 0.66304326, a: 0}
+    - _CloudUnderlitColor: {r: 0.5283019, g: 0.22500677, b: 0.09718762, a: 0}
     - _CloudWindDir: {r: 1, g: 0.3, b: 0, a: 0}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _DarknessTint: {r: 0.3, g: 0.32, b: 0.45, a: 1}
     - _DayHorizonColor: {r: 0.52, g: 0.72, b: 0.98, a: 1}
     - _DaySkyColor: {r: 0.1, g: 0.22, b: 0.55, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _HazeColor: {r: 0.34975994, g: 0.20135997, b: 0.19408, a: 1}
+    - _HazeColor: {r: 0.9528302, g: 0.29470366, b: 0.022472408, a: 1}
     - _HorizonColor: {r: 0.75, g: 0.55, b: 0.25, a: 1}
-    - _HorizonGlowColor: {r: 0.1916347, g: 0.09395449, b: 0.14472163, a: 1}
+    - _HorizonGlowColor: {r: 0.764151, g: 0.28136653, b: 0.06848521, a: 1}
     - _MilkyWayColor: {r: 0.55, g: 0.62, b: 0.95, a: 1}
     - _MoonColor: {r: 0.92, g: 0.94, b: 1, a: 1}
-    - _MoonDir: {r: 0.00000015142068, g: 0.5, b: 0.8660254, a: 0}
+    - _MoonDir: {r: -0.00000016888781, g: 0.25881946, b: -0.96592575, a: 0}
     - _MoonGlowColor: {r: 0.55, g: 0.65, b: 1, a: 1}
     - _NightHorizonColor: {r: 0.03, g: 0.04, b: 0.12, a: 1}
     - _NightSkyColor: {r: 0.01, g: 0.01, b: 0.06, a: 1}
-    - _SkyHorizonColor: {r: 0.35975996, g: 0.17967997, b: 0.18, a: 1}
-    - _SkyMiddleColor: {r: 0.21951997, g: 0.12039999, b: 0.24503998, a: 1}
-    - _SkyTopColor: {r: 0.18784782, g: 0.10390466, b: 0.14816, a: 1}
+    - _SkyHorizonColor: {r: 0.8784314, g: 0.52654785, b: 0.27843136, a: 1}
+    - _SkyMiddleColor: {r: 0.51943284, g: 0.37752992, b: 0.52223456, a: 1}
+    - _SkyTopColor: {r: 0.16043432, g: 0.22851197, b: 0.7660377, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
     - _StarTint: {r: 1, g: 1, b: 1, a: 1}
     - _SunColor: {r: 1.4, g: 1.25, b: 0.95, a: 1}
-    - _SunDir: {r: -0.00000015142068, g: -0.5000001, b: -0.8660254, a: 0}
-    - _SunGlowColor: {r: 0.50751996, g: 0.32928, b: 0.42992005, a: 1}
+    - _SunDir: {r: 0.00000016888781, g: -0.25881898, b: 0.9659258, a: 0}
+    - _SunGlowColor: {r: 1, g: 0.58, b: 0.18, a: 1}
     - _TwiAnti: {r: 0.08, g: 0.16, b: 0.4, a: 1}
+    - _TwiBelt: {r: 1, g: 0.39811313, b: 0.50855124, a: 1}
     - _TwiCore: {r: 1, g: 0.51, b: 0.16, a: 1}
     - _TwiFar: {r: 0.19, g: 0.11, b: 0.43, a: 1}
     - _TwiMid: {r: 0.58, g: 0.13, b: 0.26, a: 1}
