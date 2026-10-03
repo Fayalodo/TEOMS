@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -607,7 +609,15 @@ public class DayNightCycle : MonoBehaviour
     //  ДЕФОЛТНЫЕ ПРЕСЕТЫ — реалистичные (7 / 12 / 16 / 21 часов + переходы)
     // ─────────────────────────────────────────────────────────────────────────
 
-    static LightPreset[] GetDefaultPresets() => new[]
+    // Базовые пресеты + сумеречные ключи (04:00 / 04:30 / 06:00 / 19:15 / 20:00), отсортированные по времени.
+    static LightPreset[] GetDefaultPresets()
+    {
+        var list = new List<LightPreset>(GetBasePresets());
+        list.AddRange(GetTwilightPresets());
+        return list.OrderBy(p => p.hour * 60 + p.minute).ToArray();
+    }
+
+    static LightPreset[] GetBasePresets() => new[]
     {
         // ── 00:00 — Глубокая ночь ───────────────────────────────────────────
         new LightPreset {
@@ -756,6 +766,159 @@ public class DayNightCycle : MonoBehaviour
             hazeStrength         = 0.18f,
         },
     };
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  СУМЕРЕЧНЫЕ КЛЮЧИ (v3.6 / v3.9) — чтобы цвет неба не «сползал» в день/ночь за полчаса
+    //
+    //  Солнце пересекает горизонт в 06:00 и 18:00 (см. GetSunRotation), поэтому ключи
+    //  05:00 и 18:30 приходятся на солнце ПОД горизонтом (−15° и −7.5°).
+    //  Между 18:30 и 21:00 раньше не было ни одного ключа → небо плавно уходило в ночь
+    //  по одной длинной кривой. Эти три ключа дают сумеречный «хвост» и мягкий рассвет.
+    //
+    //  Применяются к существующему массиву через ⋮ меню компонента:
+    //  «Apply Twilight Presets». Ключи 04:00 / 04:30 / 06:00 / 19:15 / 20:00 добавляются
+    //  или ЗАМЕНЯЮТСЯ, остальные пресеты не затрагиваются.
+    //
+    //  04:00 и 04:30 — утреннее зеркало вечерних ключей: солнце на 04:00 стоит на −30°, но
+    //  пресет 05:00 (ярко-оранжевый ambient/дымка) раньше размазывался с ночным 03:00 и в 04:00
+    //  небо и горы выглядели как рассвет.
+    //
+    //  Значения подогнаны под сцену: плотность тумана — в её масштабе (0.001…0.008),
+    //  а не 0.01…0.02 как у стандартных пресетов (иначе туман «вспухает» на этих ключах).
+    // ─────────────────────────────────────────────────────────────────────────
+
+    static LightPreset[] GetTwilightPresets() => new[]
+    {
+        // ── 04:00 — Предрассветная тьма (солнце ≈ −30°): зеркало 20:00 ───────
+        new LightPreset {
+            hour = 4, minute = 0,
+            sunColor             = new Color(0.20f, 0.20f, 0.46f),
+            sunIntensity         = 0.0f,
+            ambientSkyColor      = new Color(0.09f, 0.09f, 0.21f),
+            ambientEquatorColor  = new Color(0.07f, 0.07f, 0.15f),
+            ambientGroundColor   = new Color(0.02f, 0.02f, 0.06f),
+            fogColor             = new Color(0.10f, 0.08f, 0.20f),
+            fogDensity           = 0.005f,
+            daySkyColor          = new Color(0.05f, 0.06f, 0.20f),
+            dayHorizonColor      = new Color(0.20f, 0.12f, 0.30f),
+            horizonTint          = new Color(0.32f, 0.15f, 0.32f),
+            horizonWidth         = 0.26f,
+            exposure             = 0.16f,
+            sunGlowColor         = new Color(0.40f, 0.22f, 0.55f),
+            sunGlowSize          = 0.03f,
+            hazeColor            = new Color(0.15f, 0.10f, 0.27f),
+            hazeStrength         = 0.28f,
+        },
+
+        // ── 04:30 — Предрассветные сумерки (солнце ≈ −22°): фиолет + первый розовый отсвет ──
+        new LightPreset {
+            hour = 4, minute = 30,
+            sunColor             = new Color(0.45f, 0.28f, 0.45f),
+            sunIntensity         = 0.0f,
+            ambientSkyColor      = new Color(0.15f, 0.12f, 0.26f),
+            ambientEquatorColor  = new Color(0.12f, 0.09f, 0.18f),
+            ambientGroundColor   = new Color(0.035f, 0.03f, 0.06f),
+            fogColor             = new Color(0.22f, 0.14f, 0.26f),
+            fogDensity           = 0.003f,
+            daySkyColor          = new Color(0.08f, 0.07f, 0.26f),
+            dayHorizonColor      = new Color(0.35f, 0.18f, 0.30f),
+            horizonTint          = new Color(0.45f, 0.18f, 0.28f),
+            horizonWidth         = 0.28f,
+            exposure             = 0.24f,
+            sunGlowColor         = new Color(0.65f, 0.28f, 0.32f),
+            sunGlowSize          = 0.08f,
+            hazeColor            = new Color(0.35f, 0.17f, 0.30f),
+            hazeStrength         = 0.40f,
+        },
+
+        // ── 06:00 — Восход (солнце на горизонте) ───────────────────────────
+        new LightPreset {
+            hour = 6, minute = 0,
+            sunColor             = new Color(1.0f,  0.60f, 0.26f),
+            sunIntensity         = 0.72f,
+            ambientSkyColor      = new Color(0.56f, 0.42f, 0.40f),
+            ambientEquatorColor  = new Color(0.50f, 0.34f, 0.20f),
+            ambientGroundColor   = new Color(0.11f, 0.08f, 0.05f),
+            fogColor             = new Color(0.76f, 0.54f, 0.36f),
+            fogDensity           = 0.0015f,
+            daySkyColor          = new Color(0.26f, 0.30f, 0.60f),
+            dayHorizonColor      = new Color(0.95f, 0.62f, 0.40f),
+            horizonTint          = new Color(1.0f,  0.50f, 0.22f),
+            horizonWidth         = 0.30f,
+            exposure             = 0.45f,
+            sunGlowColor         = new Color(1.0f,  0.60f, 0.22f),
+            sunGlowSize          = 0.17f,
+            hazeColor            = new Color(0.92f, 0.46f, 0.22f),
+            hazeStrength         = 0.50f,
+        },
+
+        // ── 19:15 — Поздние сумерки (солнце ≈ −19°): фиолет + тлеющий розовый горизонт ──
+        new LightPreset {
+            hour = 19, minute = 15,
+            sunColor             = new Color(0.55f, 0.30f, 0.45f),
+            sunIntensity         = 0.10f,
+            ambientSkyColor      = new Color(0.20f, 0.15f, 0.30f),
+            ambientEquatorColor  = new Color(0.16f, 0.11f, 0.21f),
+            ambientGroundColor   = new Color(0.05f, 0.035f, 0.07f),
+            fogColor             = new Color(0.30f, 0.17f, 0.30f),
+            fogDensity           = 0.006f,
+            daySkyColor          = new Color(0.10f, 0.07f, 0.24f),
+            dayHorizonColor      = new Color(0.45f, 0.22f, 0.32f),
+            horizonTint          = new Color(0.42f, 0.16f, 0.26f),
+            horizonWidth         = 0.30f,
+            exposure             = 0.30f,
+            sunGlowColor         = new Color(0.80f, 0.30f, 0.30f),
+            sunGlowSize          = 0.14f,
+            hazeColor            = new Color(0.45f, 0.22f, 0.36f),
+            hazeStrength         = 0.45f,
+        },
+
+        // ── 20:00 — Синий час, конец сумерек (солнце ≈ −30°) ────────────────
+        new LightPreset {
+            hour = 20, minute = 0,
+            sunColor             = new Color(0.20f, 0.20f, 0.46f),
+            sunIntensity         = 0.0f,
+            ambientSkyColor      = new Color(0.09f, 0.09f, 0.21f),
+            ambientEquatorColor  = new Color(0.07f, 0.07f, 0.15f),
+            ambientGroundColor   = new Color(0.02f, 0.02f, 0.06f),
+            fogColor             = new Color(0.10f, 0.08f, 0.20f),
+            fogDensity           = 0.0075f,
+            daySkyColor          = new Color(0.05f, 0.05f, 0.16f),
+            dayHorizonColor      = new Color(0.16f, 0.10f, 0.26f),
+            horizonTint          = new Color(0.30f, 0.14f, 0.34f),
+            horizonWidth         = 0.24f,
+            exposure             = 0.18f,
+            sunGlowColor         = new Color(0.40f, 0.22f, 0.55f),
+            sunGlowSize          = 0.03f,
+            hazeColor            = new Color(0.14f, 0.09f, 0.26f),
+            hazeStrength         = 0.28f,
+        },
+    };
+
+#if UNITY_EDITOR
+    /// <summary>
+    /// Применяет сумеречные ключи к УЖЕ настроенному массиву presets, сохраняя сортировку по времени.
+    /// Ключи 04:00 / 04:30 / 06:00 / 19:15 / 20:00 добавляются или заменяются (если уже есть с таким временем);
+    /// все остальные пресеты не затрагиваются. Отменяется Ctrl+Z.
+    /// </summary>
+    [ContextMenu("Apply Twilight Presets (04:00 / 04:30 / 06:00 / 19:15 / 20:00)")]
+    void ApplyTwilightPresets()
+    {
+        UnityEditor.Undo.RecordObject(this, "Apply Twilight Presets");
+        var list = new List<LightPreset>(presets ?? new LightPreset[0]);
+        int added = 0, replaced = 0;
+        foreach (var np in GetTwilightPresets())
+        {
+            int idx = list.FindIndex(p => p.hour == np.hour && p.minute == np.minute);
+            if (idx >= 0) { list[idx] = np; replaced++; }
+            else          { list.Add(np);   added++; }
+        }
+        presets = list.OrderBy(p => p.hour * 60 + p.minute).ToArray();
+        UnityEditor.EditorUtility.SetDirty(this);
+        Debug.Log($"[DayNightCycle] Сумеречные пресеты: добавлено {added}, заменено {replaced}. Всего: {presets.Length}.");
+        EditorTick();
+    }
+#endif
 
     // ─────────────────────────────────────────────────────────────────────────
     //  Editor Gizmos

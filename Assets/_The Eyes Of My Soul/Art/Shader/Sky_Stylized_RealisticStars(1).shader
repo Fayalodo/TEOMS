@@ -104,6 +104,49 @@
 //     идут вдоль ветра, изгибаются (_CloudHighCurl), края мягче (_CloudHighSoftness).
 //   • Облака у горизонта: край теперь размывается с расстоянием, граница с землёй плавнее.
 //   Все прежние имена свойств сохранены → DayNightCycle / WeatherPresetSO менять НЕ нужно.
+//
+//  v3.6 — ЦВЕТ НЕБА ДЕРЖИТСЯ ДОЛЬШЕ ПОСЛЕ 06:00 / 18:00
+//   Причина: «закатность» (sunset) считалась по высоте солнца с очень узким окном —
+//   полная только у самого горизонта, 0.42 уже на 18:30 (−7.5°) и 0 на 18:45 (−11°);
+//   утром так же быстро гасла к 07:30. Палитра, свечение солнца и закатный свет облаков
+//   привязаны к этому множителю, поэтому всё исчезало одновременно.
+//   • Окно расширено и настраивается: _TwiHoldUp / _TwiHoldDown.
+//     Вечер (tilt 20°): 18:30 → 0.97, 18:45 → 0.76, 19:00 → 0.46, 19:15 → 0.17.
+//   • Чтобы «затянутые» сумерки не светились как днём, добавлено потемнение и сдвиг
+//     палитры в холодные тона по мере погружения солнца (_TwiDusk).
+//   • Свечение солнца и закатный свет на облаках гаснут вместе с этим потемнением.
+//
+//  v3.7 — ПО СКРИНАМ 06:00 / 18:00 / 19:15 (на 2, 3 и 5 светит ЛУНА, а не солнце)
+//   • Полная луна на горизонте в сумерках давала огромное бело-лавандовое «молоко»
+//     (радиус ореола ≈ 18°, ночная яркость при ещё светлом небе). → ореол луны скрывается
+//     светлым сумеречным небом (_MoonTwilightGlow), а низкая луна теплеет и тускнеет
+//     из-за толщи воздуха (_MoonHorizonWarm).
+//   • На 19:15 облака на стороне, противоположной зашедшему солнцу, оставались лососево-розовыми
+//     (цвет берётся из ключей облаков по времени, а солнце уже на −19° и не может их красить). →
+//     после заката облака темнеют и холодеют (_CloudDuskDim). На 18:00 эффект = 0.
+//   • Тонкая светлая линия вдоль горизонта (изломы |y| в маске дымки) → сглаженный |y|.
+//
+//  v3.8 — _CloudDuskDim разделён на ДВА ползунка по сторонам неба:
+//   _CloudDuskDimSun  — сторона солнца (где ещё тлеет закат)
+//   _CloudDuskDimAnti — противоположная сторона (тень Земли, облака уже не освещены)
+//   Между сторонами — плавный переход по азимуту. Значения по умолчанию 0.6 / 0.6 =
+//   прежний вид v3.7.
+//
+//  v3.9 — ПО СУТОЧНОМУ ПРОГОНУ 00:00…22:00
+//   • Ореол луны на 19:00–20:00 всё ещё был огромным белым «взрывом»: окно видимости ореола
+//     (v3.7) заканчивалось слишком рано (при солнце ≈ −16°). Теперь ореол и лунный свет на облаках
+//     набирают силу только к полной темноте (солнце ≈ −30°): 18:00 ≈ 15 %, 19:00 ≈ 45 %, 20:00 = 100 %.
+//   • Потемнение облаков после заката (_CloudDuskDim*) держится до ~20:00 (раньше сходило на нет к 19:30).
+//   • Звёзды были «расфокусированными пятнами» (радиус крупных звёзд ≈ 1–1.5°, как у луны/6). Новый
+//     ползунок _StarBigScale уменьшает крупные звёзды и яркие звёзды с гало (по умолчанию 0.45).
+//
+//  v3.10 — ЗВЁЗДЫ СКВОЗЬ СУМЕРЕЧНУЮ ПАЛИТРУ
+//   Причина: звёзды аддитивно складывались с ярким небом палитры (яркость 0.2–0.5), а их
+//   видимость зависела только от высоты солнца → на закате/рассвете они тонули в цвете.
+//   • Звёзды появляются раньше (солнце < ≈ +10°), но только там, где небо локально тёмное
+//     (индиго/фиолет у зенита и в стороне от солнца); на ярко-оранжевых участках гасятся.
+//   • В сумерки они ярче (_StarTwiBoost), чтобы пробиваться сквозь цветное небо.
+//   • _StarSkyDarkLimit — яркость неба, выше которой звёзды скрыты.
 // ═════════════════════════════════════════════════════════════════════════════
 Shader "Custom/SkyStylized3"
 {
@@ -135,6 +178,15 @@ Shader "Custom/SkyStylized3"
         _TwiBright              ("Palette Brightness",    Range(0, 3))       = 1.0
 
         // ── 1d. v3.5: пояс Венеры и цвет свечения ────────────────────────────
+        [Header(1c2. TWILIGHT DURATION  v3.6)]
+        _TwiHoldUp              ("Palette Gone When Sun Height > (sin of altitude)", Range(0.25, 0.90))  = 0.55
+        _TwiHoldDown            ("Palette Gone When Sun Height < (sin of altitude)", Range(-0.60, -0.15)) = -0.40
+        _TwiDusk                ("Dusk Darkening (palette cools and dims as sun sinks)", Range(0, 1)) = 0.7
+        _CloudDuskDimSun        ("Clouds Darken + Cool After Sunset: SUN side  v3.8", Range(0, 1)) = 0.6
+        _CloudDuskDimAnti       ("Clouds Darken + Cool After Sunset: OPPOSITE side  v3.8", Range(0, 1)) = 0.6
+        _MoonTwilightGlow       ("Moon Glow Hidden By Bright Twilight Sky  v3.7", Range(0, 1)) = 0.85
+        _MoonHorizonWarm        ("Low Moon Warms and Dims  v3.7", Range(0, 1)) = 0.7
+
         [Header(1d. BELT OF VENUS and SUN COLOR  v3.5)]
         [HDR] _TwiBelt         ("Belt of Venus (pink band opposite sun)", Color) = (0.95, 0.52, 0.60, 1)
         _TwiBeltStrength        ("Belt Strength",          Range(0, 1))      = 0.6
@@ -200,6 +252,9 @@ Shader "Custom/SkyStylized3"
         _StarWarmth             ("Color Temperature Spread", Range(0, 1))    = 0.35
         _StarBrightChance       ("Bright Star Chance",    Range(0, 0.25))    = 0.06
         _StarHalo               ("Bright Star Halo",      Range(0, 1))       = 0.5
+        _StarBigScale           ("Large Star Size (v3.9: smaller = sharper)", Range(0.1, 1)) = 0.45
+        _StarTwiBoost           ("Star Brightness Boost In Twilight (v3.10)", Range(1, 10)) = 3.0
+        _StarSkyDarkLimit       ("Stars Hidden Where Sky Luminance Above (v3.10)", Range(0.1, 1)) = 0.35
         _StarAtmosphere         ("Atmospheric Extinction Near Horizon", Range(0, 1)) = 0.7
         _StarAppearSunHeight    ("Start Appearing When Sun Height <", Range(-0.2, 0.3)) = 0.06
         _StarFullSunHeight      ("Fully Visible When Sun Height <",   Range(-0.6, 0.1)) = -0.22
@@ -294,6 +349,8 @@ Shader "Custom/SkyStylized3"
             float  _CloudPaletteBlend, _CloudPaletteGain;
             float4 _TwiBelt;
             float  _TwiBeltStrength, _SunWarmLock, _HazePalette;
+            float  _TwiHoldUp, _TwiHoldDown, _TwiDusk;
+            float  _CloudDuskDimSun, _CloudDuskDimAnti, _MoonTwilightGlow, _MoonHorizonWarm;
             float  _CloudAA, _CloudRim, _CloudGrain, _CloudHighSoftness, _CloudHighCurl;
 
             float4 _HorizonGlowColor;
@@ -313,7 +370,8 @@ Shader "Custom/SkyStylized3"
             float4x4 _StarMatrix;
             float4 _StarTint;
             float  _StarDensity, _StarIntensity, _StarSize, _StarTwinkle, _StarTwinkleSpeed;
-            float  _StarWarmth, _StarBrightChance, _StarAtmosphere, _StarHalo;
+            float  _StarWarmth, _StarBrightChance, _StarAtmosphere, _StarHalo, _StarBigScale;
+            float  _StarTwiBoost, _StarSkyDarkLimit;
             float  _StarAppearSunHeight, _StarFullSunHeight;
 
             float  _CloudCoverage, _CloudDensity, _CloudSoftness, _CloudOpacity, _CloudScale, _CloudSpeed;
@@ -351,6 +409,7 @@ Shader "Custom/SkyStylized3"
                 float4 sky1       : TEXCOORD4;   // x = звёзды видны, y = облака «ночью», z = закатность, w = солнце над горизонтом
                 float2 sunCos     : TEXCOORD5;   // x = cos внешнего края диска, y = cos внутреннего
                 float4 moonP      : TEXCOORD6;   // x = cos радиуса, y = sin радиуса, z = видимость луны, w = лунный свет на облаках
+                float4 sky3       : TEXCOORD8;   // v3.7: x = видимость ореола луны (сумерки), y = «тёплость» низкой луны, z = окно по времени для потемнения облаков после заката
                 float4 sky2       : TEXCOORD7;   // x = сумерки (тень Земли), y = высота тени Земли, z = путь облаков, w = высота светила облаков
             };
 
@@ -384,7 +443,9 @@ Shader "Custom/SkyStylized3"
                 float starVis   = starT * starT * (3.0 - 2.0 * starT);
 
                 float cloudNight = 1.0 - smoothstep(-0.32, -0.02, sunH);
-                float sunset     = (1.0 - smoothstep(0.02, 0.45, sunH)) * smoothstep(-0.22, -0.02, sunH);
+                // v3.6: широкое окно. Плато от −0.10 до +0.10, затем плавный спад (раньше: −0.02…+0.02 и спад за ~0.45 / ~0.2)
+                float sunset     = (1.0 - smoothstep(0.10, max(_TwiHoldUp, 0.2), sunH))
+                                 * smoothstep(min(_TwiHoldDown, -0.15), -0.10, sunH);
                 float sunAbove   = smoothstep(-0.12, 0.10, sunH);
                 o.sky1 = float4(starVis, cloudNight, sunset, sunAbove);
 
@@ -401,7 +462,7 @@ Shader "Custom/SkyStylized3"
                 o.moonP = float4(cos(rMoon), sin(rMoon), moonVis, moonLight);
 
                 // Сумерки: солнце чуть выше/ниже горизонта → напротив него видна тень Земли.
-                float twilight  = smoothstep(-0.28, -0.04, sunH) * (1.0 - smoothstep(0.02, 0.14, sunH));
+                float twilight  = smoothstep(min(_TwiHoldDown, -0.15) * 0.9, -0.04, sunH) * (1.0 - smoothstep(0.02, 0.14, sunH));
                 float shadowTop = lerp(0.03, 0.20, saturate(-sunH / 0.2));
 
                 // Путь облаков: из DayNightCycle (плавный при смене погоды) или запасной вариант.
@@ -410,6 +471,16 @@ Shader "Custom/SkyStylized3"
                 // Высота «облачного светила» (солнце днём, луна ночью) — нужна для длины теней.
                 float lightH = lerp(sunH, moon.y, cloudNight);
                 o.sky2 = float4(twilight, shadowTop, travel, lightH);
+
+                // v3.7: ореол луны виден только на тёмном небе; низкая луна теплее и тусклее
+                float glowDark    = 1.0 - smoothstep(-0.50, -0.05, sunH);   // v3.9: полная сила только в тёмном небе (солнце ≈ −30°)
+                float moonGlowVis = lerp(1.0, glowDark, _MoonTwilightGlow);
+                float moonWarm    = (1.0 - smoothstep(0.0, 0.35, moon.y)) * _MoonHorizonWarm;
+                // Облака после заката: окно от −0.05 (0 — на закате эффекта нет) до глубокой ночи (−0.65)
+                float duskRise    = 1.0 - smoothstep(-0.20, -0.05, sunH);
+                float duskFall    = smoothstep(-0.70, -0.50, sunH);
+                o.moonP.w *= moonGlowVis;   // v3.9: лунный свет на облаках тоже ждёт тёмного неба
+                o.sky3 = float4(moonGlowVis, moonWarm, duskRise * duskFall, 0.0);   // z — только окно по времени; силу по сторонам неба берёт SkyDuskCloudK
 
                 return o;
             }
@@ -603,7 +674,7 @@ Shader "Custom/SkyStylized3"
                 float  d = length(p - cell - c);
 
                 float present = step(1.0 - prob, rnd.x);
-                float coreR = max(pxCell, 0.20 + rnd.y * 0.12);
+                float coreR = max(pxCell, (0.20 + rnd.y * 0.12) * _StarBigScale);   // v3.9: раньше ≈ 1–1.5° радиус → «боке»
                 float core  = saturate(1.0 - d / coreR);
                 core = core * core;
 
@@ -625,8 +696,22 @@ Shader "Custom/SkyStylized3"
             //  золото у солнца → коралл → роза → фиолет → холодный синий напротив,
             //  а к зениту всё уходит в индиго.
             // ═════════════════════════════════════════════════════════════════
+            // v3.6: глубина сумерек. 0 — солнце на/над горизонтом, 1 — ≈ −17° (sinH = −0.30).
+            //  Используется, чтобы длинные сумерки темнели и холодели, а не «светились как днём».
+            float SkyTwiDsm()
+            {
+                float l   = length(_SunDir.xyz);
+                float sy  = l > 1e-3 ? _SunDir.y / l : 0.5;   // нет DayNightCycle → глубина 0
+                float dep = saturate(-sy / 0.30);
+                return dep * dep * (3.0 - 2.0 * dep);
+            }
+
+            float SkyTwiDim() { return lerp(1.0, 0.30, SkyTwiDsm() * _TwiDusk); }
+
             float3 SkyPalette(float u, float h)
             {
+                float dsm = SkyTwiDsm() * _TwiDusk;
+                u = saturate(u + dsm * 0.22);                 // сдвиг к холодным цветам палитры
                 float3 c = _TwiCore.rgb;
                 c = lerp(c, _TwiNear.rgb, smoothstep(0.03, 0.20, u));
                 c = lerp(c, _TwiMid.rgb,  smoothstep(0.16, 0.46, u));
@@ -638,7 +723,7 @@ Shader "Custom/SkyStylized3"
                 float belt = smoothstep(0.50, 0.82, u) * (1.0 - smoothstep(0.03, 0.30, h)) * _TwiBeltStrength;
                 c = lerp(c, _TwiBelt.rgb, belt);
                 float zen = smoothstep(0.20, 0.95, h) * _TwiZenithMix * smoothstep(0.05, 0.40, u);
-                return lerp(c, _TwiZenith.rgb, zen);
+                return lerp(c, _TwiZenith.rgb, zen) * lerp(1.0, 0.30, dsm);
             }
 
             // Яркость палитры: светлее у солнца и у горизонта, темнее напротив и к зениту
@@ -649,6 +734,19 @@ Shader "Custom/SkyStylized3"
                 // пояс Венеры светлее фона
                 b += 0.45 * smoothstep(0.50, 0.85, u) * (1.0 - smoothstep(0.03, 0.25, h)) * _TwiBeltStrength;
                 return b * _TwiBright;
+            }
+
+            // ═════════════════════════════════════════════════════════════════
+            //  v3.8: сила потемнения/похолодания облаков после заката по сторонам неба.
+            //  side = 1 — смотрим в сторону солнца, 0 — в противоположную (азимутально).
+            //  Окно по времени (sky3.z) считается в вертексе; два ползунка — здесь.
+            // ═════════════════════════════════════════════════════════════════
+            float SkyDuskCloudK(Varyings i, float3 dir)
+            {
+                float2 h = dir.xz      * rsqrt(max(dot(dir.xz, dir.xz),           1e-5));
+                float2 s = i.sunDir.xz * rsqrt(max(dot(i.sunDir.xz, i.sunDir.xz), 1e-5));
+                float side = smoothstep(0.15, 0.85, dot(h, s) * 0.5 + 0.5);
+                return i.sky3.z * lerp(_CloudDuskDimAnti, _CloudDuskDimSun, side);
             }
 
             // ═════════════════════════════════════════════════════════════════
@@ -693,8 +791,9 @@ Shader "Custom/SkyStylized3"
                 float palK = i.sky1.z * _CloudPaletteBlend * (1.0 - saturate(_DarknessAmount));
                 col = lerp(col, SkyPalette(saturate(uP - 0.06), dir.y) * (_CloudPaletteGain * 1.15), palK);
                 col += _SunGlowColor.rgb * SkyHG(s1, 0.62) * 0.55 * i.sky1.w;
-                col += _CloudUnderlitColor.rgb * _CloudUnderlitStrength * i.sky1.z * 0.6 * lerp(1.0, 0.35, palK);
+                col += _CloudUnderlitColor.rgb * _CloudUnderlitStrength * i.sky1.z * 0.6 * lerp(1.0, 0.35, palK) * SkyTwiDim();
                 col *= 1.0 - _DarknessAmount * 0.5;
+                col *= lerp(float3(1, 1, 1), float3(0.38, 0.46, 0.74), SkyDuskCloudK(i, dir));   // v3.7/v3.8
                 return float4(col, a);
             }
 
@@ -830,6 +929,8 @@ Shader "Custom/SkyStylized3"
                 shadCol = lerp(shadCol, shdPal, palK * 0.75);
 
                 float3 col = lerp(shadCol, litCol, energy);
+                // v3.7: после заката освещённая сторона облаков не может быть тёплой — темнее и холоднее
+                col *= lerp(float3(1, 1, 1), float3(0.38, 0.46, 0.74), SkyDuskCloudK(i, dir));
 
                 // Прямое солнечное освещение
                 float sunDot = dot(dir, i.sunDir);
@@ -851,10 +952,10 @@ Shader "Custom/SkyStylized3"
                 // Закатное свечение «снизу» облаков (цвет и сила приходят из DNC)
                 col += _CloudUnderlitColor.rgb * _CloudUnderlitStrength * sunset
                        * lerp(0.35, 1.0, low) * (0.4 + 0.6 * s1) * (0.3 + 0.7 * energy)
-                       * lerp(1.0, 0.35, palK);
+                       * lerp(1.0, 0.35, palK) * SkyTwiDim();
 
                 // v3.5: розовый отсвет пояса Венеры на нижней стороне облаков НАПРОТИВ солнца
-                col += _TwiBelt.rgb * _TwiBeltStrength * palK * low * (1.0 - s1) * 0.30 * (1.0 - 0.5 * energy);
+                col += _TwiBelt.rgb * _TwiBeltStrength * palK * low * (1.0 - s1) * 0.30 * (1.0 - 0.5 * energy) * SkyTwiDim();
 
                 // Луна: заметно скромнее, чем в v2 — только кромка + лёгкий тон.
                 float m1 = saturate(dot(dir, i.moonDir));
@@ -974,7 +1075,8 @@ Shader "Custom/SkyStylized3"
                 }
 
                 // ── 3. Атмосферная дымка + подстройка под цвет тумана сцены ─────
-                float  hazeMask = pow(1.0 - saturate(abs(y) / max(_HazeHeight, 0.02)), 2.0);
+                float  ayH      = max(sqrt(y * y + 0.0009) - 0.03, 0.0);   // v3.7: сглаженный |y| — без «ребра» на линии горизонта
+                float  hazeMask = pow(1.0 - saturate(ayH / max(_HazeHeight, 0.02)), 2.0);
                 float3 hazeCol  = lerp(_HazeColor.rgb, unity_FogColor.rgb, _FogInfluence);
                 // v3.5: на сумерках дымка берёт цвет палитры (а не лавандовый цвет пресета)
                 hazeCol = lerp(hazeCol, palHor * 0.9, palW * _HazePalette);
@@ -999,7 +1101,18 @@ Shader "Custom/SkyStylized3"
                 float  starPx   = length(starFw);
                 float horizonStarFade = smoothstep(0.015, 0.34, y);
                 float atmosphericExtinction = lerp(1.0, horizonStarFade, _StarAtmosphere);
-                float starMul = starVis * atmosphericExtinction * (1.0 - dark * 0.5);
+                // v3.10: звёзды сквозь закатную палитру.
+                //  darkK — насколько небо ЛОКАЛЬНО тёмное (на этом шаге sky = градиент + палитра + дымка, без облаков).
+                //  earlyVis — звёзды могут появляться, пока солнце ниже ≈ +10°, а не только когда starVis набрался.
+                //  twiK — «мы в сумерках» (0 днём и в глубокой ночи): в сумерки гасим звёзды на ярких участках и усиливаем остальные.
+                float skyLum   = dot(sky, SKY_LUM);
+                float darkK    = 1.0 - smoothstep(0.04, max(_StarSkyDarkLimit, 0.08), skyLum);
+                float earlyVis = 1.0 - smoothstep(-0.02, 0.18, sunDir.y);
+                float twiK     = earlyVis * smoothstep(-0.30, -0.12, sunDir.y);
+                float starVisEff = max(starVis, earlyVis * darkK);
+                float starGate   = lerp(1.0, darkK, twiK);
+                float starBoost  = lerp(1.0, _StarTwiBoost, twiK);
+                float starMul = starVisEff * atmosphericExtinction * (1.0 - dark * 0.5) * starGate;
                 float3 stars  = 0;
 
                 [branch]
@@ -1011,12 +1124,12 @@ Shader "Custom/SkyStylized3"
                         // Три популяции: мелкие частые, средние и редкие яркие.
                         stars  = SkyStarLayer(starDirN, 96.0, _StarDensity * 0.46, 0.105 * _StarSize, starPx * 96.0, 0.75);
                         stars += SkyStarLayer(starDirN, 42.0, _StarDensity * 0.24, 0.145 * _StarSize, starPx * 42.0, 1.00);
-                        stars += SkyStarLayer(starDirN, 18.0, _StarDensity * 0.055, 0.18 * _StarSize, starPx * 18.0, 1.35);
+                        stars += SkyStarLayer(starDirN, 18.0, _StarDensity * 0.055, 0.18 * _StarSize * _StarBigScale, starPx * 18.0, 1.35);
 
                         // Редкие заметные звёзды с halo (в v2 не работали: prob читался как 0)
                         stars += SkyBrightStarLayer(starDirN, 12.0, _StarDensity * _StarBrightChance, starPx * 12.0);
 
-                        stars *= _StarIntensity * starMul * _StarTint.rgb;
+                        stars *= _StarIntensity * starMul * starBoost * _StarTint.rgb;
                     }
                 }
 
@@ -1048,25 +1161,28 @@ Shader "Custom/SkyStylized3"
                     float limb   = lerp(0.75, 1.0, n.z);
 
                     moonCol   = _MoonColor.rgb * _MoonIntensity * albedo * limb * (_MoonEarthshine + lit * (1.0 - _MoonEarthshine));
+                    // v3.7: низкая луна — теплее и тусклее (больше воздуха на луче)
+                    moonCol  *= lerp(float3(1, 1, 1), float3(1.0, 0.80, 0.62), i.sky3.y) * lerp(1.0, 0.8, i.sky3.y);
                     moonCover = 1.0 - smoothstep(0.94, 1.0, r);
                 }
 
                 // Ореол луны: управляемый спад вместо жёсткого куба — меньше «белого шара»
                 float mGlowT = saturate(1.0 - (1.0 - moonDot) / max(_MoonGlowSize, 0.0001));
-                float mGlow  = pow(mGlowT, _MoonGlowFalloff) * _MoonGlowIntensity * lerp(0.3, 1.0, _MoonPhase);
+                float mGlow  = pow(mGlowT, _MoonGlowFalloff) * _MoonGlowIntensity * lerp(0.3, 1.0, _MoonPhase) * i.sky3.x;
                 float horizonSoft = smoothstep(-0.08, 0.04, y);
 
                 // Ореол «выбеливает» звёзды рядом; диск закрывает звёзды за собой
                 stars *= (1.0 - saturate(mGlowT * 0.9)) * (1.0 - moonCover * moonVis * aboveHorizon);
                 sky += stars;
-                sky += _MoonGlowColor.rgb * mGlow * moonVis * horizonSoft;
+                float3 mGlowCol = _MoonGlowColor.rgb * lerp(float3(1, 1, 1), float3(1.7, 1.05, 0.70), i.sky3.y);
+                sky += mGlowCol * mGlow * moonVis * horizonSoft;
                 sky = lerp(sky, moonCol, moonCover * moonVis * aboveHorizon);
 
                 // ── 6. Солнце: рассеяние + ореол + диск ─────────────────────────
                 float sunMul = 1.0 - dark * 0.85;
                 float glowT  = saturate(1.0 - (1.0 - sunDot) / max(_SunGlowSize, 0.0001));
                 // Ореол затухает по мере ухода солнца под горизонт (остаточное сияние сумерек сохраняется до ~-13°)
-                float glowGate = smoothstep(-0.22, 0.02, sunDir.y);
+                float glowGate = smoothstep(min(_TwiHoldDown, -0.15) * 0.85, 0.02, sunDir.y) * SkyTwiDim();
                 float sunGlow = pow(glowT, _SunGlowFalloff) * _SunGlowIntensity * sunMul * glowGate;
                 sky += sunGlowTint * sunGlow * horizonSoft;
 

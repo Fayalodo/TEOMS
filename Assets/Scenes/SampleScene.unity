@@ -15,14 +15,14 @@ RenderSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 10
   m_Fog: 1
-  m_FogColor: {r: 0.7, g: 0.548, b: 0.396, a: 1}
+  m_FogColor: {r: 0.7212544, g: 0.4721632, b: 0.3051088, a: 1}
   m_FogMode: 3
-  m_FogDensity: 0.0003
+  m_FogDensity: 0.0012624001
   m_LinearFogStart: 0
   m_LinearFogEnd: 300
-  m_AmbientSkyColor: {r: 0.7075472, g: 0.43679357, b: 0.23028658, a: 1}
-  m_AmbientEquatorColor: {r: 0.5566038, g: 0.3350297, b: 0.18115878, a: 1}
-  m_AmbientGroundColor: {r: 0.1, g: 0.07, b: 0.04, a: 1}
+  m_AmbientSkyColor: {r: 0.51168, g: 0.32624, b: 0.20624, a: 1}
+  m_AmbientEquatorColor: {r: 0.44415998, g: 0.26832, b: 0.14208, a: 1}
+  m_AmbientGroundColor: {r: 0.14104, g: 0.083119996, b: 0.05, a: 1}
   m_AmbientIntensity: 0.7
   m_AmbientMode: 1
   m_SubtractiveShadowColor: {r: 0.41960785, g: 0.478, b: 0.627, a: 1}
@@ -642,6 +642,46 @@ MonoBehaviour:
     sunGlowSize: 0
     hazeColor: {r: 0.04, g: 0.05, b: 0.16, a: 1}
     hazeStrength: 0.15
+  - hour: 4
+    minute: 0
+    sunColor: {r: 0.2, g: 0.2, b: 0.46, a: 1}
+    sunIntensity: 0
+    ambientSkyColor: {r: 0.09, g: 0.09, b: 0.21, a: 1}
+    ambientEquatorColor: {r: 0.07, g: 0.07, b: 0.15, a: 1}
+    ambientGroundColor: {r: 0.02, g: 0.02, b: 0.06, a: 1}
+    fogColor: {r: 0.1, g: 0.08, b: 0.2, a: 1}
+    fogDensity: 0.005
+    daySkyColor: {r: 0.05, g: 0.06, b: 0.2, a: 1}
+    dayHorizonColor: {r: 0.2, g: 0.12, b: 0.3, a: 1}
+    horizonTint: {r: 0.32, g: 0.15, b: 0.32, a: 1}
+    horizonWidth: 0.26
+    exposure: 0.16
+    useMiddleColor: 0
+    skyMiddleColor: {r: 0.3, g: 0.5, b: 0.85, a: 1}
+    sunGlowColor: {r: 0.4, g: 0.22, b: 0.55, a: 1}
+    sunGlowSize: 0.03
+    hazeColor: {r: 0.15, g: 0.1, b: 0.27, a: 1}
+    hazeStrength: 0.28
+  - hour: 4
+    minute: 30
+    sunColor: {r: 0.45, g: 0.28, b: 0.45, a: 1}
+    sunIntensity: 0
+    ambientSkyColor: {r: 0.15, g: 0.12, b: 0.26, a: 1}
+    ambientEquatorColor: {r: 0.12, g: 0.09, b: 0.18, a: 1}
+    ambientGroundColor: {r: 0.035, g: 0.03, b: 0.06, a: 1}
+    fogColor: {r: 0.22, g: 0.14, b: 0.26, a: 1}
+    fogDensity: 0.003
+    daySkyColor: {r: 0.08, g: 0.07, b: 0.26, a: 1}
+    dayHorizonColor: {r: 0.35, g: 0.18, b: 0.3, a: 1}
+    horizonTint: {r: 0.45, g: 0.18, b: 0.28, a: 1}
+    horizonWidth: 0.28
+    exposure: 0.24
+    useMiddleColor: 0
+    skyMiddleColor: {r: 0.3, g: 0.5, b: 0.85, a: 1}
+    sunGlowColor: {r: 0.65, g: 0.28, b: 0.32, a: 1}
+    sunGlowSize: 0.08
+    hazeColor: {r: 0.35, g: 0.17, b: 0.3, a: 1}
+    hazeStrength: 0.4
   - hour: 5
     minute: 0
     sunColor: {r: 1, g: 0.55, b: 0.2, a: 1}
@@ -662,6 +702,26 @@ MonoBehaviour:
     sunGlowSize: 0.18
     hazeColor: {r: 0.9528302, g: 0.29470366, b: 0.022472408, a: 1}
     hazeStrength: 0.55
+  - hour: 6
+    minute: 0
+    sunColor: {r: 1, g: 0.6, b: 0.26, a: 1}
+    sunIntensity: 0.72
+    ambientSkyColor: {r: 0.56, g: 0.42, b: 0.4, a: 1}
+    ambientEquatorColor: {r: 0.5, g: 0.34, b: 0.2, a: 1}
+    ambientGroundColor: {r: 0.11, g: 0.08, b: 0.05, a: 1}
+    fogColor: {r: 0.76, g: 0.54, b: 0.36, a: 1}
+    fogDensity: 0.0015
+    daySkyColor: {r: 0.26, g: 0.3, b: 0.6, a: 1}
+    dayHorizonColor: {r: 0.95, g: 0.62, b: 0.4, a: 1}
+    horizonTint: {r: 1, g: 0.5, b: 0.22, a: 1}
+    horizonWidth: 0.3
+    exposure: 0.45
+    useMiddleColor: 0
+    skyMiddleColor: {r: 0.3, g: 0.5, b: 0.85, a: 1}
+    sunGlowColor: {r: 1, g: 0.6, b: 0.22, a: 1}
+    sunGlowSize: 0.17
+    hazeColor: {r: 0.92, g: 0.46, b: 0.22, a: 1}
+    hazeStrength: 0.5
   - hour: 8
     minute: 0
     sunColor: {r: 1, g: 0.82, b: 0.48, a: 1}
@@ -742,6 +802,46 @@ MonoBehaviour:
     sunGlowSize: 0.141
     hazeColor: {r: 0.92, g: 0.48, b: 0.22, a: 1}
     hazeStrength: 0.62
+  - hour: 19
+    minute: 15
+    sunColor: {r: 0.55, g: 0.3, b: 0.45, a: 1}
+    sunIntensity: 0.1
+    ambientSkyColor: {r: 0.2, g: 0.15, b: 0.3, a: 1}
+    ambientEquatorColor: {r: 0.16, g: 0.11, b: 0.21, a: 1}
+    ambientGroundColor: {r: 0.05, g: 0.035, b: 0.07, a: 1}
+    fogColor: {r: 0.3, g: 0.17, b: 0.3, a: 1}
+    fogDensity: 0.006
+    daySkyColor: {r: 0.1, g: 0.07, b: 0.24, a: 1}
+    dayHorizonColor: {r: 0.45, g: 0.22, b: 0.32, a: 1}
+    horizonTint: {r: 0.42, g: 0.16, b: 0.26, a: 1}
+    horizonWidth: 0.3
+    exposure: 0.3
+    useMiddleColor: 0
+    skyMiddleColor: {r: 0.3, g: 0.5, b: 0.85, a: 1}
+    sunGlowColor: {r: 0.8, g: 0.3, b: 0.3, a: 1}
+    sunGlowSize: 0.14
+    hazeColor: {r: 0.45, g: 0.22, b: 0.36, a: 1}
+    hazeStrength: 0.45
+  - hour: 20
+    minute: 0
+    sunColor: {r: 0.2, g: 0.2, b: 0.46, a: 1}
+    sunIntensity: 0
+    ambientSkyColor: {r: 0.09, g: 0.09, b: 0.21, a: 1}
+    ambientEquatorColor: {r: 0.07, g: 0.07, b: 0.15, a: 1}
+    ambientGroundColor: {r: 0.02, g: 0.02, b: 0.06, a: 1}
+    fogColor: {r: 0.1, g: 0.08, b: 0.2, a: 1}
+    fogDensity: 0.0075
+    daySkyColor: {r: 0.05, g: 0.05, b: 0.16, a: 1}
+    dayHorizonColor: {r: 0.16, g: 0.1, b: 0.26, a: 1}
+    horizonTint: {r: 0.3, g: 0.14, b: 0.34, a: 1}
+    horizonWidth: 0.24
+    exposure: 0.18
+    useMiddleColor: 0
+    skyMiddleColor: {r: 0.3, g: 0.5, b: 0.85, a: 1}
+    sunGlowColor: {r: 0.4, g: 0.22, b: 0.55, a: 1}
+    sunGlowSize: 0.03
+    hazeColor: {r: 0.14, g: 0.09, b: 0.26, a: 1}
+    hazeStrength: 0.28
   - hour: 21
     minute: 0
     sunColor: {r: 0.16, g: 0.16, b: 0.38, a: 1}
@@ -8844,8 +8944,8 @@ Light:
   m_Enabled: 1
   serializedVersion: 12
   m_Type: 1
-  m_Color: {r: 1, g: 0.55, b: 0.2, a: 1}
-  m_Intensity: 0.45
+  m_Color: {r: 1, g: 0.50496, b: 0.13664, a: 0.4999998}
+  m_Intensity: 0.88640004
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -8907,7 +9007,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 410087039}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.000000011410959, y: 0.9914449, z: 0.13052617, w: -0.00000008667485}
+  m_LocalRotation: {x: 0.000000029802308, y: 0.00000008742278, z: -2.6054005e-15,
+    w: 1}
   m_LocalPosition: {x: -51.59482, y: -444.7167, z: -717.1806}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -13475,7 +13576,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 072a4b5469bcef243a01e3e6a48caee3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  hour: 5
+  hour: 18
   minute: 0
   day: 1
   realSecondsPerGameMinute: 1
@@ -17723,7 +17824,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1168621330}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.13052641, y: 0.00000008667485, z: -0.00000001141098, w: 0.9914448}
+  m_LocalRotation: {x: -2.6054005e-15, y: 1, z: -0.000000029802308, w: -0.00000008742278}
   m_LocalPosition: {x: -51.600002, y: 553.7252, z: -772.82367}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -18627,7 +18728,7 @@ MonoBehaviour:
   autoSchedule: 1
   debugLog: 1
   livePreviewEnabled: 1
-  livePreviewTarget: {fileID: 11400000, guid: ccbb9124f1ec2c54cb0a467609b8b5ae, type: 2}
+  livePreviewTarget: {fileID: 11400000, guid: cd9efdcfde443b744b0a796a767c5140, type: 2}
 --- !u!1 &1296577906 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: cc87c59135a1c3b448fb9b0b4414e440,
